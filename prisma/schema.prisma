@@ -1,0 +1,169 @@
+// =================================================================
+// SCHEMA: ERP Multicuentas de Mercado Libre
+// Base de datos: PostgreSQL (Supabase / Neon)
+// =================================================================
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// -----------------------------------------------------------------
+// MODELO: Cuenta de Mercado Libre vinculada
+// Cada "tenant" puede tener N cuentas de ML (soporte multicuentas)
+// -----------------------------------------------------------------
+model MeliAccount {
+  id            String   @id @default(cuid())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Identificación de la cuenta ML
+  meliUserId    String   @unique  // El user_id que devuelve ML OAuth
+  nickname      String             // Ej: "WORLD_CARS_USADOS"
+  email         String?
+  siteId        String   @default("MLV") // MLV=Venezuela, MLA=Argentina, etc.
+
+  // Credenciales OAuth (encriptadas)
+  accessToken   String   // Token OAuth vigente
+  refreshToken  String   // Para refrescar el access token
+  tokenExpiry   DateTime // Cuando vence el access token
+
+  // Cookie de sesión (para scraping del teléfono - método V4)
+  sessionCookie String?  // Encriptado con AES-256 antes de almacenar
+  cookieExpiry  DateTime?
+
+  // Relaciones
+  orders        Order[]
+  products      Product[]
+  questions     Question[]
+  customers     Customer[]
+
+  @@map("meli_accounts")
+}
+
+// -----------------------------------------------------------------
+// MODELO: Órdenes / Ventas
+// -----------------------------------------------------------------
+model Order {
+  id              String      @id @default(cuid())
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  meliOrderId     String      @unique  // ID de la orden en ML
+  meliAccountId   String
+  meliAccount     MeliAccount @relation(fields: [meliAccountId], references: [id])
+
+  status          String      // "paid", "cancelled", "pending", etc.
+  totalAmount     Float
+  currency        String      @default("USD")
+
+  // Datos del comprador (de la API oficial)
+  buyerMeliId     String?
+  buyerNickname   String?
+  buyerFirstName  String?
+  buyerLastName   String?
+
+  // Datos del comprador (vía scraping - módulo V4)
+  scrapedPhone    String?     // Teléfono obtenido por scraping
+  whatsappSent    Boolean     @default(false) // Ya se envió el mensaje WA?
+  internalNotes   String?     // Notas internas del vendedor
+
+  customerId      String?
+  customer        Customer?   @relation(fields: [customerId], references: [id])
+  items           OrderItem[]
+
+  @@map("orders")
+}
+
+// -----------------------------------------------------------------
+// MODELO: Items dentro de una Orden
+// -----------------------------------------------------------------
+model OrderItem {
+  id          String  @id @default(cuid())
+  orderId     String
+  order       Order   @relation(fields: [orderId], references: [id])
+
+  meliItemId  String
+  title       String
+  quantity    Int
+  unitPrice   Float
+  costPrice   Float?  // Costo real del vendedor (para EPC neto)
+
+  @@map("order_items")
+}
+
+// -----------------------------------------------------------------
+// MODELO: Publicaciones / Productos
+// -----------------------------------------------------------------
+model Product {
+  id             String      @id @default(cuid())
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  meliItemId     String      @unique
+  meliAccountId  String
+  meliAccount    MeliAccount @relation(fields: [meliAccountId], references: [id])
+
+  title          String
+  status         String      // "active", "paused", "closed"
+  price          Float
+  costPrice      Float?      // Para calcular margen/EPC real
+  availableQty   Int         @default(0)
+  permalink      String?
+  thumbnail      String?
+
+  @@map("products")
+}
+
+// -----------------------------------------------------------------
+// MODELO: Preguntas de compradores
+// -----------------------------------------------------------------
+model Question {
+  id            String      @id @default(cuid())
+  createdAt     DateTime    @default(now())
+
+  meliQuestionId String     @unique
+  meliAccountId  String
+  meliAccount    MeliAccount @relation(fields: [meliAccountId], references: [id])
+
+  itemId        String
+  text          String
+  status        String      // "UNANSWERED", "ANSWERED", "CLOSED"
+  buyerNickname String?
+  answerText    String?
+  answeredAt    DateTime?
+
+  @@map("questions")
+}
+
+// -----------------------------------------------------------------
+// MODELO: CRM de Clientes (Fidelización)
+// -----------------------------------------------------------------
+model Customer {
+  id            String   @id @default(cuid())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  meliUserId    String?  @unique
+  meliAccountId String?
+  nickname      String?
+  firstName     String?
+  lastName      String?
+  phone         String?  // Número rescatado (scraping o manual)
+  email         String?
+  address       String?
+  notes         String?
+
+  totalOrders   Int      @default(0)
+  totalSpent    Float    @default(0)
+  lastOrderAt   DateTime?
+
+  orders        Order[]
+
+  @@map("customers")
+}
