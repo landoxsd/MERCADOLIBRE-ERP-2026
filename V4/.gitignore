@@ -1,0 +1,37 @@
+# Python Bytecode y Caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Entornos Virtuales (si usas uno como venv, .venv, env)
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Bases de datos SQLite (Generalmente no se versionan los datos)
+*.db
+*.db-journal*
+*.sqlite
+*.sqlite3
+
+# Archivos de Log
+*.log
+
+# Archivos de Configuración/Tokens con Secretos (¡IMPORTANTE!)
+# Si ml_config.json contiene secretos (como client_secret), añádelo.
+# ¡NUNCA subas ml_tokens.json que contiene tokens de acceso!
+ml_tokens.json
+ml_config.json # <--- Descomenta esta línea si contiene secretos sensibles
+
+# Archivos específicos del Sistema Operativo
+.DS_Store
+Thumbs.db
+
+# Archivos de IDEs/Editores (ejemplos)
+.idea/
+.vscode/
+*.swp
