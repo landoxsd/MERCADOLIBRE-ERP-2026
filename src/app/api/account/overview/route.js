@@ -1,20 +1,17 @@
 // ================================================================
 // app/api/account/overview/route.js
-// Endpoint que agrega: reputación + billing + métricas de ventas
-// Devuelve todo en una sola llamada para el widget del Dashboard
+// Resumen completo de la cuenta: reputación + facturación + ventas
 // ================================================================
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { accountsTable } from "@/lib/supabase-admin";
 import { getAccountOverview } from "@/lib/meli";
 import { cookies } from "next/headers";
 
 export async function GET(request) {
   try {
-    // Obtener la cuenta activa desde la cookie de sesión
     const cookieStore = await cookies();
     const activeAccountId = cookieStore.get("active_account_id")?.value;
 
-    // También permite pasar el accountId como query param
     const { searchParams } = new URL(request.url);
     const accountId = searchParams.get("accountId") || activeAccountId;
 
@@ -22,38 +19,29 @@ export async function GET(request) {
       return NextResponse.json({ error: "No hay cuenta activa" }, { status: 401 });
     }
 
-    // Buscar la cuenta en la BD
-    const account = await prisma.meliAccount.findUnique({
-      where: { id: accountId },
-      select: {
-        id: true,
-        meliUserId: true,
-        nickname: true,
-        accessToken: true,
-        tokenExpiry: true,
-      },
-    });
+    // Buscar la cuenta en Supabase
+    const { data: account, error } = await accountsTable()
+      .select("id, meli_user_id, nickname, access_token, token_expiry")
+      .eq("id", accountId)
+      .single();
 
-    if (!account) {
+    if (error || !account) {
       return NextResponse.json({ error: "Cuenta no encontrada" }, { status: 404 });
     }
 
     // Verificar que el token no haya expirado
-    if (new Date(account.tokenExpiry) < new Date()) {
+    if (new Date(account.token_expiry) < new Date()) {
       return NextResponse.json(
         { error: "Token expirado, reconectar cuenta", code: "TOKEN_EXPIRED" },
         { status: 401 }
       );
     }
 
-    // Obtener resumen completo (reputación + billing + ventas)
-    const overview = await getAccountOverview(account.meliUserId, account.accessToken);
+    // Obtener resumen completo desde la API de ML
+    const overview = await getAccountOverview(account.meli_user_id, account.access_token);
 
     return NextResponse.json({
-      account: {
-        id: account.id,
-        nickname: account.nickname,
-      },
+      account: { id: account.id, nickname: account.nickname },
       ...overview,
       fetchedAt: new Date().toISOString(),
     });

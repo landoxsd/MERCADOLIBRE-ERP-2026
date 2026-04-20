@@ -9,9 +9,8 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")  // Pooler de Supabase (para queries normales)
-  directUrl = env("DIRECT_URL")    // Conexión directa (requerida para migraciones)
+  provider = "postgresql"
+  // URL configurada en prisma.config.ts (requerimiento de Prisma 7)
 }
 
 // -----------------------------------------------------------------
@@ -42,7 +41,7 @@ model MeliAccount {
   orders        Order[]
   products      Product[]
   questions     Question[]
-  customers     Customer[]
+  // Nota: Customer puede pertenecer a cualquier cuenta; la relación se gestiona a través de las órdenes
 
   @@map("meli_accounts")
 }

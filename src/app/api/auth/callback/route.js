@@ -1,20 +1,18 @@
 // ================================================================
 // app/api/auth/callback/route.js
 // ML redirige aquí después de que el usuario autoriza la app.
-// Intercambia el "code" por tokens y guarda la cuenta en la BD.
+// Intercambia el "code" por tokens y guarda la cuenta en Supabase.
 // ================================================================
 import { NextResponse } from "next/server";
 import { exchangeCodeForToken, getMeliUserProfile } from "@/lib/meli";
-import { prisma } from "@/lib/prisma";
+import { accountsTable } from "@/lib/supabase-admin";
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
   const error = searchParams.get("error");
 
-  // ML puede devolver un error si el usuario cancela
   if (error) {
-    console.error("ML OAuth Error:", error);
     return NextResponse.redirect(
       new URL(`/auth?error=${error}`, process.env.NEXT_PUBLIC_APP_URL)
     );
@@ -35,39 +33,36 @@ export async function GET(request) {
     const profile = await getMeliUserProfile(access_token);
 
     // 3. Calcular cuándo vence el token
-    const tokenExpiry = new Date(Date.now() + expires_in * 1000);
+    const token_expiry = new Date(Date.now() + expires_in * 1000).toISOString();
 
-    // 4. Guardar o actualizar la cuenta en la base de datos (upsert)
-    const account = await prisma.meliAccount.upsert({
-      where: { meliUserId: String(user_id) },
-      update: {
-        accessToken: access_token,
-        refreshToken: refresh_token,
-        tokenExpiry,
-        nickname: profile.nickname,
-        email: profile.email,
-        siteId: profile.site_id,
-      },
-      create: {
-        meliUserId: String(user_id),
-        nickname: profile.nickname,
-        email: profile.email,
-        siteId: profile.site_id || "MLV",
-        accessToken: access_token,
-        refreshToken: refresh_token,
-        tokenExpiry,
-      },
-    });
+    // 4. Guardar o actualizar la cuenta en Supabase (upsert)
+    const { data: account, error: dbError } = await accountsTable()
+      .upsert(
+        {
+          meli_user_id: String(user_id),
+          nickname: profile.nickname,
+          email: profile.email || null,
+          site_id: profile.site_id || "MLV",
+          access_token,
+          refresh_token,
+          token_expiry,
+        },
+        {
+          onConflict: "meli_user_id",
+          ignoreDuplicates: false,
+        }
+      )
+      .select("id, nickname, meli_user_id")
+      .single();
 
-    console.log(`✅ Cuenta conectada: ${account.nickname} (${account.meliUserId})`);
+    if (dbError) throw new Error(`DB Error: ${dbError.message}`);
 
-    // 5. Redirigir al dashboard con la cuenta activa
+    console.log(`✅ Cuenta conectada: ${account.nickname} (${account.meli_user_id})`);
+
+    // 5. Redirigir al dashboard con cookie de sesión
     const redirectUrl = new URL("/dashboard", process.env.NEXT_PUBLIC_APP_URL);
-    redirectUrl.searchParams.set("account", account.id);
-
     const response = NextResponse.redirect(redirectUrl);
 
-    // Guardar el ID de la cuenta activa en una cookie de sesión
     response.cookies.set("active_account_id", account.id, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",

@@ -1,32 +1,22 @@
 // ================================================================
-// app/api/auth/accounts/route.js
-// Devuelve la lista de cuentas ML vinculadas (para el selector multicuenta)
+// app/api/auth/accounts/route.js  
+// Lista las cuentas ML vinculadas (selector multicuenta en Sidebar)
 // ================================================================
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { accountsTable, ordersTable, productsTable } from "@/lib/supabase-admin";
 
 export async function GET() {
   try {
-    const accounts = await prisma.meliAccount.findMany({
-      select: {
-        id: true,
-        nickname: true,
-        email: true,
-        siteId: true,
-        tokenExpiry: true,
-        createdAt: true,
-        // Nunca devolver tokens en el frontend
-        _count: {
-          select: { orders: true, products: true },
-        },
-      },
-      orderBy: { createdAt: "asc" },
-    });
+    const { data: accounts, error } = await accountsTable()
+      .select("id, nickname, email, site_id, token_expiry, created_at")
+      .order("created_at", { ascending: true });
 
-    // Añadir flag de si el token está vigente o expirado
-    const enriched = accounts.map((acc) => ({
+    if (error) throw new Error(error.message);
+
+    // Enriquecer con flag de token activo
+    const enriched = (accounts || []).map((acc) => ({
       ...acc,
-      tokenActive: new Date(acc.tokenExpiry) > new Date(),
+      tokenActive: new Date(acc.token_expiry) > new Date(),
     }));
 
     return NextResponse.json({ accounts: enriched });
