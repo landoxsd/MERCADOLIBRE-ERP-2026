@@ -5,25 +5,24 @@ Desarrollar un ERP/CRM web en Next.js (escalable a la nube) para la gestión mul
 
 ## Fases y Estado Actual
 
-### Fase Inicial (Frontend)
+### Fase Inicial - Esqueleto Core
 - **Estado:** ✅ Completado
-- **Tareas:**
-  - Configuración del repositorio Git.
-  - Inicialización de Next.js (Router Auth).
-  - Eliminación de dependencias innecesarias (Tailwind) y creación de arquitectura CSS Vanilla Pura (Glassmorphism).
-  - Desarrollo del Dashboard UI Principal (Mockup).
+- **Commit:** `425cc38` - feat: Esqueleto Core
+- **Tareas completadas:**
+  - Schema Prisma (PostgreSQL): Modelos `MeliAccount`, `Order`, `OrderItem`, `Product`, `Question`, `Customer`
+  - `src/lib/prisma.js` — Cliente singleton de base de datos
+  - `src/lib/meli.js` — Cliente API ML (OAuth, refresh, llamadas autenticadas)
+  - `src/app/api/auth/login/route.js` — Inicio de sesión normal + Delegar Login (tipo Integraly)
+  - `src/app/api/auth/callback/route.js` — Intercepta el código OAuth, guarda cuenta en BD
+  - `src/app/api/auth/accounts/route.js` — Lista de cuentas vinculadas (multicuenta)
+  - `src/app/auth/page.js` — Página de login con UI premium
+  - `src/app/dashboard/layout.js` — Layout con Sidebar lateral
+  - `src/components/Sidebar.js` — Navegación colapsable multicuenta
+  - CSS Vanilla Glassmorphism para Auth y Sidebar
 
-### Fase Base de Datos
-- **Estado:** ⏳ Pendiente
-- **Requisitos:** Integración de PostgreSQL (Nube) para almacenar múltiples perfiles, tokens OAuth de ML y registro histórico de clientes.
-
-### Fase Autenticación Multi-Cuenta (Login Delegado)
-- **Estado:** ⏳ Pendiente
-- **Requisitos:** Flujos de URL delegada (tipo Integraly) e interconexión mediante Tokens OAuth a Mercado Libre.
-
-### Fase Módulo WhatsApp & Scraping de Teléfonos
-- **Estado:** ⏳ Pendiente
-- **Requisitos:** Resolución arquitectónica de extracción simulada (Extensión Web vs Puppeteer + Cookies) en un entorno de servidor en la nube sin comprometer seguridad.
+### Fase Base de Datos - Migración a Nube
+- **Estado:** 🔦 Pendiente - Conectar URL de Supabase/Neon en `.env`
+- **Próximo paso:** Ejecutar `npx prisma migrate dev` una vez que tengamos la cadena de conexión real.
 
 ---
 *Última actualización: Inicialización del APM - Esperando instrucciones del Lead Systems Analyst.*
