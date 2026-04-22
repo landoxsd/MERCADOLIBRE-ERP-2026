@@ -1,102 +1,144 @@
+/* src/app/auth/page.js */
 'use client';
 import { useState } from 'react';
 import styles from './auth.module.css';
 
 export default function AuthPage() {
-  const [delegateUrl, setDelegateUrl] = useState(null);
+  const [authUrl, setAuthUrl] = useState(null);
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
+  
+  // Estados para el modo "V4 Skills" (Manual)
+  const [manualCode, setManualCode] = useState('');
+  const [submittingCode, setSubmittingCode] = useState(false);
+  // Ponemos Producción por defecto para evitar el error 403 de localhost que bloquea a ML
+  const [redirectUri, setRedirectUri] = useState('https://www.corporacionrwc.com.ve');
 
   const handleLogin = () => {
-    window.location.href = '/api/auth/login?mode=login';
+    window.location.href = `/api/auth/login?mode=login&redirectUri=${encodeURIComponent(redirectUri)}`;
   };
 
-  const handleDelegate = async () => {
+  const handleGenerateLink = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/auth/login?mode=delegate');
+      // Usamos el redirectUri seleccionado para generar el link
+      const res = await fetch(`/api/auth/login?mode=delegate&redirectUri=${encodeURIComponent(redirectUri)}`);
       const data = await res.json();
-      setDelegateUrl(data.delegateUrl);
+      setAuthUrl(data.authUrl);
     } catch (e) {
       console.error(e);
+      alert("Error al generar el link.");
     } finally {
       setLoading(false);
     }
   };
 
+  const handleSubmitManualCode = async () => {
+    if (!manualCode) return;
+    setSubmittingCode(true);
+    try {
+      // Enviamos el código AL CALLBACK directamente, pasando la URI que usamos para generarlo
+      const res = await fetch(`/api/auth/callback?code=${manualCode.trim()}&redirectUri=${encodeURIComponent(redirectUri)}`);
+      if (res.redirected) {
+        window.location.href = res.url;
+      } else {
+        alert("El código parece haber expirado o es inválido.");
+      }
+    } catch (e) {
+      alert("Error al vincular con el código proporcionado.");
+    } finally {
+      setSubmittingCode(false);
+    }
+  };
+
   const handleCopy = () => {
-    if (!delegateUrl) return;
-    navigator.clipboard.writeText(delegateUrl);
+    if (!authUrl) return;
+    navigator.clipboard.writeText(authUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   };
 
   return (
     <div className={styles.page}>
-      {/* Orbes de fondo animados */}
       <div className={styles.orb1} />
       <div className={styles.orb2} />
 
       <div className={`glass-panel ${styles.card}`}>
-        {/* Logo / Header */}
         <div className={styles.header}>
-          <div className={styles.logo}>
-            <span>ML</span>
-          </div>
-          <h1 className={styles.title}>ERP Mercado Libre</h1>
-          <p className={styles.subtitle}>Gestión Multicuenta Avanzada</p>
+          <div className={styles.logo}><span>ML</span></div>
+          <h1 className={styles.title}>Vincular Cuenta</h1>
+          <p className={styles.subtitle}>Métodos Avanzados (V4 Skills)</p>
         </div>
 
-        {/* Botón de Login Normal */}
-        <div className={styles.actions}>
-          <button
-            id="btn-login-meli"
-            className={`btn-primary ${styles.loginBtn}`}
-            onClick={handleLogin}
+        <div className={styles.configSection}>
+          <label>URL de Retorno Autorizada:</label>
+          <select 
+            value={redirectUri} 
+            onChange={(e) => setRedirectUri(e.target.value)}
+            className={styles.select}
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/>
-            </svg>
-            Iniciar Sesión con Mercado Libre
+            <option value="http://localhost:3000/api/auth/callback">Local (localhost:3000)</option>
+            <option value="https://www.corporacionrwc.com.ve">Producción (corporacionrwc.com.ve)</option>
+          </select>
+          <p className={styles.hint}>Usa la de Producción si localhost te da error 403.</p>
+        </div>
+
+        <div className={styles.actions}>
+          <button className={`btn-primary ${styles.loginBtn}`} onClick={handleLogin}>
+            🚀 Iniciar enlace directo
           </button>
 
-          <div className={styles.divider}>
-            <span>o</span>
-          </div>
+          <div className={styles.divider}><span>O USA EL MODO DELEGADO</span></div>
 
-          {/* Botón de Login Delegado (como en Integraly) */}
           <button
-            id="btn-delegate-login"
             className={`btn-glass ${styles.delegateBtn}`}
-            onClick={handleDelegate}
+            onClick={handleGenerateLink}
             disabled={loading}
           >
-            {loading ? 'Generando enlace...' : '🔗 Delegar Login a otra persona'}
+            {loading ? 'Generando...' : '🔗 Generar Link para Cliente/Otro'}
           </button>
 
-          {/* Panel con la URL generada */}
-          {delegateUrl && (
+          {authUrl && (
             <div className={styles.delegatePanel}>
-              <p className={styles.delegateInfo}>
-                Comparte este enlace con el administrador de la cuenta (válido por 10 minutos):
-              </p>
               <div className={styles.urlBox}>
-                <span className={styles.urlText}>{delegateUrl}</span>
-                <button
-                  id="btn-copy-delegate-url"
-                  className={`btn-primary ${styles.copyBtn}`}
-                  onClick={handleCopy}
+                <span className={styles.urlText}>{authUrl}</span>
+                <button className={`btn-primary ${styles.copyBtn}`} onClick={handleCopy}>
+                  {copied ? '✓ Copiado' : 'Copiar'}
+                </button>
+              </div>
+              
+              <div className={styles.instructions}>
+                <h4>Instrucciones "Estilo V4":</h4>
+                <ol>
+                  <li>Envía el link a la persona.</li>
+                  <li>Cuando autorice, será redirigida a la web seleccionada.</li>
+                  <li>Pídele que copie el código final de la URL (después de <code>?code=</code>).</li>
+                  <li>Pégalo aquí abajo:</li>
+                </ol>
+              </div>
+
+              <div className={styles.manualEntry}>
+                <input 
+                  type="text" 
+                  placeholder="Pega el código de autorización aquí..." 
+                  value={manualCode}
+                  onChange={(e) => setManualCode(e.target.value)}
+                  className={styles.input}
+                />
+                <button 
+                  className={styles.submitBtn} 
+                  onClick={handleSubmitManualCode}
+                  disabled={submittingCode || !manualCode}
                 >
-                  {copied ? '✓ Copiado' : 'Copiar URL'}
+                  {submittingCode ? 'Vinculando...' : '✔️ Vincular ahora'}
                 </button>
               </div>
             </div>
           )}
         </div>
 
-        {/* Info de seguridad */}
         <p className={styles.securityNote}>
-          🔒 Tus credenciales se almacenan encriptadas. Nunca compartimos tu información.
+          🔒 Método seguro compatible con bloqueos de CloudFront.
         </p>
       </div>
     </div>

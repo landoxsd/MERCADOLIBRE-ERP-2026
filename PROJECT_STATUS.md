@@ -21,8 +21,19 @@ Desarrollar un ERP/CRM web en Next.js (escalable a la nube) para la gestión mul
   - CSS Vanilla Glassmorphism para Auth y Sidebar
 
 ### Fase Base de Datos - Migración a Nube
-- **Estado:** 🔦 Pendiente - Conectar URL de Supabase/Neon en `.env`
-- **Próximo paso:** Ejecutar `npx prisma migrate dev` una vez que tengamos la cadena de conexión real.
+- **Estado:** ✅ Completado
+- **Acciones:** 
+  - Migración exitosa a **Supabase Cloud**.
+  - Cambio de arquitectura: Se utiliza **Supabase JS Client** (via HTTPS) para evitar problemas de conectividad IPv6/IPv4 (bypass del error P1001 de Prisma).
+  - Tablas creadas via CLI Management API: `meli_accounts`, `orders`, `order_items`, `products`, `questions`, `customers`.
+  - Configuración de `src/lib/supabase-admin.js` como reemplazo de Prisma.
+
+### Fase Dashboard - Métricas y Resumen
+- **Estado:** ✅ Completado
+- **Commit:** `cb827ec`
+- **Tareas completadas:**
+  - Endpoint `api/account/overview` con reputación, billing (deuda) y ventas.
+  - Componente `AccountOverview` con visualización premium de métricas.
 
 ---
-*Última actualización: Inicialización del APM - Esperando instrucciones del Lead Systems Analyst.*
+*Última actualización: Conexión cloud establecida y base de datos operativa.*

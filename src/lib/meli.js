@@ -3,18 +3,18 @@
 // Cliente de la API de Mercado Libre + helpers de autenticación
 // ================================================================
 const MELI_BASE_URL = "https://api.mercadolibre.com";
-const MELI_AUTH_URL = "https://auth.mercadolibre.com.ve"; // MLV = Venezuela
+const MELI_AUTH_URL = "https://auth.mercadolibre.com"; // Versión global para mayor compatibilidad
 
 // -----------------------------------------------------------------
-// Genera la URL de autorización OAuth (para el botón "Iniciar Sesión")
-// Modo: 'login' (abre navegador) | 'delegate' (genera link para compartir)
-// -----------------------------------------------------------------
-export function getMeliAuthUrl(state = "") {
+// redirectUri: opcional, por defecto usa el de .env
+export function getMeliAuthUrl(state = "", customRedirectUri = null) {
+  const redirect_uri = customRedirectUri || process.env.MELI_REDIRECT_URI;
+  
   const params = new URLSearchParams({
     response_type: "code",
     client_id: process.env.MELI_CLIENT_ID,
-    redirect_uri: process.env.MELI_REDIRECT_URI,
-    state, // Puede llevar info sobre el "tenant" que autorizó
+    redirect_uri,
+    state, 
   });
 
   return `${MELI_AUTH_URL}/authorization?${params.toString()}`;
@@ -23,7 +23,11 @@ export function getMeliAuthUrl(state = "") {
 // -----------------------------------------------------------------
 // Intercambia el 'code' de OAuth por access_token + refresh_token
 // -----------------------------------------------------------------
-export async function exchangeCodeForToken(code) {
+// code: el código recibido de ML
+// customRedirectUri: opcional, debe coincidir con el usado en la autorización
+export async function exchangeCodeForToken(code, customRedirectUri = null) {
+  const redirect_uri = customRedirectUri || process.env.MELI_REDIRECT_URI;
+
   const res = await fetch(`${MELI_BASE_URL}/oauth/token`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -32,7 +36,7 @@ export async function exchangeCodeForToken(code) {
       client_id: process.env.MELI_CLIENT_ID,
       client_secret: process.env.MELI_CLIENT_SECRET,
       code,
-      redirect_uri: process.env.MELI_REDIRECT_URI,
+      redirect_uri,
     }),
   });
 
@@ -242,4 +246,182 @@ export async function getAccountOverview(userId, accessToken) {
     sales7d: sales7d.status === "fulfilled" ? sales7d.value : null,
     sales30d: sales30d.status === "fulfilled" ? sales30d.value : null,
   };
+}
+
+// =================================================================
+// MÓDULO: GESTIÓN DE PUBLICACIONES (ITEMS)
+// Soporte para volumen masivo (18k+) y Autopartes
+// =================================================================
+
+/**
+ * Obtiene todos los IDs de publicaciones de un usuario (paginado).
+ * ML permite hasta 1000 IDs via búsqueda simple, para más de 1000
+ * se requiere scroll o filtrado por estado.
+ */
+/**
+ * Obtiene todos los IDs de publicaciones de un usuario usando Scroll API.
+ * Indispensable para catálogos masivos (> 1000 items).
+ */
+export async function getAllItemIds(userId, accessToken, status = "active") {
+  let allIds = [];
+  let scrollId = null;
+  let hasMore = true;
+
+  console.log(`📡 Iniciando Scroll para usuario ${userId} (${status})...`);
+
+  while (hasMore) {
+    // Para el primer hit no enviamos scroll_id, para los siguientes sí.
+    const url = new URL(`${MELI_BASE_URL}/users/${userId}/items/search`);
+    
+    // Si enviamos un solo estado (ej. "active"), se usa. Si son múltiples o "all", omitimos para traer todo.
+    if (status && status !== "all" && !status.includes(",")) {
+      url.searchParams.set("status", status);
+    }
+    
+    url.searchParams.set("search_type", "scan"); // Requerido para scroll
+    url.searchParams.set("limit", "1000");       // Maximo por bloque de scroll
+    if (scrollId) url.searchParams.set("scroll_id", scrollId);
+
+    const res = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(`Error en Scroll API [${res.status}]: ${err.message || 'Unknown'}`);
+    }
+
+    const data = await res.json();
+    const ids = data.results || [];
+    allIds = [...allIds, ...ids];
+    
+    scrollId = data.scroll_id;
+    // Si no hay más IDs o no hay scrollId, paramos
+    hasMore = ids.length > 0 && !!scrollId;
+
+    if (allIds.length % 5000 === 0) {
+      console.log(`  🔹 Progreso IDs: ${allIds.length}...`);
+    }
+  }
+
+  console.log(`✅ Scroll finalizado. Total IDs recuperados: ${allIds.length}`);
+  return allIds;
+}
+
+/**
+ * Obtiene detalles de varios ítems en una sola llamada (Multiget).
+ * Máximo 20 IDs por llamada (límite de ML).
+ */
+export async function getItemsBatch(itemIds, accessToken) {
+  if (!itemIds.length) return [];
+  
+  // Dividir en grupos de 20
+  const chunks = [];
+  for (let i = 0; i < itemIds.length; i += 20) {
+    chunks.push(itemIds.slice(i, i + 20));
+  }
+
+  const allItems = [];
+  for (const chunk of chunks) {
+    const idsParam = chunk.join(",");
+    const res = await meliGet(`/items?ids=${idsParam}`, accessToken);
+    // ML devuelve un array de objetos { code, body }
+    const items = res.map(r => r.body).filter(b => b.id);
+    allItems.push(...items);
+  }
+
+  return allItems;
+}
+
+/**
+ * Obtiene el puntaje de salud y consejos de mejora de una publicación.
+ * Fuente: GET /items/{item_id}/health
+ */
+export async function getItemHealth(itemId, accessToken) {
+  try {
+    return await meliGet(`/items/${itemId}/health`, accessToken);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Obtiene la lista de compatibilidades (vehículos) para una autoparte.
+ * Fuente: GET /items/{item_id}/compatibility
+ */
+export async function getItemCompatibility(itemId, accessToken) {
+  try {
+    return await meliGet(`/items/${itemId}/compatibility`, accessToken);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Sube una imagen a los servidores de ML.
+ * Devuelve un objeto con el ID de la imagen para asociar al ítem.
+ */
+export async function uploadPicture(fileBuffer, filename, accessToken) {
+  const formData = new FormData();
+  const blob = new Blob([fileBuffer], { type: "image/jpeg" });
+  formData.append("file", blob, filename);
+
+  const res = await fetch(`${MELI_BASE_URL}/pictures/items/upload`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: formData,
+  });
+
+  if (!res.ok) throw new Error("Error al subir imagen a ML");
+  return res.json();
+}
+
+/**
+ * Obtiene las visitas de varios items en una sola llamada.
+ * ML permite consultar varios IDs separados por coma.
+ */
+export async function getItemsVisitsBatch(itemIds, accessToken) {
+  if (!itemIds.length) return {};
+  try {
+    const idsParam = itemIds.join(",");
+    const res = await meliGet(`/items/visits?ids=${idsParam}`, accessToken);
+    // ML devuelve un objeto donde las llaves son los item_ids
+    return res || {};
+  } catch (err) {
+    console.error("Error al obtener visitas batch:", err);
+    return {};
+  }
+}
+
+/**
+ * Extrae el SKU Real (Primary Key del usuario).
+ * Prioriza el seller_custom_field que es el que coincide con el sistema local.
+ */
+export function extractSku(item) {
+  if (!item) return null;
+
+  // 1. Prioridad Máxima: seller_custom_field (Es el SKU que el usuario ve en la ficha de stock)
+  if (item.seller_custom_field) return item.seller_custom_field;
+
+  // 2. Segunda opción: Buscar en variaciones (si existen)
+  if (item.variations && item.variations.length > 0) {
+    // Buscamos el primero que tenga seller_custom_field
+    const withCustom = item.variations.find(v => v.seller_custom_field);
+    if (withCustom) return withCustom.seller_custom_field;
+    
+    // Si no, buscamos SELLER_SKU en atributos de variación
+    for (const v of item.variations) {
+      const vSku = v.attributes?.find(a => a.id === 'SELLER_SKU')?.value_name;
+      if (vSku) return vSku;
+    }
+  }
+
+  // 3. Tercera opción: Atributo SELLER_SKU en la raíz
+  const rootSellerSku = item.attributes?.find(a => a.id === 'SELLER_SKU')?.value_name;
+  if (rootSellerSku) return rootSellerSku;
+
+  // 4. Último recurso: PART_NUMBER (Solo si no hay nada más)
+  const partNumber = item.attributes?.find(a => a.id === 'PART_NUMBER')?.value_name;
+  
+  return partNumber || null;
 }

@@ -86,16 +86,31 @@
 
 .accountSelect {
   width: 100%;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.1);
-  color: #f1f5f9;
-  padding: 8px 10px;
-  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0.6rem 1rem;
+  border-radius: 12px;
+  color: white !important;
   font-size: 0.85rem;
   cursor: pointer;
   outline: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='white'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  background-size: 1rem;
+  color-scheme: dark; /* Fuerza el dropdown a ser oscuro */
 }
-.accountSelect:focus { border-color: rgba(59,130,246,0.5); }
+
+.accountSelect option {
+  background-color: #1e293b; /* Fondo oscuro para las opciones */
+  color: white;
+}
+
+.accountSelect:focus {
+  border-color: #0084ff;
+  background: rgba(255, 255, 255, 0.1);
+}
 
 .addAccount {
   display: block;

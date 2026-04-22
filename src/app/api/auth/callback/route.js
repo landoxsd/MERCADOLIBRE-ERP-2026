@@ -11,6 +11,7 @@ export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
   const error = searchParams.get("error");
+  const customRedirectUri = searchParams.get("redirectUri");
 
   if (error) {
     return NextResponse.redirect(
@@ -25,8 +26,8 @@ export async function GET(request) {
   }
 
   try {
-    // 1. Intercambiar el código por tokens
-    const tokenData = await exchangeCodeForToken(code);
+    // 1. Intercambiar el código por tokens (pasando la URI personalizada si existe)
+    const tokenData = await exchangeCodeForToken(code, customRedirectUri);
     const { access_token, refresh_token, expires_in, user_id } = tokenData;
 
     // 2. Obtener el perfil del usuario de ML

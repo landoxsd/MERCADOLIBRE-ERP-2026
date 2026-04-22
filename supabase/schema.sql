@@ -111,7 +111,62 @@ CREATE TABLE IF NOT EXISTS products (
   cost_price      FLOAT,            -- Para calcular margen y EPC real
   available_qty   INTEGER DEFAULT 0,
   permalink       TEXT,
-  thumbnail       TEXT
+  thumbnail       TEXT,
+
+  -- Inteligencia de posicionamiento y especialización
+  health_score       FLOAT,             -- Puntaje oficial de salud ML (0 a 1)
+  attributes         JSONB,             -- Ficha técnica completa
+  category_id        TEXT,
+  domain_id          TEXT,
+  sku                TEXT,              -- SKU (seller_custom_field en ML)
+  last_updated_meli  TIMESTAMPTZ        -- Fecha de última modificación en ML
+);
+
+-- -----------------------------------------------------------------
+-- Tabla: Aplicaciones de vehículos (Compatibilidad Autopartes)
+-- -----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS product_compatibilities (
+  id              TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+  created_at      TIMESTAMPTZ DEFAULT NOW(),
+  
+  product_id      TEXT REFERENCES products(id) ON DELETE CASCADE,
+  meli_item_id    TEXT NOT NULL,
+
+  make            TEXT,   -- Marca (ej. Toyota)
+  model           TEXT,   -- Modelo (ej. Corolla)
+  year            TEXT,   -- Año (ej. 2015)
+  engine          TEXT,   -- Motor
+  notes           TEXT    -- Observaciones técnicas
+);
+
+-- -----------------------------------------------------------------
+-- Tabla: Monitoreo de Competencia
+-- -----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS competitors_tracking (
+  id                  TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+  product_id          TEXT REFERENCES products(id) ON DELETE CASCADE,
+  
+  competitor_item_id  TEXT NOT NULL,
+  competitor_nickname TEXT,
+  price               FLOAT,
+  currency            TEXT DEFAULT 'USD',
+  last_checked        TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- -----------------------------------------------------------------
+-- Tabla: Inventario Interno (Importado desde Excel)
+-- -----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS internal_inventory (
+  id              TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+  created_at      TIMESTAMPTZ DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ DEFAULT NOW(),
+
+  sku             TEXT UNIQUE NOT NULL,
+  title           TEXT,
+  price           FLOAT,
+  stock           FLOAT,
+  category        TEXT,           -- Línea de producto
+  subcategory     TEXT            -- Sublínea
 );
 
 -- -----------------------------------------------------------------
@@ -163,6 +218,13 @@ CREATE INDEX IF NOT EXISTS idx_products_account ON products(meli_account_id);
 CREATE INDEX IF NOT EXISTS idx_products_status ON products(status);
 CREATE INDEX IF NOT EXISTS idx_questions_account ON questions(meli_account_id);
 CREATE INDEX IF NOT EXISTS idx_questions_status ON questions(status);
+
+-- Índices avanzados para Autopartes
+CREATE INDEX IF NOT EXISTS idx_compat_product ON product_compatibilities(product_id);
+CREATE INDEX IF NOT EXISTS idx_compat_item ON product_compatibilities(meli_item_id);
+CREATE INDEX IF NOT EXISTS idx_competitor_prod ON competitors_tracking(product_id);
+CREATE INDEX IF NOT EXISTS idx_products_sku ON products(sku);
+CREATE INDEX IF NOT EXISTS idx_internal_sku ON internal_inventory(sku);
 
 -- ================================================================
 -- ✅ Script completado. Las 6 tablas han sido creadas exitosamente.

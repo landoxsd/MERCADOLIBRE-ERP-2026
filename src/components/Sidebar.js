@@ -1,13 +1,14 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import styles from './Sidebar.module.css';
 
 const NAV_ITEMS = [
   { href: '/dashboard',         label: 'Dashboard',       icon: '📊' },
   { href: '/dashboard/orders',  label: 'Órdenes',         icon: '📦' },
-  { href: '/dashboard/products',label: 'Publicaciones',   icon: '🏷️' },
+   { href: '/dashboard/products',label: 'Publicaciones',   icon: '🏷️' },
+  { href: '/dashboard/inventory',label: 'Auditoría Inventario',icon: '🔍' },
   { href: '/dashboard/questions',label: 'Preguntas',      icon: '💬' },
   { href: '/dashboard/customers',label: 'Clientes CRM',   icon: '👥' },
   { href: '/dashboard/whatsapp',label: 'WhatsApp',        icon: '📱' },
@@ -17,7 +18,16 @@ const NAV_ITEMS = [
 
 export default function Sidebar({ accounts = [], activeAccountId }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
+
+  const handleAccountChange = (e) => {
+    const newId = e.target.value;
+    // Guardar la nueva cookie con el nombre unificado meli_erp_account
+    document.cookie = `meli_erp_account=${newId}; path=/; max-age=${60 * 60 * 24 * 7}`;
+    // Forzar recarga total para asegurar que el servidor lea la nueva cuenta activa
+    window.location.reload();
+  };
 
   return (
     <aside className={`${styles.sidebar} ${collapsed ? styles.collapsed : ''}`}>
@@ -45,10 +55,14 @@ export default function Sidebar({ accounts = [], activeAccountId }) {
               </Link>
             ) : (
               <>
-                <select className={styles.accountSelect} defaultValue={activeAccountId}>
+                <select 
+                  className={styles.accountSelect} 
+                  value={activeAccountId || ''}
+                  onChange={handleAccountChange}
+                >
                   {accounts.map(acc => (
                     <option key={acc.id} value={acc.id}>
-                      {acc.nickname} ({acc.siteId})
+                      {acc.nickname} ({acc.site_id})
                     </option>
                   ))}
                 </select>

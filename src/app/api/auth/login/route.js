@@ -6,22 +6,22 @@
 // ================================================================
 import { NextResponse } from "next/server";
 import { getMeliAuthUrl } from "@/lib/meli";
-import { prisma } from "@/lib/prisma";
 import crypto from "crypto";
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
-  const mode = searchParams.get("mode") || "login"; // 'login' | 'delegate'
+  const mode = searchParams.get("mode") || "login"; 
+  const customRedirectUri = searchParams.get("redirectUri");
 
   // State aleatorio para prevenir CSRF
   const state = crypto.randomBytes(16).toString("hex");
 
-  // Construir la URL de autorización de ML
-  const authUrl = getMeliAuthUrl(state);
+  // Construir la URL de autorización de ML (pasando la URI personalizada si existe)
+  const authUrl = getMeliAuthUrl(state, customRedirectUri);
 
   if (mode === "delegate") {
     // En modo "Delegar Login": devolver la URL para que el usuario la comparta
-    return NextResponse.json({ delegateUrl: authUrl, state });
+    return NextResponse.json({ authUrl, state });
   }
 
   // En modo normal: redirigir directamente al navegador

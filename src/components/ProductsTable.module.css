@@ -1,0 +1,335 @@
+/* src/components/ProductsTable.module.css */
+.container {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 24px;
+  padding: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px);
+}
+
+.tableHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  gap: 1rem;
+}
+
+.searchWrapper {
+  flex: 1;
+  max-width: 400px;
+}
+
+.searchBox {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0.8rem 1.2rem;
+  border-radius: 12px;
+  color: white;
+  font-size: 0.9rem;
+  transition: all 0.3s;
+}
+
+.searchBox:focus {
+  outline: none;
+  background: rgba(255, 255, 255, 0.1);
+  border-color: #00c6ff;
+  box-shadow: 0 0 15px rgba(0, 198, 255, 0.2);
+}
+
+.syncBtn {
+  background: linear-gradient(135deg, #00c6ff 0%, #0072ff 100%);
+  color: white;
+  border: none;
+  padding: 0.8rem 1.5rem;
+  border-radius: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.syncBtn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(0, 114, 255, 0.3);
+}
+
+.syncBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Barra de Filtros y Status Tabs */
+.filterBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding: 0 0.5rem;
+}
+
+.statusTabs {
+  display: flex;
+  gap: 0.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 0.3rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.tab {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  padding: 0.5rem 1rem;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tabCount {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 400;
+}
+
+.tab:hover {
+  color: white;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.tabActive {
+  background: white !important;
+  color: black !important;
+  box-shadow: 0 4px 12px rgba(255, 255, 255, 0.2);
+}
+
+.tabActive .tabCount {
+  background: rgba(0, 0, 0, 0.1);
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.resultsCount {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* Barra de Progreso */
+.progressContainer {
+  margin-bottom: 2rem;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 1rem;
+  border-radius: 15px;
+  border: 1px solid rgba(0, 198, 255, 0.2);
+}
+
+.progressHeader {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+  color: #00c6ff;
+  font-weight: 600;
+}
+
+.progressBar {
+  height: 10px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background: linear-gradient(90deg, #00c6ff, #0072ff);
+  transition: width 0.4s ease-out;
+  box-shadow: 0 0 10px rgba(0, 198, 255, 0.5);
+}
+
+/* Tabla Estilizada */
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 0.8rem;
+}
+
+.th {
+  text-align: left;
+  padding: 1rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.tr {
+  background: rgba(255, 255, 255, 0.02);
+  transition: all 0.2s;
+}
+
+.tr:hover {
+  background: rgba(255, 255, 255, 0.05);
+  transform: scale(1.005);
+}
+
+.td {
+  padding: 1.2rem 1rem;
+}
+
+.td:first-child { border-radius: 15px 0 0 15px; }
+.td:last-child { border-radius: 0 15px 15px 0; }
+
+.productCell {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.2rem;
+}
+
+.thumbnail {
+  width: 55px;
+  height: 55px;
+  border-radius: 10px;
+  object-fit: cover;
+  background: white;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.productMain {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.titleWrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.title {
+  display: block;
+  font-weight: 600;
+  font-size: 0.95rem;
+  max-width: 350px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #f1f5f9;
+}
+
+.orphanBadge {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: rgba(239, 68, 68, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.star {
+  color: #ef4444;
+  font-size: 0.9rem;
+}
+
+.orphanText {
+  color: #ef4444;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+
+.metrics {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.2rem;
+}
+
+.metric {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 500;
+}
+
+.metricSeparator {
+  color: rgba(255, 255, 255, 0.1);
+  font-size: 0.7rem;
+}
+
+.orphanRow {
+  background: rgba(239, 68, 68, 0.02) !important;
+}
+
+.orphanRow:hover {
+  background: rgba(239, 68, 68, 0.05) !important;
+}
+
+.itemId {
+  display: block;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.skuTag {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  color: #eab308;
+  font-family: monospace;
+}
+
+.status {
+  padding: 0.4rem 0.8rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.status_active { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+.status_paused { background: rgba(249, 115, 22, 0.1); color: #f97316; }
+
+.lowStock {
+  color: #ef4444;
+  font-weight: 800;
+}
+
+.price {
+  font-weight: 800;
+  color: white;
+  font-size: 1.1rem;
+}
+
+.actionBtn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: all 0.2s;
+}
+
+.actionBtn:hover {
+  background: white;
+  color: black;
+}
+
+.emptyState {
+  text-align: center;
+  padding: 5rem;
+  opacity: 0.5;
+}
