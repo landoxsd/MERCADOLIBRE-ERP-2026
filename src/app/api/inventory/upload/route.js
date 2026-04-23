@@ -144,9 +144,12 @@ export async function POST(req) {
       timestamp: new Date().toLocaleString()
     };
 
-    // Guardar una "fotografía" en el servidor para retomarla después
+    // Guardar una "fotografía" separada por modo para no sobreescribir
     try {
-      await fs.writeFile(path.join(process.cwd(), `.audit_cache_${accountId}.json`), JSON.stringify(outputPayload));
+      const fs = require('fs');
+      const path = require('path');
+      const cachePath = path.join(process.cwd(), `.audit_cache_${mode}_${accountId}.json`);
+      fs.writeFileSync(cachePath, JSON.stringify(outputPayload));
     } catch(e) {
       console.warn("No se pudo cachear la auditoría local:", e.message);
     }

@@ -3,14 +3,45 @@ import { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import styles from './Inventory.module.css';
 
+// Componente para cargar fotos locales bajo demanda
+const LocalPhoto = ({ sku }) => {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchPhoto = async () => {
+      try {
+        const res = await fetch(`/api/media/local/${sku}?index=0`);
+        const json = await res.json();
+        if (json.success) setData(json.data);
+      } catch (e) {} finally {
+        setLoading(false);
+      }
+    };
+    fetchPhoto();
+  }, [sku]);
+
+  if (loading) return <div style={{width: 150, height: 150, display:'flex', alignItems:'center', justifyContent:'center', background:'#111', fontSize:'0.7rem'}}>Cargando...</div>;
+  if (!data) return <div style={{width: 150, height: 150, display:'flex', alignItems:'center', justifyContent:'center', background:'#111', fontSize:'0.7rem'}}>No disponible</div>;
+
+  return <img src={data} style={{ width: 150, height: 150, objectFit: 'cover', borderRadius: '12px' }} alt="Preview" />;
+};
+
 export default function InventoryAuditPage() {
   const [activeAccount, setActiveAccount] = useState(null);
-  const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
-  const [results, setResults] = useState(null);
   const [pausing, setPausing] = useState(false);
   const [auditMode, setAuditMode] = useState('master'); // 'master' o 'inbound'
+  
+  // Memoria Dual: Estados independientes para cada modo
+  const [fileMaster, setFileMaster] = useState(null);
+  const [resultsMaster, setResultsMaster] = useState(null);
+  const [fileInbound, setFileInbound] = useState(null);
+  const [resultsInbound, setResultsInbound] = useState(null);
+  const [photoStatus, setPhotoStatus] = useState({}); // { SKU: true/false }
+  const [filterPhoto, setFilterPhoto] = useState('all'); // 'all', 'yes', 'no'
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     const fetchActiveAccount = async () => {
@@ -21,36 +52,71 @@ export default function InventoryAuditPage() {
 
         if (cookieId) {
           setActiveAccount(cookieId);
-          fetchLastAudit(cookieId);
-          return;
-        }
-
-        const res = await fetch('/api/auth/accounts');
-        const data = await res.json();
-        if (data.accounts?.length > 0) {
-          setActiveAccount(data.accounts[0].id);
-          fetchLastAudit(data.accounts[0].id);
-        }
-      } catch(e) {}
-    };
-
-    const fetchLastAudit = async (accId) => {
-      try {
-        const res = await fetch(`/api/inventory/last?accountId=${accId}`);
-        const data = await res.json();
-        if (data.success) {
-          // Solo cargar si el modo coincide para evitar confusiones visuales
-          if (data.mode === auditMode) {
-            setResults(data);
-          }
         } else {
-          setResults(null); 
+          const res = await fetch('/api/auth/accounts');
+          const data = await res.json();
+          if (data.accounts?.length > 0) {
+            setActiveAccount(data.accounts[0].id);
+          }
         }
       } catch(e) {}
     };
 
     fetchActiveAccount();
-  }, []);
+
+    const checkAccountChange = setInterval(() => {
+      const cookies = document.cookie.split('; ');
+      const activeCookie = cookies.find(row => row.startsWith('meli_erp_account='));
+      const cookieId = activeCookie ? activeCookie.split('=')[1] : null;
+      if (cookieId && cookieId !== activeAccount) {
+        setActiveAccount(cookieId);
+      }
+    }, 1000);
+
+    return () => clearInterval(checkAccountChange);
+  }, [activeAccount]);
+
+  useEffect(() => {
+    const fetchHistory = async () => {
+      if (!activeAccount) return;
+      try {
+        const res = await fetch(`/api/inventory/last?accountId=${activeAccount}`);
+        const data = await res.json();
+        if (data.success) {
+          setResultsMaster(data.master || null);
+          setResultsInbound(data.inbound || null);
+        } else {
+          setResultsMaster(null);
+          setResultsInbound(null);
+        }
+      } catch(e) {}
+    };
+
+    fetchHistory();
+  }, [activeAccount]);
+
+  // Auditor de Fotos Locales
+  useEffect(() => {
+    const checkPhotos = async () => {
+      const allMissingSkus = [];
+      if (resultsMaster?.missing) allMissingSkus.push(...resultsMaster.missing.map(m => m.sku));
+      if (resultsInbound?.missing) allMissingSkus.push(...resultsInbound.missing.map(m => m.sku));
+      
+      if (allMissingSkus.length === 0) return;
+
+      try {
+        const res = await fetch('/api/media/check-bulk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ skus: allMissingSkus.slice(0, 5000) }) // Limite de seguridad
+        });
+        const data = await res.json();
+        if (data.photoMap) setPhotoStatus(data.photoMap);
+      } catch(e) {}
+    };
+
+    checkPhotos();
+  }, [resultsMaster, resultsInbound]);
 
   useEffect(() => {
     let interval;
@@ -62,14 +128,18 @@ export default function InventoryAuditPage() {
     return () => clearInterval(interval);
   }, [loading]);
 
+  // Alias dinámico para los resultados actuales
+  const results = auditMode === 'master' ? resultsMaster : resultsInbound;
+  const currentFile = auditMode === 'master' ? fileMaster : fileInbound;
+
   const handleUpload = async () => {
-    if (!file || !activeAccount) return;
+    if (!currentFile || !activeAccount) return;
     setLoading(true);
     setElapsedTime(0);
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('file', currentFile);
     formData.append('accountId', activeAccount);
-    formData.append('mode', auditMode); // <--- PASAMOS EL MODO AL BACKEND
+    formData.append('mode', auditMode);
 
     try {
       const res = await fetch('/api/inventory/upload', {
@@ -78,7 +148,8 @@ export default function InventoryAuditPage() {
       });
       const data = await res.json();
       if (data.success) {
-        setResults(data);
+        if (auditMode === 'master') setResultsMaster(data);
+        else setResultsInbound(data);
       } else {
         alert('Error: ' + data.error);
       }
@@ -90,8 +161,8 @@ export default function InventoryAuditPage() {
   };
 
   const handlePauseOrphans = async () => {
-    if (auditMode !== 'master' || !results?.orphans?.length) return;
-    if (!confirm(`¿Estás seguro de pausar ${results.orphans.length} publicaciones huérfanas?\nSolo hazlo si subiste el INVENTARIO MAESTRO COMPLETO.`)) return;
+    if (auditMode !== 'master' || !resultsMaster?.orphans?.length) return;
+    if (!confirm(`¿Estás seguro de pausar ${resultsMaster.orphans.length} publicaciones huérfanas?`)) return;
     
     setPausing(true);
     try {
@@ -100,7 +171,7 @@ export default function InventoryAuditPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           accountId: activeAccount, 
-          itemIds: results.orphans.map(o => o.meli_item_id) 
+          itemIds: resultsMaster.orphans.map(o => o.meli_item_id) 
         }),
       });
       const data = await res.json();
@@ -150,6 +221,61 @@ export default function InventoryAuditPage() {
     XLSX.writeFile(workbook, "Sugerencias_Para_Publicar.xlsx");
   };
 
+  // Función para agrupar faltantes por sublínea
+  const renderMissingGroups = () => {
+    const results = auditMode === 'master' ? resultsMaster : resultsInbound;
+    if (!results?.missing?.length) return null;
+
+    const groups = results.missing.reduce((acc, item) => {
+      // Aplicar Filtros de Foto
+      if (filterPhoto === 'yes' && !photoStatus[item.sku]) return acc;
+      if (filterPhoto === 'no' && photoStatus[item.sku]) return acc;
+
+      // Aplicar Filtro de Búsqueda
+      if (searchQuery && 
+          !item.sku.toLowerCase().includes(searchQuery.toLowerCase()) && 
+          !item.title.toLowerCase().includes(searchQuery.toLowerCase())) {
+        return acc;
+      }
+
+      const sub = item.subcategory || 'SIN CATEGORÍA';
+      if (!acc[sub]) acc[sub] = [];
+      acc[sub].push(item);
+      return acc;
+    }, {});
+
+    return Object.entries(groups).map(([sub, items]) => (
+      <div key={sub} style={{ marginBottom: '2rem', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '12px', overflow: 'hidden' }}>
+        <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 style={{ margin: 0, color: '#fbbf24' }}>📂 {sub} ({items.length} items)</h3>
+        </div>
+        <table className={styles.table}>
+          <thead><tr><th>FOTO</th><th>SKU</th><th>Título Profit</th><th>Precio</th><th>Stock</th><th>ML Sugerido</th></tr></thead>
+          <tbody>
+            {items.map((m, idx) => (
+              <tr key={idx}>
+                <td>
+                  {photoStatus[m.sku] ? (
+                    <div className={styles.photoPreviewContainer}>
+                      <span title="Foto local encontrada" style={{ cursor: 'pointer', fontSize: '1.2rem' }}>📸</span>
+                      <div className={styles.photoHover}>
+                        <LocalPhoto sku={m.sku} />
+                      </div>
+                    </div>
+                  ) : (
+                    <span title="Sin foto local" style={{ opacity: 0.3 }}>❌</span>
+                  )}
+                </td>
+                <td style={{fontWeight:'bold', color:'#fbbf24'}}>{m.sku}</td>
+                <td>{m.title}</td><td>${m.price}</td><td>{m.stock}</td><td>{m.suggestedMeliId || '-'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    ));
+  };
+
   return (
     <div style={{ padding: '2rem' }}>
       <header style={{ marginBottom: '2rem' }}>
@@ -161,12 +287,7 @@ export default function InventoryAuditPage() {
 
       <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem' }}>
         <button 
-          onClick={() => { 
-            setAuditMode('master'); 
-            setResults(null); 
-            setFile(null); // <--- LIMPIAR ARCHIVO
-            document.querySelector('input[type="file"]').value = ""; // <--- RESETEAR INPUT
-          }}
+          onClick={() => setAuditMode('master')}
           style={{
             padding: '1rem 2rem', borderRadius: '12px', cursor: 'pointer', border: 'none', fontWeight: 'bold',
             background: auditMode === 'master' ? '#3b82f6' : 'rgba(255,255,255,0.05)',
@@ -177,12 +298,7 @@ export default function InventoryAuditPage() {
           🏢 Auditoría Maestro (Global)
         </button>
         <button 
-          onClick={() => { 
-            setAuditMode('inbound'); 
-            setResults(null); 
-            setFile(null); // <--- LIMPIAR ARCHIVO
-            document.querySelector('input[type="file"]').value = ""; // <--- RESETEAR INPUT
-          }}
+          onClick={() => setAuditMode('inbound')}
           style={{
             padding: '1rem 2rem', borderRadius: '12px', cursor: 'pointer', border: 'none', fontWeight: 'bold',
             background: auditMode === 'inbound' ? '#fbbf24' : 'rgba(255,255,255,0.05)',
@@ -208,10 +324,17 @@ export default function InventoryAuditPage() {
       <section className={styles.uploadCard}>
         <h2>Subir archivo de {auditMode === 'master' ? 'Inventario Completo' : 'Nota de Recepción'}</h2>
         <div className={styles.dropzone}>
-          <input type="file" onChange={(e) => setFile(e.target.files[0])} accept=".xlsx, .xls, .csv" />
+          <input 
+            type="file" 
+            onChange={(e) => {
+              if (auditMode === 'master') setFileMaster(e.target.files[0]);
+              else setFileInbound(e.target.files[0]);
+            }} 
+            accept=".xlsx, .xls, .csv" 
+          />
           <button className={styles.primaryBtn} 
                   style={{ background: auditMode === 'inbound' ? '#fbbf24' : '#3b82f6', color: auditMode === 'inbound' ? 'black' : 'white' }}
-                  onClick={handleUpload} disabled={loading || !file}>
+                  onClick={handleUpload} disabled={loading || !currentFile}>
             {loading ? `🔍 Procesando... (${elapsedTime}s)` : (auditMode === 'master' ? '🔍 Iniciar Auditoría' : '📦 Procesar Entrada')}
           </button>
         </div>
@@ -219,24 +342,36 @@ export default function InventoryAuditPage() {
 
       {results && (
         <div className={styles.resultsGrid}>
-          <div className={styles.statCard}>
+          <div 
+            className={styles.statCard} 
+            style={{ cursor: 'pointer', border: '1px solid rgba(16, 185, 129, 0.2)' }}
+            onClick={() => document.getElementById('matched-section')?.scrollIntoView({ behavior: 'smooth' })}
+          >
             <h3>Sincronizados</h3>
             <div className={styles.statValue} style={{color: '#10b981'}}>{results.summary.matched}</div>
             <p>SKUs que ya están publicados correctamente.</p>
           </div>
 
           {auditMode === 'master' && (
-            <div className={styles.statCard}>
+            <div 
+              className={styles.statCard} 
+              style={{ cursor: 'pointer', border: '1px solid rgba(239, 68, 68, 0.2)' }}
+              onClick={() => document.getElementById('orphans-section')?.scrollIntoView({ behavior: 'smooth' })}
+            >
               <h3>Huérfanos (ML)</h3>
               <div className={styles.statValue} style={{color: '#ef4444'}}>{results.summary.orphansCount}</div>
               <p>Publicaciones que NO están en este Excel.</p>
-              <button className={styles.dangerBtn} onClick={handlePauseOrphans} disabled={pausing}>
+              <button className={styles.dangerBtn} onClick={(e) => { e.stopPropagation(); handlePauseOrphans(); }} disabled={pausing}>
                 {pausing ? 'Pausando...' : '⏸️ Pausar Huérfanos'}
               </button>
             </div>
           )}
 
-          <div className={styles.statCard}>
+          <div 
+            className={styles.statCard} 
+            style={{ cursor: 'pointer', border: '1px solid rgba(251, 191, 36, 0.2)' }}
+            onClick={() => document.getElementById('missing-section')?.scrollIntoView({ behavior: 'smooth' })}
+          >
             <h3>Faltantes (ML)</h3>
             <div className={styles.statValue} style={{color: '#fbbf24'}}>{results.summary.missingCount}</div>
             <p>Productos de este Excel que NO están publicados.</p>
@@ -244,9 +379,27 @@ export default function InventoryAuditPage() {
         </div>
       )}
 
+      {/* DETALLE SINCRONIZADOS */}
+      {results?.matchedItems?.length > 0 && (
+        <div id="matched-section" className={styles.detailsSection} style={{ borderTop: '2px solid #10b981', marginTop: '2rem' }}>
+          <h2 style={{ margin: 0, color: '#10b981', marginBottom: '1.5rem' }}>✅ Productos Sincronizados</h2>
+          <table className={styles.table}>
+            <thead><tr><th>ID ML</th><th>SKU</th><th>Título</th><th>Precio</th></tr></thead>
+            <tbody>
+              {results.matchedItems.slice(0, 500).map(m => (
+                <tr key={m.sku}>
+                  <td><a href={m.permalink} target="_blank" style={{color:'#60a5fa'}}>{m.meli_item_id} ↗</a></td>
+                  <td>{m.sku}</td><td>{m.title}</td><td>${m.price}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {/* DETALLE HUÉRFANOS */}
       {auditMode === 'master' && results?.orphans?.length > 0 && (
-        <div className={styles.detailsSection} style={{ borderTop: '1px solid rgba(239, 68, 68, 0.2)' }}>
+        <div id="orphans-section" className={styles.detailsSection} style={{ borderTop: '1px solid rgba(239, 68, 68, 0.2)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <h2 style={{ margin: 0, color: '#f87171' }}>Huérfanos a Limpiar</h2>
             <button className={styles.secondaryBtn} onClick={handleDownloadIntegraly}>📥 XLS Integraly</button>
@@ -255,7 +408,7 @@ export default function InventoryAuditPage() {
             <thead><tr><th>ID ML</th><th>SKU</th><th>Título</th><th>Precio</th></tr></thead>
             <tbody>
               {results.orphans.map(o => (
-                <tr key={o.id}>
+                <tr key={o.meli_item_id}>
                   <td><a href={o.permalink} target="_blank" style={{color:'#60a5fa'}}>{o.meli_item_id} ↗</a></td>
                   <td>{o.sku}</td><td>{o.title}</td><td>${o.price}</td>
                 </tr>
@@ -265,26 +418,55 @@ export default function InventoryAuditPage() {
         </div>
       )}
 
-      {/* DETALLE FALTANTES */}
+      {/* DETALLE FALTANTES AGRUPADOS */}
       {results?.missing?.length > 0 && (
-        <div className={styles.detailsSection} style={{ marginTop: '3rem', borderTop: '2px solid #fbbf24' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <h2 style={{ margin: 0, color: '#fbbf24' }}>
-              {auditMode === 'master' ? 'Faltantes Globales' : '🔥 Prioridad de Publicación (Mercancía Nueva)'}
-            </h2>
-            <button className={styles.secondaryBtn} onClick={handleDownloadMissingIntegraly}>📥 XLS Para Publicar</button>
+        <div id="missing-section" className={styles.detailsSection} style={{ marginTop: '3rem', borderTop: '2px solid #fbbf24' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(251, 191, 36, 0.05)', padding: '1rem', borderRadius: '12px', marginBottom: '2rem' }}>
+            <div>
+              <h2 style={{ margin: 0, color: '#fbbf24' }}>
+                {auditMode === 'master' ? '🕵️‍♂️ Faltantes Globales detectados' : '🔥 Prioridad: Mercancía por Publicar'}
+              </h2>
+              <p style={{ margin: 0, opacity: 0.7 }}>{results.missing.length} productos organizados por Sublínea.</p>
+            </div>
+            <button 
+              onClick={handleDownloadMissingIntegraly}
+              style={{
+                background: '#fbbf24', color: 'black', padding: '1rem 1.5rem', borderRadius: '10px', 
+                border: 'none', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem'
+              }}
+            >
+              📥 Descargar Plan Completo (Excel)
+            </button>
           </div>
-          <table className={styles.table}>
-            <thead><tr><th>SKU</th><th>Título</th><th>Precio</th><th>{auditMode === 'master' ? 'Existencia' : 'Llegada'}</th><th>ML Sugerido</th></tr></thead>
-            <tbody>
-              {results.missing.map((m, idx) => (
-                <tr key={idx}>
-                  <td style={{fontWeight:'bold', color:'#fbbf24'}}>{m.sku}</td>
-                  <td>{m.title}</td><td>${m.price}</td><td>{m.stock}</td><td>{m.suggestedMeliId || '-'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+
+          {/* BARRA DE FILTROS */}
+          <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', background: 'rgba(255,255,255,0.02)', padding: '1.5rem', borderRadius: '15px', border: '1px solid rgba(255,255,255,0.05)' }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', marginBottom: '0.5rem', fontWeight: 'bold' }}>🔍 BUSCAR PRODUCTO</label>
+              <input 
+                type="text" 
+                placeholder="Busca por SKU o nombre..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{ width: '100%', padding: '0.8rem', background: 'black', border: '1px solid #333', color: 'white', borderRadius: '8px' }}
+              />
+            </div>
+            
+            <div style={{ width: '200px' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', marginBottom: '0.5rem', fontWeight: 'bold' }}>📸 ESTADO FOTO</label>
+              <select 
+                value={filterPhoto}
+                onChange={(e) => setFilterPhoto(e.target.value)}
+                style={{ width: '100%', padding: '0.8rem', background: 'black', border: '1px solid #333', color: 'white', borderRadius: '8px' }}
+              >
+                <option value="all">Todos (Faltantes)</option>
+                <option value="yes">Con Foto Local (Listos) ✅</option>
+                <option value="no">Sin Foto ❌</option>
+              </select>
+            </div>
+          </div>
+          
+          {renderMissingGroups()}
         </div>
       )}
     </div>
