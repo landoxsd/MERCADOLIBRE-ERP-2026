@@ -68,13 +68,28 @@ export async function POST(req) {
 
     if (upsertError) throw upsertError;
 
-    // 5. Realizar la Auditoría Inteligente (Comparación)
-    const { data: mlProducts, error: mlError } = await supabaseAdmin
-      .from("products")
-      .select("id, meli_item_id, sku, title, status")
-      .eq("meli_account_id", accountId);
+    // 5. Realizar la Auditoría Inteligente (Comparación con Soporte Masivo > 1000 items)
+    let mlProducts = [];
+    let fetchMore = true;
+    let rangeStart = 0;
+    const rangeStep = 1000;
 
-    if (mlError) throw mlError;
+    while (fetchMore) {
+      const { data: chunk, error: mlError } = await supabaseAdmin
+        .from("products")
+        .select("id, meli_item_id, sku, title, status, permalink, price")
+        .eq("meli_account_id", accountId)
+        .range(rangeStart, rangeStart + rangeStep - 1);
+
+      if (mlError) throw mlError;
+      
+      if (chunk && chunk.length > 0) {
+        mlProducts = [...mlProducts, ...chunk];
+        rangeStart += rangeStep;
+      } else {
+        fetchMore = false;
+      }
+    }
 
     const excelSkusSet = new Set(internalItems.map(i => i.sku));
     
@@ -102,7 +117,7 @@ export async function POST(req) {
 
     const missing = internalItems.filter(i => !matchedExcelSkus.has(i.sku));
 
-    return NextResponse.json({
+    const outputPayload = {
       success: true,
       summary: {
         totalExcel: internalItems.length,
@@ -111,9 +126,21 @@ export async function POST(req) {
         orphansCount: orphans.length,
         missingCount: missing.length,
       },
-      orphans: orphans.slice(0, 100), 
-      missing: missing.slice(0, 50)
-    });
+      orphans: orphans.slice(0, 3000), 
+      missing: missing.slice(0, 100),
+      timestamp: new Date().toLocaleString()
+    };
+
+    // Guardar una "fotografía" en el servidor para retomarla después
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      fs.writeFileSync(path.join(process.cwd(), `.audit_cache_${accountId}.json`), JSON.stringify(outputPayload));
+    } catch(e) {
+      console.warn("No se pudo cachear la auditoría local:", e.message);
+    }
+
+    return NextResponse.json(outputPayload);
 
   } catch (error) {
     console.error("❌ Inventory Upload Error:", error);

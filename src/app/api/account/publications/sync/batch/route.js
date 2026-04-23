@@ -43,8 +43,8 @@ export async function POST(req) {
           title: item.title,
           status: item.status,
           price: item.price,
-          // sold_quantity: item.sold_quantity || 0, // REQUIERE MIGRACIÓN DB
-          // visits_count: visitsMap[item.id] || 0,   // REQUIERE MIGRACIÓN DB
+          sold_quantity: item.sold_quantity || 0,
+          visits_count: visitsMap[item.id] || 0,
           available_qty: item.available_quantity,
           permalink: item.permalink,
           thumbnail: item.thumbnail,
@@ -52,6 +52,7 @@ export async function POST(req) {
           domain_id: item.domain_id,
           sku: skuValue,
           attributes: item.attributes || [],
+          raw_data: item, // <--- ADICIÓN CLAVE: Archivo Histórico Bruto de todo el JSON de la API
           last_updated_meli: item.last_updated,
           updated_at: new Date()
         };

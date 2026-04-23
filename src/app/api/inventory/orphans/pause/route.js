@@ -27,7 +27,7 @@ export async function POST(req) {
     console.log(`⏸️ Pausando ${itemIds.length} publicaciones huérfanas con token validado...`);
 
     // 2. Realizar las peticiones a Mercado Libre para cambiar status a 'paused'
-    const results = { success: 0, failed: 0 };
+    const results = { success: 0, failed: 0, errors: [] };
 
     // Procesamos uno por uno para asegurar el reporte individual
     for (const itemId of itemIds) {
@@ -38,7 +38,10 @@ export async function POST(req) {
             "Authorization": `Bearer ${accessToken}`,
             "Content-Type": "application/json"
           },
-          body: JSON.stringify({ status: "paused" })
+          body: JSON.stringify({ 
+            status: "paused",
+            available_quantity: 0 
+          })
         });
 
         if (res.ok) {
@@ -47,19 +50,22 @@ export async function POST(req) {
           results.success++;
         } else {
           const errBody = await res.json().catch(() => ({}));
-          console.warn(`⚠️ No se pudo pausar ${itemId}:`, errBody.message || res.statusText);
+          const errMsg = errBody.message || res.statusText;
+          console.warn(`⚠️ No se pudo pausar ${itemId}:`, errBody);
           results.failed++;
+          if (results.errors.length < 5) results.errors.push(`${itemId}: ${errMsg} | Details: ${JSON.stringify(errBody.cause || [])}`);
         }
       } catch (err) {
         console.error(`❌ Error de red pausando ${itemId}:`, err.message);
         results.failed++;
+        if (results.errors.length < 5) results.errors.push(`${itemId}: ${err.message}`);
       }
     }
 
     return NextResponse.json({
       success: true,
       ...results,
-      message: `Proceso completado. Éxito: ${results.success}, Fallidos: ${results.failed}.`
+      message: `Proceso completado. Éxito: ${results.success}, Fallidos: ${results.failed}. Ver consola/errores para detalles.`
     });
 
   } catch (error) {

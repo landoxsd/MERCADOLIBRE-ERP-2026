@@ -263,49 +263,56 @@ export async function getAccountOverview(userId, accessToken) {
  * Indispensable para catálogos masivos (> 1000 items).
  */
 export async function getAllItemIds(userId, accessToken, status = "active") {
+  let statusesToFetch = [status];
+  
+  if (status === "all") {
+    statusesToFetch = ["active", "paused", "closed"];
+  } else if (status && status.includes(",")) {
+    statusesToFetch = status.split(",").map(s => s.trim()).filter(Boolean);
+  }
+
   let allIds = [];
-  let scrollId = null;
-  let hasMore = true;
 
-  console.log(`📡 Iniciando Scroll para usuario ${userId} (${status})...`);
+  for (const currentStatus of statusesToFetch) {
+    let scrollId = null;
+    let hasMore = true;
 
-  while (hasMore) {
-    // Para el primer hit no enviamos scroll_id, para los siguientes sí.
-    const url = new URL(`${MELI_BASE_URL}/users/${userId}/items/search`);
-    
-    // Si enviamos un solo estado (ej. "active"), se usa. Si son múltiples o "all", omitimos para traer todo.
-    if (status && status !== "all" && !status.includes(",")) {
-      url.searchParams.set("status", status);
-    }
-    
-    url.searchParams.set("search_type", "scan"); // Requerido para scroll
-    url.searchParams.set("limit", "1000");       // Maximo por bloque de scroll
-    if (scrollId) url.searchParams.set("scroll_id", scrollId);
+    console.log(`📡 Iniciando Scroll para usuario ${userId} [Estado: ${currentStatus}]...`);
 
-    const res = await fetch(url.toString(), {
-      headers: { Authorization: `Bearer ${accessToken}` }
-    });
+    while (hasMore) {
+      const url = new URL(`${MELI_BASE_URL}/users/${userId}/items/search`);
+      
+      // Pasar siempre el status para evitar que ML omita estados ocultos por defecto
+      url.searchParams.set("status", currentStatus);
+      url.searchParams.set("search_type", "scan");
+      url.searchParams.set("limit", "1000");
+      if (scrollId) url.searchParams.set("scroll_id", scrollId);
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(`Error en Scroll API [${res.status}]: ${err.message || 'Unknown'}`);
-    }
+      const res = await fetch(url.toString(), {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
 
-    const data = await res.json();
-    const ids = data.results || [];
-    allIds = [...allIds, ...ids];
-    
-    scrollId = data.scroll_id;
-    // Si no hay más IDs o no hay scrollId, paramos
-    hasMore = ids.length > 0 && !!scrollId;
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        console.warn(`🚧 Scroll interrumpido o API sin resultados para estado ${currentStatus} [${res.status}]: ${err.message || 'Unknown'}`);
+        break; 
+      }
 
-    if (allIds.length % 5000 === 0) {
-      console.log(`  🔹 Progreso IDs: ${allIds.length}...`);
+      const data = await res.json();
+      const ids = data.results || [];
+      allIds = [...allIds, ...ids];
+      
+      scrollId = data.scroll_id;
+      hasMore = ids.length > 0 && !!scrollId;
+
+      if (allIds.length % 5000 === 0 && allIds.length > 0) {
+        console.log(`  🔹 Progreso IDs: ${allIds.length}...`);
+      }
     }
   }
 
-  console.log(`✅ Scroll finalizado. Total IDs recuperados: ${allIds.length}`);
-  return allIds;
+  console.log(`✅ Scroll finalizado. Total IDs recuperados para todos los estados solicitados: ${allIds.length}`);
+  return Array.from(new Set(allIds));
 }
 
 /**

@@ -12,6 +12,7 @@ export default function ProductsTable({ accountId }) {
   
   // Procesamiento masivo
   const [syncing, setSyncing] = useState(false);
+  const [elapsedTime, setElapsedTime] = useState(0);
   const [progress, setProgress] = useState(0);
   const [syncStatus, setSyncStatus] = useState('');
 
@@ -35,8 +36,19 @@ export default function ProductsTable({ accountId }) {
     if (accountId) fetchProducts();
   }, [accountId, search, filter]);
 
+  useEffect(() => {
+    let interval;
+    if (syncing) {
+      interval = setInterval(() => setElapsedTime(prev => prev + 1), 1000);
+    } else {
+      clearInterval(interval);
+    }
+    return () => clearInterval(interval);
+  }, [syncing]);
+
   const handleSync = async () => {
     setSyncing(true);
+    setElapsedTime(0);
     setProgress(0);
     setSyncStatus('Iniciando...');
 
@@ -56,7 +68,7 @@ export default function ProductsTable({ accountId }) {
 
       for (let i = 0; i < allIds.length; i += chunkSize) {
         const batch = allIds.slice(i, i + chunkSize);
-        setSyncStatus(`Bloque ${i + 1} a ${Math.min(i + chunkSize, total)} de ${total}...`);
+        setSyncStatus(`Cargando lote ${i + 1} a ${Math.min(i + chunkSize, total)} de ${total}...`);
         
         await fetch('/api/account/publications/sync/batch', {
           method: 'POST',
@@ -68,11 +80,11 @@ export default function ProductsTable({ accountId }) {
         setProgress((processedCount / total) * 100);
       }
 
-      setSyncStatus('✅ ¡Sincronización completada!');
+      setSyncStatus(`✅ Completado en ${elapsedTime}s`);
       setTimeout(() => {
         setSyncing(false);
         fetchProducts();
-      }, 2000);
+      }, 4000);
     } catch (err) {
       alert('Error en sincronización: ' + err.message);
       setSyncing(false);
@@ -96,7 +108,7 @@ export default function ProductsTable({ accountId }) {
           onClick={handleSync}
           disabled={syncing}
         >
-          {syncing ? '⌛ Sincronizando...' : '🚀 Sincronización Total'}
+          {syncing ? `⌛ Sincronizando... (${elapsedTime}s)` : '🚀 Sincronización Total'}
         </button>
       </header>
 
@@ -104,7 +116,7 @@ export default function ProductsTable({ accountId }) {
         <div className={styles.progressContainer}>
           <div className={styles.progressHeader}>
             <span>{syncStatus}</span>
-            <span>{Math.round(progress)}%</span>
+            <span>{Math.round(progress)}% | Demora: {elapsedTime}s</span>
           </div>
           <div className={styles.progressBar}>
             <div className={styles.progressFill} style={{ width: `${progress}%` }} />
