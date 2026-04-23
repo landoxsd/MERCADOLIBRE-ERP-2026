@@ -40,5 +40,14 @@ Este documento recopila las "Habilidades Especiales" desarrolladas en este proye
 *   **Ubicación:** `src/app/api/account/publications/sync/batch/route.js`
 *   **Valor:** Blindaje contra cambios en la API de Mercado Libre y base para futuras analíticas de IA.
 
+## 7. Habilidad: Detector de Faltantes (Gap Analysis)
+**Descripción:** Identifica huecos de venta comparando lo que tienes físicamente contra lo que el mundo ve en ML.
+*   **Valor:** Genera listas de tareas para el equipo de ventas y evita perder oportunidades de mercado.
+
+## 8. Habilidad: Ciclo de Vida Proactivo (Inbound Sync)
+**Descripción:** Procesa "Notas de Recepción" de mercancía directamente para alertar sobre productos nuevos que necesitan ser publicados masivamente.
+*   **Lógica:** Adaptabilidad de cabeceras (`CODIGO A`, `ML`) para leer extractos parciales del almacén e identificar ID sugeridos.
+*   **Valor:** Reduce el "Time-to-Market". Tan pronto registra la entrada el camión, el sistema dispara la sugerencia de publicación.
+
 ---
 *Este inventario de habilidades permite que este ERP sea el cimiento para cualquier otra herramienta de automatización comercial.*

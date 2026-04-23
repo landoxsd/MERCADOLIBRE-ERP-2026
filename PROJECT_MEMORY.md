@@ -39,11 +39,14 @@ El sistema está construido para ser escalable mediante micro-servicios internos
 - [x] Persistencia de la última auditoría en caché.
 - [x] Columna `raw_data` en Supabase para historial total.
 - [x] Cronómetros de rendimiento en botones.
+- [x] **Detector de Faltantes Globales** (Skill #7).
+- [x] **Procesador de Notas de Recepción Proactivo** (Skill #8).
+- [x] **Mecanismo de Batching (2000 ítems):** Eliminados los "Statement Timeouts".
+- [x] **Aislamiento de UI (Tabs):** Previene pausar huérfanos por accidente.
 
 ### 🎯 PRÓXIMOS OBJETIVOS (Prioridad en orden)
-1.  **Módulo de Sugerencias "Faltantes":** Lógica para identificar qué productos del Excel de Profit NO están publicados en Mercado Libre y sugerir su creación.
-2.  **Módulo de Ventas y Visitas:** Implementar el tablero de analíticas usando los datos ya sincronizados.
-3.  **Extractor Universal:** Crear scripts que aprovechen la columna `raw_data` para extraer descripciones o variaciones sin llamar a la API.
+1.  **Módulo de Ventas y Visitas:** Implementar el tablero de analíticas usando los datos ya sincronizados para medir el rendimiento real por publicación.
+2.  **Extractor Universal:** Crear scripts que aprovechen la columna `raw_data` para extraer descripciones o variaciones sin llamar a la API.
 
 ---
 
@@ -69,4 +72,4 @@ Para asegurar la continuidad eterna del proyecto, se seguirán estas reglas:
 4.  **Caché:** Los archivos `.audit_cache_*.json` son temporales y no se versionan, pero son vitales para la persistencia en caliente de la sesión.
 
 ---
-*Última actualización: 2026-04-23 00:27 (Protocolos formalizados y respaldo GitHub iniciado)*.
+*Última actualización: 2026-04-23 00:55 (Auditoría Finalizada y Blindada)*.

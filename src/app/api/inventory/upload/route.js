@@ -11,6 +11,7 @@ export async function POST(req) {
     const formData = await req.formData();
     const file = formData.get("file");
     const accountId = formData.get("accountId"); 
+    const mode = formData.get("mode") || "master"; 
 
     if (!file) return NextResponse.json({ error: "No se subió archivo" }, { status: 400 });
 
@@ -26,23 +27,26 @@ export async function POST(req) {
     let headerRowIndex = -1;
     for (let i = 0; i < Math.min(rawRows.length, 50); i++) {
       const row = rawRows[i];
-      if (row && row.some(cell => String(cell).toUpperCase().includes("CODIGO"))) {
+      if (row && row.some(cell => {
+        const val = String(cell).toUpperCase();
+        return val.includes("CODIGO") || val.includes("CÓDIGO") || val.includes("ARTICULO");
+      })) {
         headerRowIndex = i;
         break;
       }
     }
 
     if (headerRowIndex === -1) {
-      return NextResponse.json({ error: "No se encontró la columna 'CODIGO' en las primeras 50 filas del archivo" }, { status: 400 });
+      return NextResponse.json({ error: "No se encontró una columna de identificación (CODIGO) en las primeras 50 filas" }, { status: 400 });
     }
 
     // 3. Mapear datos a partir de la cabecera encontrada
-    // Buscamos los índices de las columnas necesarias
     const activeHeaders = rawRows[headerRowIndex].map(h => String(h).toUpperCase());
-    const idxSku = activeHeaders.findIndex(h => h.includes("CODIGO"));
+    const idxSku = activeHeaders.findIndex(h => h === "CODIGO A" || h.includes("CODIGO") || h.includes("CÓDIGO"));
     const idxTitle = activeHeaders.findIndex(h => h.includes("DESCRIPCION") || h.includes("TITULO"));
     const idxPrice = activeHeaders.findIndex(h => h.includes("PRECIO") || h.includes("TOTAL"));
-    const idxStock = activeHeaders.findIndex(h => h.includes("EXISTENCIA") || h.includes("STOCK"));
+    const idxStock = activeHeaders.findIndex(h => h.includes("CANTIDAD") || h.includes("EXISTENCIA") || h.includes("STOCK"));
+    const idxMeli = activeHeaders.findIndex(h => h === "ML" || h.includes("MERCADO"));
 
     // Helper para normalizar SKUs (Mayúsculas y sin espacios)
     const normalize = (s) => String(s || "").trim().toUpperCase();
@@ -53,7 +57,8 @@ export async function POST(req) {
         sku: normalize(row[idxSku]),
         title: String(row[idxTitle] || "").trim(),
         price: parseFloat(row[idxPrice] || 0),
-        stock: parseFloat(row[idxStock] || 0)
+        stock: parseFloat(row[idxStock] || 0),
+        suggestedMeliId: idxMeli !== -1 ? String(row[idxMeli] || "").trim() : null
       }))
       .filter(item => item.sku && item.sku !== "CODIGO");
 
@@ -61,12 +66,19 @@ export async function POST(req) {
       return NextResponse.json({ error: "No se encontraron SKUs válidos en el archivo" }, { status: 400 });
     }
 
-    // 4. Guardar/Actualizar inventario interno en Supabase
-    const { error: upsertError } = await supabaseAdmin
-      .from("internal_inventory")
-      .upsert(internalItems, { onConflict: "sku" });
+    // 4. Guardar/Actualizar inventario interno en Supabase por LOTES (evita timeouts)
+    const BATCH_SIZE = 2000;
+    for (let i = 0; i < internalItems.length; i += BATCH_SIZE) {
+      const batch = internalItems.slice(i, i + BATCH_SIZE);
+      const { error: upsertError } = await supabaseAdmin
+        .from("internal_inventory")
+        .upsert(batch, { onConflict: "sku" });
 
-    if (upsertError) throw upsertError;
+      if (upsertError) {
+        console.error(`Error en lote ${i}-${i + BATCH_SIZE}:`, upsertError);
+        throw upsertError;
+      }
+    }
 
     // 5. Realizar la Auditoría Inteligente (Comparación con Soporte Masivo > 1000 items)
     let mlProducts = [];
@@ -119,6 +131,7 @@ export async function POST(req) {
 
     const outputPayload = {
       success: true,
+      mode: mode,
       summary: {
         totalExcel: internalItems.length,
         totalML: mlProducts.length,
@@ -127,15 +140,13 @@ export async function POST(req) {
         missingCount: missing.length,
       },
       orphans: orphans.slice(0, 3000), 
-      missing: missing.slice(0, 100),
+      missing: missing.slice(0, 3000),
       timestamp: new Date().toLocaleString()
     };
 
     // Guardar una "fotografía" en el servidor para retomarla después
     try {
-      const fs = require('fs');
-      const path = require('path');
-      fs.writeFileSync(path.join(process.cwd(), `.audit_cache_${accountId}.json`), JSON.stringify(outputPayload));
+      await fs.writeFile(path.join(process.cwd(), `.audit_cache_${accountId}.json`), JSON.stringify(outputPayload));
     } catch(e) {
       console.warn("No se pudo cachear la auditoría local:", e.message);
     }

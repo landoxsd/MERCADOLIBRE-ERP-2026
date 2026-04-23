@@ -10,6 +10,7 @@ export default function InventoryAuditPage() {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [results, setResults] = useState(null);
   const [pausing, setPausing] = useState(false);
+  const [auditMode, setAuditMode] = useState('master'); // 'master' o 'inbound'
 
   useEffect(() => {
     const fetchActiveAccount = async () => {
@@ -38,7 +39,10 @@ export default function InventoryAuditPage() {
         const res = await fetch(`/api/inventory/last?accountId=${accId}`);
         const data = await res.json();
         if (data.success) {
-          setResults(data);
+          // Solo cargar si el modo coincide para evitar confusiones visuales
+          if (data.mode === auditMode) {
+            setResults(data);
+          }
         } else {
           setResults(null); 
         }
@@ -65,6 +69,7 @@ export default function InventoryAuditPage() {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('accountId', activeAccount);
+    formData.append('mode', auditMode); // <--- PASAMOS EL MODO AL BACKEND
 
     try {
       const res = await fetch('/api/inventory/upload', {
@@ -85,8 +90,8 @@ export default function InventoryAuditPage() {
   };
 
   const handlePauseOrphans = async () => {
-    if (!results?.orphans?.length) return;
-    if (!confirm(`¿Estás seguro de pausar ${results.orphans.length} publicaciones huérfanas?\nEsto también bajará su stock a 0.`)) return;
+    if (auditMode !== 'master' || !results?.orphans?.length) return;
+    if (!confirm(`¿Estás seguro de pausar ${results.orphans.length} publicaciones huérfanas?\nSolo hazlo si subiste el INVENTARIO MAESTRO COMPLETO.`)) return;
     
     setPausing(true);
     try {
@@ -99,14 +104,7 @@ export default function InventoryAuditPage() {
         }),
       });
       const data = await res.json();
-      
-      let finalMessage = data.message;
-      if (data.errors && data.errors.length > 0) {
-        finalMessage += '\n\nDetalles del rechazo de ML:\n' + data.errors.join('\n');
-      }
-      alert(finalMessage);
-      
-      // Ya no recargamos de inmediato para no perder la caché, el usuario debe subir nuevo Excel si las arregló.
+      alert(data.message);
     } catch (err) {
       alert('Error al pausar huérfanos');
     } finally {
@@ -117,7 +115,6 @@ export default function InventoryAuditPage() {
   const handleDownloadIntegraly = () => {
     if (!results?.orphans?.length) return;
 
-    // Formatear la base de datos de huérfanas haciéndose pasar por Integraly
     const integralyData = results.orphans.map(o => ({
       "Código de Mercado Libre": o.meli_item_id,
       "Título": o.title || "",
@@ -130,18 +127,27 @@ export default function InventoryAuditPage() {
     const worksheet = XLSX.utils.json_to_sheet(integralyData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Hoja1");
-    
-    // Auto-ajustar ancho de columnas para que se vea limpio
-    worksheet['!cols'] = [
-      { wch: 18 },  // ML ID
-      { wch: 60 },  // Titulo
-      { wch: 15 },  // Precio
-      { wch: 20 },  // SKU
-      { wch: 15 },  // Estado
-      { wch: 50 },  // URL
-    ];
-
+    worksheet['!cols'] = [{ wch: 18 }, { wch: 60 }, { wch: 15 }, { wch: 20 }, { wch: 15 }, { wch: 50 }];
     XLSX.writeFile(workbook, "Huerfanas_Para_Integraly.xlsx");
+  };
+
+  const handleDownloadMissingIntegraly = () => {
+    if (!results?.missing?.length) return;
+
+    const integralyData = results.missing.map(i => ({
+      "SKU": i.sku,
+      "Título Sugerido": i.title || "",
+      "Precio (Profit)": i.price || 0,
+      "Stock / Cantidad": i.stock || 0,
+      "ML Sugerido (Excel)": i.suggestedMeliId || "-",
+      "Sugerencia": "Publicar en Mercado Libre"
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(integralyData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Sugerencias");
+    worksheet['!cols'] = [{ wch: 20 }, { wch: 60 }, { wch: 15 }, { wch: 15 }, { wch: 20 }, { wch: 30 }];
+    XLSX.writeFile(workbook, "Sugerencias_Para_Publicar.xlsx");
   };
 
   return (
@@ -149,105 +155,132 @@ export default function InventoryAuditPage() {
       <header style={{ marginBottom: '2rem' }}>
         <h1 style={{ fontSize: '2.5rem', fontWeight: '800' }}>Auditoría de Inventario</h1>
         <p style={{ color: 'rgba(255, 255, 255, 0.6)' }}>
-          Cruce de datos entre tu sistema local (Excel) y Mercado Libre para detectar huérfanos y faltantes.
+          Cruce de datos inteligente entre Profit Plus y Mercado Libre.
         </p>
       </header>
 
-      <div style={{ background: 'rgba(59, 130, 246, 0.1)', borderLeft: '4px solid #3b82f6', padding: '1.5rem', borderRadius: '8px', marginBottom: '2rem' }}>
-        <h3 style={{ color: '#60a5fa', marginBottom: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.1rem' }}>
-          💡 Flujo de Trabajo Operativo Recomendado
+      <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem' }}>
+        <button 
+          onClick={() => { 
+            setAuditMode('master'); 
+            setResults(null); 
+            setFile(null); // <--- LIMPIAR ARCHIVO
+            document.querySelector('input[type="file"]').value = ""; // <--- RESETEAR INPUT
+          }}
+          style={{
+            padding: '1rem 2rem', borderRadius: '12px', cursor: 'pointer', border: 'none', fontWeight: 'bold',
+            background: auditMode === 'master' ? '#3b82f6' : 'rgba(255,255,255,0.05)',
+            color: auditMode === 'master' ? 'white' : 'rgba(255,255,255,0.5)',
+            transition: 'all 0.3s'
+          }}
+        >
+          🏢 Auditoría Maestro (Global)
+        </button>
+        <button 
+          onClick={() => { 
+            setAuditMode('inbound'); 
+            setResults(null); 
+            setFile(null); // <--- LIMPIAR ARCHIVO
+            document.querySelector('input[type="file"]').value = ""; // <--- RESETEAR INPUT
+          }}
+          style={{
+            padding: '1rem 2rem', borderRadius: '12px', cursor: 'pointer', border: 'none', fontWeight: 'bold',
+            background: auditMode === 'inbound' ? '#fbbf24' : 'rgba(255,255,255,0.05)',
+            color: auditMode === 'inbound' ? 'black' : 'rgba(255,255,255,0.5)',
+            transition: 'all 0.3s'
+          }}
+        >
+          📦 Recepción de Mercancía (Novedades)
+        </button>
+      </div>
+
+      <div style={{ background: auditMode === 'master' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(251, 191, 36, 0.1)', borderLeft: `4px solid ${auditMode === 'master' ? '#3b82f6' : '#fbbf24'}`, padding: '1.5rem', borderRadius: '8px', marginBottom: '2rem' }}>
+        <h3 style={{ color: auditMode === 'master' ? '#60a5fa' : '#fbbf24', marginBottom: '0.8rem', fontSize: '1.1rem' }}>
+          💡 Modo: {auditMode === 'master' ? 'AUDITORÍA MAESTRA' : 'ENTRADA DE MERCANCÍA'}
         </h3>
-        <ol style={{ marginLeft: '1.5rem', color: 'rgba(255, 255, 255, 0.8)', lineHeight: '1.6' }}>
-          <li>Ve al menú lateral izquierdo, entra en <strong>Publicaciones</strong> y presiona el botón <strong>Sincronizar</strong> (para bajar los catálogos en vivo).</li>
-          <li>Descarga de tu ERP (Profit Plus) un archivo Excel actualizado del momento.</li>
-          <li>Regresa aquí, sube el Excel y presiona <strong>Iniciar Auditoría</strong> comparando datos simétricamente frescos.</li>
-        </ol>
+        <p style={{ margin: 0, color: 'rgba(255,255,255,0.8)' }}>
+          {auditMode === 'master' 
+            ? 'Usa este modo para comparar todo tu almacén. Detecta qué publicaciones sobran (Huérfanos) para pausarlas.' 
+            : 'Usa este modo al recibir mercancía nueva. El sistema ignorará los huérfanos y se enfocará solo en lo que falta publicar.'}
+        </p>
       </div>
 
       <section className={styles.uploadCard}>
-        <h2>Subir Inventario Local</h2>
-        <p>Carga tu archivo Excel (.xlsx o .csv) con columnas: <strong>SKU, Titulo, Precio, Stock.</strong></p>
+        <h2>Subir archivo de {auditMode === 'master' ? 'Inventario Completo' : 'Nota de Recepción'}</h2>
         <div className={styles.dropzone}>
           <input type="file" onChange={(e) => setFile(e.target.files[0])} accept=".xlsx, .xls, .csv" />
-          <button className={styles.primaryBtn} onClick={handleUpload} disabled={loading || !file}>
-            {loading ? `🔍 Procesando... (${elapsedTime}s)` : '🔍 Iniciar Auditoría'}
+          <button className={styles.primaryBtn} 
+                  style={{ background: auditMode === 'inbound' ? '#fbbf24' : '#3b82f6', color: auditMode === 'inbound' ? 'black' : 'white' }}
+                  onClick={handleUpload} disabled={loading || !file}>
+            {loading ? `🔍 Procesando... (${elapsedTime}s)` : (auditMode === 'master' ? '🔍 Iniciar Auditoría' : '📦 Procesar Entrada')}
           </button>
         </div>
       </section>
 
       {results && (
-        <>
-          {results.timestamp && (
-            <div style={{ marginBottom: '1rem', color: '#60a5fa', fontWeight: 'bold' }}>
-              🕰️ Mostrando última auditoría generada el: {results.timestamp}
-            </div>
-          )}
-          <div className={styles.resultsGrid}>
-            <div className={styles.statCard}>
-              <h3>Sincronizados</h3>
-              <div className={styles.statValue} style={{color: '#10b981'}}>{results.summary.matched}</div>
-              <p>SKUs coinciden perfectamente.</p>
-            </div>
+        <div className={styles.resultsGrid}>
+          <div className={styles.statCard}>
+            <h3>Sincronizados</h3>
+            <div className={styles.statValue} style={{color: '#10b981'}}>{results.summary.matched}</div>
+            <p>SKUs que ya están publicados correctamente.</p>
+          </div>
 
+          {auditMode === 'master' && (
             <div className={styles.statCard}>
-              <h3>Huérfanos en ML</h3>
+              <h3>Huérfanos (ML)</h3>
               <div className={styles.statValue} style={{color: '#ef4444'}}>{results.summary.orphansCount}</div>
-              <p>Están en ML pero no en tu sistema.</p>
-              <button 
-                className={styles.dangerBtn} 
-                onClick={handlePauseOrphans}
-                disabled={pausing || results.summary.orphansCount === 0}
-              >
-                {pausing ? 'Pausando...' : '⏸️ Pausar Todos los Huérfanos'}
+              <p>Publicaciones que NO están en este Excel.</p>
+              <button className={styles.dangerBtn} onClick={handlePauseOrphans} disabled={pausing}>
+                {pausing ? 'Pausando...' : '⏸️ Pausar Huérfanos'}
               </button>
             </div>
+          )}
 
-            <div className={styles.statCard}>
-              <h3>Faltantes en ML</h3>
-              <div className={styles.statValue} style={{color: '#eab308'}}>{results.summary.missingCount}</div>
-              <p>En tu sistema pero no publicados.</p>
-              <button className={styles.secondaryBtn}>📦 Sugerir Publicación</button>
-            </div>
+          <div className={styles.statCard}>
+            <h3>Faltantes (ML)</h3>
+            <div className={styles.statValue} style={{color: '#fbbf24'}}>{results.summary.missingCount}</div>
+            <p>Productos de este Excel que NO están publicados.</p>
           </div>
-        </>
+        </div>
       )}
 
-      {results?.orphans?.length > 0 && (
-        <div className={styles.detailsSection}>
+      {/* DETALLE HUÉRFANOS */}
+      {auditMode === 'master' && results?.orphans?.length > 0 && (
+        <div className={styles.detailsSection} style={{ borderTop: '1px solid rgba(239, 68, 68, 0.2)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <h2 style={{ margin: 0 }}>Detalle de Publicaciones Huérfanas</h2>
-            <button className={styles.secondaryBtn} onClick={handleDownloadIntegraly}>📥 Descargar XLS (Integraly)</button>
+            <h2 style={{ margin: 0, color: '#f87171' }}>Huérfanos a Limpiar</h2>
+            <button className={styles.secondaryBtn} onClick={handleDownloadIntegraly}>📥 XLS Integraly</button>
           </div>
           <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>ID Mercado Libre</th>
-                <th>SKU detectado (Antiguo)</th>
-                <th>Título</th>
-                <th>Precio</th>
-                <th>Estado</th>
-              </tr>
-            </thead>
+            <thead><tr><th>ID ML</th><th>SKU</th><th>Título</th><th>Precio</th></tr></thead>
             <tbody>
               {results.orphans.map(o => (
                 <tr key={o.id}>
-                  <td>
-                    {o.permalink ? (
-                      <a href={o.permalink} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', textDecoration: 'underline' }}>
-                        {o.meli_item_id} ↗
-                      </a>
-                    ) : (
-                      o.meli_item_id
-                    )}
-                  </td>
-                  <td style={{fontWeight: 'bold', color: '#f87171'}}>{o.sku || 'SIN SKU'}</td>
-                  <td>{o.title}</td>
-                  <td>${o.price}</td>
-                  <td>
-                    <span className={o.status === 'active' ? styles.statusActive : styles.statusPaused}>
-                      {o.status}
-                    </span>
-                  </td>
+                  <td><a href={o.permalink} target="_blank" style={{color:'#60a5fa'}}>{o.meli_item_id} ↗</a></td>
+                  <td>{o.sku}</td><td>{o.title}</td><td>${o.price}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* DETALLE FALTANTES */}
+      {results?.missing?.length > 0 && (
+        <div className={styles.detailsSection} style={{ marginTop: '3rem', borderTop: '2px solid #fbbf24' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <h2 style={{ margin: 0, color: '#fbbf24' }}>
+              {auditMode === 'master' ? 'Faltantes Globales' : '🔥 Prioridad de Publicación (Mercancía Nueva)'}
+            </h2>
+            <button className={styles.secondaryBtn} onClick={handleDownloadMissingIntegraly}>📥 XLS Para Publicar</button>
+          </div>
+          <table className={styles.table}>
+            <thead><tr><th>SKU</th><th>Título</th><th>Precio</th><th>{auditMode === 'master' ? 'Existencia' : 'Llegada'}</th><th>ML Sugerido</th></tr></thead>
+            <tbody>
+              {results.missing.map((m, idx) => (
+                <tr key={idx}>
+                  <td style={{fontWeight:'bold', color:'#fbbf24'}}>{m.sku}</td>
+                  <td>{m.title}</td><td>${m.price}</td><td>{m.stock}</td><td>{m.suggestedMeliId || '-'}</td>
                 </tr>
               ))}
             </tbody>
