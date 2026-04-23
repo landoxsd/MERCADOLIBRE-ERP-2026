@@ -432,3 +432,27 @@ export function extractSku(item) {
   
   return partNumber || null;
 }
+
+/**
+ * Crea una nueva publicación en Mercado Libre.
+ * itemData: el JSON con la estructura requerida por ML.
+ */
+export async function publishItem(itemData, accessToken) {
+  const res = await fetch(`${MELI_BASE_URL}/items`, {
+    method: "POST",
+    headers: { 
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      "Accept": "application/json"
+    },
+    body: JSON.stringify(itemData),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(`Error al publicar en ML: ${JSON.stringify(err)}`);
+  }
+
+  return res.json();
+}
+

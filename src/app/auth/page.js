@@ -1,6 +1,6 @@
 /* src/app/auth/page.js */
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import styles from './auth.module.css';
 
 export default function AuthPage() {
@@ -13,6 +13,16 @@ export default function AuthPage() {
   const [submittingCode, setSubmittingCode] = useState(false);
   // Ponemos Producción por defecto para evitar el error 403 de localhost que bloquea a ML
   const [redirectUri, setRedirectUri] = useState('https://www.corporacionrwc.com.ve');
+  const [existingAccounts, setExistingAccounts] = useState([]);
+
+  useEffect(() => {
+    fetch('/api/auth/accounts')
+      .then(res => res.json())
+      .then(data => {
+        if (data.accounts) setExistingAccounts(data.accounts);
+      })
+      .catch(err => console.error(err));
+  }, []);
 
   const handleLogin = () => {
     window.location.href = `/api/auth/login?mode=login&redirectUri=${encodeURIComponent(redirectUri)}`;
@@ -136,6 +146,14 @@ export default function AuthPage() {
             </div>
           )}
         </div>
+
+        {existingAccounts.length > 0 && (
+          <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
+            <a href="/dashboard" className="btn-glass" style={{ display: 'block', textDecoration: 'none', padding: '1rem', border: '1px solid var(--primary)' }}>
+              🏠 Ir al Dashboard ({existingAccounts.length} cuentas vinculadas)
+            </a>
+          </div>
+        )}
 
         <p className={styles.securityNote}>
           🔒 Método seguro compatible con bloqueos de CloudFront.

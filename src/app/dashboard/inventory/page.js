@@ -11,7 +11,7 @@ const LocalPhoto = ({ sku }) => {
   useEffect(() => {
     const fetchPhoto = async () => {
       try {
-        const res = await fetch(`/api/media/local/${sku}?index=0`);
+        const res = await fetch(`/api/media/local/${encodeURIComponent(sku)}?index=0`);
         const json = await res.json();
         if (json.success) setData(json.data);
       } catch (e) {} finally {
@@ -42,6 +42,9 @@ export default function InventoryAuditPage() {
   const [photoStatus, setPhotoStatus] = useState({}); // { SKU: true/false }
   const [filterPhoto, setFilterPhoto] = useState('all'); // 'all', 'yes', 'no'
   const [searchQuery, setSearchQuery] = useState('');
+  const [publishStatus, setPublishStatus] = useState({}); // { SKU: 'idle' | 'loading' | 'success' | 'error' }
+  const [publishedLinks, setPublishedLinks] = useState({}); // { SKU: permalink }
+
 
   useEffect(() => {
     const fetchActiveAccount = async () => {
@@ -221,6 +224,52 @@ export default function InventoryAuditPage() {
     XLSX.writeFile(workbook, "Sugerencias_Para_Publicar.xlsx");
   };
 
+  const handlePublish = async (item, subline) => {
+    if (!activeAccount) return;
+    
+    setPublishStatus(prev => ({ ...prev, [item.sku]: 'loading' }));
+    try {
+      const res = await fetch('/api/account/publications/publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountId: activeAccount,
+          sku: item.sku,
+          title: item.title,
+          price: item.price,
+          stock: item.stock,
+          subline: subline
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setPublishStatus(prev => ({ ...prev, [item.sku]: 'success' }));
+        if (data.permalink) {
+          setPublishedLinks(prev => ({ ...prev, [item.sku]: data.permalink }));
+        }
+      } else {
+        alert(`Error al publicar ${item.sku}: ${data.error}`);
+        setPublishStatus(prev => ({ ...prev, [item.sku]: 'error' }));
+      }
+    } catch (err) {
+      setPublishStatus(prev => ({ ...prev, [item.sku]: 'error' }));
+    }
+  };
+
+  const handlePublishGroup = async (items, subline) => {
+    const readyItems = items.filter(i => photoStatus[i.sku]);
+    if (readyItems.length === 0) {
+      alert("No hay productos con foto listos para publicar en este grupo.");
+      return;
+    }
+    if (!confirm(`¿Deseas publicar ${readyItems.length} productos del grupo "${subline}"?`)) return;
+
+    for (const item of readyItems) {
+      await handlePublish(item, subline);
+    }
+  };
+
+
   // Función para agrupar faltantes por sublínea
   const renderMissingGroups = () => {
     const results = auditMode === 'master' ? resultsMaster : resultsInbound;
@@ -248,28 +297,66 @@ export default function InventoryAuditPage() {
       <div key={sub} style={{ marginBottom: '2rem', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '12px', overflow: 'hidden' }}>
         <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h3 style={{ margin: 0, color: '#fbbf24' }}>📂 {sub} ({items.length} items)</h3>
+          <button 
+            className={styles.primaryBtn} 
+            style={{ padding: '0.5rem 1rem', fontSize: '0.8rem', background: '#10b981' }}
+            onClick={() => handlePublishGroup(items, sub)}
+          >
+            🚀 Publicar Grupo
+          </button>
         </div>
         <table className={styles.table}>
-          <thead><tr><th>FOTO</th><th>SKU</th><th>Título Profit</th><th>Precio</th><th>Stock</th><th>ML Sugerido</th></tr></thead>
+          <thead><tr><th>FOTO</th><th>SKU</th><th>Título Profit</th><th>Precio</th><th>Stock</th><th>ML Sugerido</th><th>ACCIÓN</th></tr></thead>
           <tbody>
-            {items.map((m, idx) => (
-              <tr key={idx}>
-                <td>
-                  {photoStatus[m.sku] ? (
-                    <div className={styles.photoPreviewContainer}>
-                      <span title="Foto local encontrada" style={{ cursor: 'pointer', fontSize: '1.2rem' }}>📸</span>
-                      <div className={styles.photoHover}>
-                        <LocalPhoto sku={m.sku} />
+            {items.map((m, idx) => {
+              const status = publishStatus[m.sku] || 'idle';
+              return (
+                <tr key={idx} style={{ opacity: status === 'success' ? 0.5 : 1 }}>
+                  <td>
+                    {photoStatus[m.sku] ? (
+                      <div className={styles.photoPreviewContainer}>
+                        <span title="Foto local encontrada" style={{ cursor: 'pointer', fontSize: '1.2rem' }}>📸</span>
+                        <div className={styles.photoHover}>
+                          <LocalPhoto sku={m.sku} />
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <span title="Sin foto local" style={{ opacity: 0.3 }}>❌</span>
-                  )}
-                </td>
-                <td style={{fontWeight:'bold', color:'#fbbf24'}}>{m.sku}</td>
-                <td>{m.title}</td><td>${m.price}</td><td>{m.stock}</td><td>{m.suggestedMeliId || '-'}</td>
-              </tr>
-            ))}
+                    ) : (
+                      <span title="Sin foto local" style={{ opacity: 0.3 }}>❌</span>
+                    )}
+                  </td>
+                  <td style={{fontWeight:'bold', color:'#fbbf24'}}>{m.sku}</td>
+                  <td>{m.title}</td><td>${m.price}</td><td>{m.stock}</td><td>{m.suggestedMeliId || '-'}</td>
+                  <td>
+                    {status === 'loading' ? (
+                      <span style={{ fontSize: '0.8rem', color: '#60a5fa' }}>⌛ Publicando...</span>
+                    ) : status === 'success' ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                        <span style={{ fontSize: '0.8rem', color: '#10b981' }}>✅ Publicado</span>
+                        {publishedLinks[m.sku] && (
+                          <a 
+                            href={publishedLinks[m.sku]} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            style={{ fontSize: '0.7rem', color: '#3b82f6', textDecoration: 'underline' }}
+                          >
+                            Ver en ML
+                          </a>
+                        )}
+                      </div>
+                    ) : (
+                      <button 
+                        className={styles.primaryBtn} 
+                        style={{ padding: '0.4rem 0.8rem', fontSize: '0.7rem', opacity: photoStatus[m.sku] ? 1 : 0.3 }}
+                        onClick={() => handlePublish(m, sub)}
+                        disabled={!photoStatus[m.sku]}
+                      >
+                        Publicar
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

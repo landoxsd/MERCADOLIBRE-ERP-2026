@@ -19,7 +19,7 @@ export async function middleware(request) {
   // Proteger rutas del Dashboard
   if (!isPublic && pathname.startsWith("/dashboard")) {
     // Verificar si hay una cuenta activa vinculada (cookie de sesión ML)
-    const activeAccount = request.cookies.get("active_account_id");
+    const activeAccount = request.cookies.get("meli_erp_account");
 
     if (!activeAccount) {
       const redirectUrl = new URL("/auth", request.url);

@@ -5,8 +5,8 @@ import { getSettings } from '@/lib/settings';
 
 export async function GET(req, { params }) {
   try {
-    const { sku } = params;
-    const { searchParams } = new URL(req.url);
+    const { sku } = await params;
+    const { searchParams } = await new URL(req.url);
     const index = searchParams.get('index') || '0';
     
     const settings = getSettings();
