@@ -1,4 +1,4 @@
-// ================================================================
+lgu================================================================
 // src/lib/meli-categories.js
 // Módulo de Mapeo de Categorías Internas → MercadoLibre
 // Usa domain_discovery y attributes de la API oficial de ML
