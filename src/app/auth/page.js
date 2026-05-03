@@ -7,12 +7,12 @@ export default function AuthPage() {
   const [authUrl, setAuthUrl] = useState(null);
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
-  
+
   // Estados para el modo "V4 Skills" (Manual)
   const [manualCode, setManualCode] = useState('');
   const [submittingCode, setSubmittingCode] = useState(false);
   // Ponemos Producción por defecto para evitar el error 403 de localhost que bloquea a ML
-  const [redirectUri, setRedirectUri] = useState('https://www.corporacionrwc.com.ve');
+  const [redirectUri, setRedirectUri] = useState('https://mercadolibre-erp.vercel.app/api/auth/callback');
   const [existingAccounts, setExistingAccounts] = useState([]);
 
   useEffect(() => {
@@ -82,13 +82,13 @@ export default function AuthPage() {
 
         <div className={styles.configSection}>
           <label>URL de Retorno Autorizada:</label>
-          <select 
-            value={redirectUri} 
+          <select
+            value={redirectUri}
             onChange={(e) => setRedirectUri(e.target.value)}
             className={styles.select}
           >
             <option value="http://localhost:3000/api/auth/callback">Local (localhost:3000)</option>
-            <option value="https://www.corporacionrwc.com.ve">Producción (corporacionrwc.com.ve)</option>
+            <option value="https://mercadolibre-erp.vercel.app/api/auth/callback">Producción (Vercel)</option>
           </select>
           <p className={styles.hint}>Usa la de Producción si localhost te da error 403.</p>
         </div>
@@ -116,7 +116,7 @@ export default function AuthPage() {
                   {copied ? '✓ Copiado' : 'Copiar'}
                 </button>
               </div>
-              
+
               <div className={styles.instructions}>
                 <h4>Instrucciones "Estilo V4":</h4>
                 <ol>
@@ -128,15 +128,15 @@ export default function AuthPage() {
               </div>
 
               <div className={styles.manualEntry}>
-                <input 
-                  type="text" 
-                  placeholder="Pega el código de autorización aquí..." 
+                <input
+                  type="text"
+                  placeholder="Pega el código de autorización aquí..."
                   value={manualCode}
                   onChange={(e) => setManualCode(e.target.value)}
                   className={styles.input}
                 />
-                <button 
-                  className={styles.submitBtn} 
+                <button
+                  className={styles.submitBtn}
                   onClick={handleSubmitManualCode}
                   disabled={submittingCode || !manualCode}
                 >
