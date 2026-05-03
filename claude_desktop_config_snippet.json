@@ -1,13 +1,13 @@
 {
   "mcpServers": {
-    "mercadolibre-mcp": {
+    "mercadolibre-mcp-server": {
       "command": "npx",
       "args": [
         "-y",
         "mcp-remote",
         "https://mcp.mercadolibre.com/mcp",
         "--header",
-        "Authorization:Bearer Tu_Access_Token_Aqúi"
+        "Authorization:Bearer APP_USR-2657663366318591-050220-cbaf7d737a807d2f50543b2662f280f3-248086934"
       ],
       "env": {}
     }

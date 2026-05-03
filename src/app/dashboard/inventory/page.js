@@ -4,14 +4,18 @@ import * as XLSX from 'xlsx';
 import styles from './Inventory.module.css';
 
 // Componente para cargar fotos locales bajo demanda
-const LocalPhoto = ({ sku }) => {
+const LocalPhoto = ({ sku, index = 0, filename = null, size = 150 }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchPhoto = async () => {
       try {
-        const res = await fetch(`/api/media/local/${encodeURIComponent(sku)}?index=0`);
+        const url = filename 
+          ? `/api/media/local/${encodeURIComponent(sku)}?filename=${encodeURIComponent(filename)}`
+          : `/api/media/local/${encodeURIComponent(sku)}?index=${index}`;
+          
+        const res = await fetch(url);
         const json = await res.json();
         if (json.success) setData(json.data);
       } catch (e) {} finally {
@@ -19,12 +23,92 @@ const LocalPhoto = ({ sku }) => {
       }
     };
     fetchPhoto();
+  }, [sku, index, filename]);
+
+  if (loading) return <div style={{width: size, height: size, display:'flex', alignItems:'center', justifyContent:'center', background:'#111', borderRadius: '12px', fontSize:'0.7rem'}}>Cargando...</div>;
+  if (!data) return <div style={{width: size, height: size, display:'flex', alignItems:'center', justifyContent:'center', background:'#111', borderRadius: '12px', fontSize:'0.7rem'}}>No disponible</div>;
+
+  return <img src={data} style={{ width: size, height: size, objectFit: 'cover', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }} alt="Preview" />;
+};
+
+const LocalPhotoGallery = ({ sku }) => {
+  const [photos, setPhotos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchList = async () => {
+      console.log(`[Gallery] Iniciando búsqueda para: ${sku}`);
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(`/api/media/list/${encodeURIComponent(sku)}`);
+        if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
+        const json = await res.json();
+        if (isMounted) {
+          if (json.success) {
+            setPhotos(json.files || []);
+          } else {
+            setError(json.error || 'Error en API');
+          }
+        }
+      } catch (e) {
+        console.error("[Gallery] Error:", e);
+        if (isMounted) setError(e.message);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+    fetchList();
+    return () => { isMounted = false; };
   }, [sku]);
 
-  if (loading) return <div style={{width: 150, height: 150, display:'flex', alignItems:'center', justifyContent:'center', background:'#111', fontSize:'0.7rem'}}>Cargando...</div>;
-  if (!data) return <div style={{width: 150, height: 150, display:'flex', alignItems:'center', justifyContent:'center', background:'#111', fontSize:'0.7rem'}}>No disponible</div>;
+  if (loading) return <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.8rem' }}>🔍 Buscando fotos para {sku}...</div>;
+  if (error) return <div style={{ color: '#ef4444', fontSize: '0.8rem' }}>❌ Error: {error}</div>;
+  if (photos.length === 0) return <div style={{ color: '#fbbf24', fontSize: '0.8rem' }}>⚠️ No se encontraron fotos exactas para "{sku}".</div>;
 
-  return <img src={data} style={{ width: 150, height: 150, objectFit: 'cover', borderRadius: '12px' }} alt="Preview" />;
+  return (
+    <div style={{ display: 'flex', gap: '0.8rem', overflowX: 'auto', paddingBottom: '1rem', scrollbarWidth: 'thin' }}>
+      {photos.map((f, i) => (
+        <div key={i} style={{ flexShrink: 0, textAlign: 'center' }}>
+          <LocalPhoto sku={sku} filename={f} size={120} />
+          <div style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.3)', marginTop: '0.3rem' }}>{f}</div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const CategoryPredictor = ({ title }) => {
+  const [prediction, setPrediction] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchPrediction = async () => {
+      try {
+        const res = await fetch(`https://api.mercadolibre.com/sites/MLV/domain_discovery/search?q=${encodeURIComponent(title)}`);
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          setPrediction(data[0]);
+        }
+      } catch (e) {} finally {
+        setLoading(false);
+      }
+    };
+    fetchPrediction();
+  }, [title]);
+
+  if (loading) return <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)' }}>🔮 Prediciendo categoría...</div>;
+  if (!prediction) return <div style={{ fontSize: '0.8rem', color: '#ef4444' }}>⚠️ No se pudo predecir la categoría.</div>;
+
+  return (
+    <div style={{ background: 'rgba(59, 130, 246, 0.1)', border: '1px solid #3b82f6', padding: '0.8rem', borderRadius: '8px' }}>
+      <div style={{ fontSize: '0.7rem', color: '#3b82f6', fontWeight: 'bold', marginBottom: '0.2rem' }}>CATEGORÍA SUGERIDA:</div>
+      <div style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>{prediction.category_name}</div>
+      <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)' }}>ID: {prediction.category_id}</div>
+    </div>
+  );
 };
 
 export default function InventoryAuditPage() {
@@ -44,6 +128,9 @@ export default function InventoryAuditPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [publishStatus, setPublishStatus] = useState({}); // { SKU: 'idle' | 'loading' | 'success' | 'error' }
   const [publishedLinks, setPublishedLinks] = useState({}); // { SKU: permalink }
+  
+  // Preview State
+  const [previewItem, setPreviewItem] = useState(null); // { item, subline }
 
 
   useEffect(() => {
@@ -135,6 +222,34 @@ export default function InventoryAuditPage() {
   const results = auditMode === 'master' ? resultsMaster : resultsInbound;
   const currentFile = auditMode === 'master' ? fileMaster : fileInbound;
 
+  const [suggestedAttrs, setSuggestedAttrs] = useState([]);
+  const [suggesting, setSuggesting] = useState(false);
+
+  const handleSuggestAttributes = async () => {
+    if (!previewItem || !activeAccount) return;
+    setSuggesting(true);
+    try {
+      const res = await fetch('/api/account/publications/suggest-attributes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: previewItem.item.title,
+          accountId: activeAccount
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSuggestedAttrs(data.attributes);
+      } else {
+        alert(data.error);
+      }
+    } catch (e) {
+      alert("Error al obtener sugerencias");
+    } finally {
+      setSuggesting(false);
+    }
+  };
+
   const handleUpload = async () => {
     if (!currentFile || !activeAccount) return;
     setLoading(true);
@@ -224,10 +339,51 @@ export default function InventoryAuditPage() {
     XLSX.writeFile(workbook, "Sugerencias_Para_Publicar.xlsx");
   };
 
-  const handlePublish = async (item, subline) => {
+  const handleDownloadMassiveExcel = (items, subline) => {
+    const origin = window.location.origin;
+    
+    const massiveData = items.map(i => {
+      // Intentar obtener la primera foto para el Excel si existe
+      // Nota: ML Masivo pide URLs absolutas. 
+      const photoUrl = photoStatus[i.sku] ? `${origin}/api/inventory/photos/view?sku=${i.sku}` : "";
+      
+      return {
+        "Título": i.title,
+        "Precio (USD)": i.price,
+        "Condición": "Nuevo",
+        "Stock": i.stock,
+        "Fotos (URL)": photoUrl,
+        "Descripción": `Producto Original. SKU: ${i.sku}. Código OEM: ${i.oem || 'N/A'}.`,
+        "Marca": i.brand || "Genérico",
+        "Modelo": "Genérico",
+        "Código OEM": i.oem || "",
+        "SKU / Código Interno": i.sku
+      };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(massiveData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, subline.substring(0, 30));
+    
+    // Auto-ajustar columnas
+    worksheet['!cols'] = [
+      { wch: 50 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, 
+      { wch: 60 }, { wch: 60 }, { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 20 }
+    ];
+
+    XLSX.writeFile(workbook, `Masivo_ML_${subline.replace(/\s+/g, '_')}.xlsx`);
+  };
+
+  const handlePublish = (item, subline) => {
+    setPreviewItem({ item, subline });
+  };
+
+  const confirmPublish = async (item, subline, extraAttrs = []) => {
     if (!activeAccount) return;
     
     setPublishStatus(prev => ({ ...prev, [item.sku]: 'loading' }));
+    setPreviewItem(null);
+
     try {
       const res = await fetch('/api/account/publications/publish', {
         method: 'POST',
@@ -238,7 +394,10 @@ export default function InventoryAuditPage() {
           title: item.title,
           price: item.price,
           stock: item.stock,
-          subline: subline
+          subline: subline,
+          brand: item.brand,
+          oem: item.oem,
+          extraAttrs: extraAttrs
         })
       });
       const data = await res.json();
@@ -265,7 +424,8 @@ export default function InventoryAuditPage() {
     if (!confirm(`¿Deseas publicar ${readyItems.length} productos del grupo "${subline}"?`)) return;
 
     for (const item of readyItems) {
-      await handlePublish(item, subline);
+      // Para grupos, publicamos directo sin preview por cada uno
+      await confirmPublish(item, subline);
     }
   };
 
@@ -297,13 +457,22 @@ export default function InventoryAuditPage() {
       <div key={sub} style={{ marginBottom: '2rem', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '12px', overflow: 'hidden' }}>
         <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h3 style={{ margin: 0, color: '#fbbf24' }}>📂 {sub} ({items.length} items)</h3>
-          <button 
-            className={styles.primaryBtn} 
-            style={{ padding: '0.5rem 1rem', fontSize: '0.8rem', background: '#10b981' }}
-            onClick={() => handlePublishGroup(items, sub)}
-          >
-            🚀 Publicar Grupo
-          </button>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button 
+              className={styles.secondaryBtn} 
+              style={{ padding: '0.5rem 1rem', fontSize: '0.8rem', background: '#3b82f6', color: 'white', border: 'none' }}
+              onClick={() => handleDownloadMassiveExcel(items, sub)}
+            >
+              📥 Excel Masivo ML
+            </button>
+            <button 
+              className={styles.primaryBtn} 
+              style={{ padding: '0.5rem 1rem', fontSize: '0.8rem', background: '#10b981' }}
+              onClick={() => handlePublishGroup(items, sub)}
+            >
+              🚀 Publicar Grupo
+            </button>
+          </div>
         </div>
         <table className={styles.table}>
           <thead><tr><th>FOTO</th><th>SKU</th><th>Título Profit</th><th>Precio</th><th>Stock</th><th>ML Sugerido</th><th>ACCIÓN</th></tr></thead>
@@ -554,6 +723,122 @@ export default function InventoryAuditPage() {
           </div>
           
           {renderMissingGroups()}
+
+          {/* Modal de Vista Previa */}
+          {previewItem && (
+            <div style={{
+              position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(8px)'
+            }}>
+              <div style={{
+                background: '#1a1a1a', padding: '2.5rem', borderRadius: '24px', maxWidth: '600px', width: '90%',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)', border: '1px solid rgba(255,255,255,0.1)'
+              }}>
+                <h2 style={{ marginBottom: '1.5rem', fontSize: '1.8rem', fontWeight: '800' }}>Confirmar Publicación</h2>
+                
+                <div style={{ marginBottom: '2rem' }}>
+                  <label style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: '0.8rem', fontWeight: 'bold', letterSpacing: '0.05em' }}>📸 GALERÍA DE FOTOS DETECTADAS</label>
+                  <LocalPhotoGallery sku={previewItem.item.sku} />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+                  <div style={{ gridColumn: 'span 2' }}>
+                    <label style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '0.3rem' }}>TÍTULO DE LA PUBLICACIÓN</label>
+                    <div style={{ fontSize: '1.1rem', fontWeight: 'bold', background: 'rgba(255,255,255,0.03)', padding: '0.8rem', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                      {previewItem.item.title}
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '0.3rem' }}>PRECIO FINAL (USD)</label>
+                    <div style={{ fontSize: '1.3rem', color: '#fbbf24', fontWeight: '800' }}>${previewItem.item.price}</div>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '0.3rem' }}>STOCK DISPONIBLE</label>
+                    <div style={{ fontSize: '1.3rem', fontWeight: '800' }}>{previewItem.item.stock} unidades</div>
+                  </div>
+                </div>
+
+                <div style={{ background: 'rgba(255,255,255,0.05)', padding: '1.5rem', borderRadius: '12px', marginBottom: '2rem' }}>
+                  <label style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '0.8rem', fontWeight: 'bold' }}>SUBLÍNEA / CATEGORÍA ML</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <div style={{ fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      📂 {previewItem.subline}
+                    </div>
+                    {previewItem.subline === 'SIN CATEGORÍA' ? (
+                      <CategoryPredictor title={previewItem.item.title} />
+                    ) : (
+                      <div style={{ fontSize: '0.8rem', color: '#10b981' }}>✅ Categoría Mapeada</div>
+                    )}
+                  </div>
+                </div>
+
+                {/* NUEVO: Atributos Obligatorios Detectados */}
+                <div style={{ background: 'rgba(251, 191, 36, 0.05)', padding: '1.5rem', borderRadius: '12px', marginBottom: '2rem', border: '1px solid rgba(251, 191, 36, 0.2)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                    <label style={{ fontSize: '0.7rem', color: '#fbbf24', margin: 0, fontWeight: 'bold' }}>📝 ATRIBUTOS TÉCNICOS</label>
+                    <button 
+                      onClick={handleSuggestAttributes}
+                      disabled={suggesting}
+                      style={{ background: '#fbbf24', color: 'black', border: 'none', padding: '0.4rem 0.8rem', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 'bold', cursor: 'pointer', opacity: suggesting ? 0.5 : 1 }}
+                    >
+                      {suggesting ? '🔍 Buscando...' : '✨ Mejorar con Competencia'}
+                    </button>
+                  </div>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div>
+                      <label style={{ fontSize: '0.6rem', opacity: 0.5, display: 'block' }}>MARCA</label>
+                      <div style={{ fontSize: '0.9rem', color: '#fbbf24' }}>{previewItem.item.brand || 'Genérico'}</div>
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.6rem', opacity: 0.5, display: 'block' }}>MODELO</label>
+                      <div style={{ fontSize: '0.9rem' }}>Genérico</div>
+                    </div>
+                    <div style={{ gridColumn: 'span 2' }}>
+                      <label style={{ fontSize: '0.6rem', opacity: 0.5, display: 'block' }}>CÓDIGO OEM / ALTERNO</label>
+                      <div style={{ fontSize: '0.9rem', color: '#60a5fa' }}>{previewItem.item.oem || 'No Aplica'}</div>
+                    </div>
+                  </div>
+
+                  {suggestedAttrs.length > 0 && (
+                    <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                      <label style={{ fontSize: '0.6rem', opacity: 0.5, display: 'block', marginBottom: '0.5rem' }}>SUGERENCIAS DE LA COMPETENCIA:</label>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                        {suggestedAttrs.slice(0, 8).map((at, idx) => (
+                          <div key={idx} style={{ background: 'rgba(255,255,255,0.05)', padding: '0.3rem 0.6rem', borderRadius: '4px', fontSize: '0.6rem' }}>
+                            <span style={{ opacity: 0.5 }}>{at.name}:</span> {at.value_name}
+                          </div>
+                        ))}
+                      </div>
+                      <p style={{ fontSize: '0.6rem', color: '#10b981', marginTop: '0.5rem' }}>✅ Estos datos se incluirán automáticamente para mejorar el SEO.</p>
+                    </div>
+                  )}
+
+                  {!suggestedAttrs.length && (
+                    <p style={{ fontSize: '0.6rem', marginTop: '1rem', opacity: 0.5 }}>* El sistema completará automáticamente otros campos requeridos por la categoría con valores estándar.</p>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+                  <button 
+                    onClick={() => { setPreviewItem(null); setSuggestedAttrs([]); }}
+                    style={{ padding: '0.8rem 1.5rem', borderRadius: '12px', background: 'transparent', color: 'white', border: '1px solid rgba(255,255,255,0.2)', cursor: 'pointer' }}
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    onClick={() => {
+                      confirmPublish(previewItem.item, previewItem.subline, suggestedAttrs);
+                      setSuggestedAttrs([]);
+                    }}
+                    style={{ padding: '0.8rem 2rem', borderRadius: '12px', background: '#10b981', color: 'white', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}
+                  >
+                    🚀 Publicar Ahora
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -9,12 +9,12 @@ const MELI_AUTH_URL = "https://auth.mercadolibre.com"; // Versión global para m
 // redirectUri: opcional, por defecto usa el de .env
 export function getMeliAuthUrl(state = "", customRedirectUri = null) {
   const redirect_uri = customRedirectUri || process.env.MELI_REDIRECT_URI;
-  
+
   const params = new URLSearchParams({
     response_type: "code",
     client_id: process.env.MELI_CLIENT_ID,
     redirect_uri,
-    state, 
+    state,
   });
 
   return `${MELI_AUTH_URL}/authorization?${params.toString()}`;
@@ -79,15 +79,31 @@ export async function getMeliUserProfile(accessToken) {
 
 // -----------------------------------------------------------------
 // Helper genérico para llamar la API de ML con el token vigente
+// Incluye retry con backoff exponencial para HTTP 429 (rate limit)
 // -----------------------------------------------------------------
-export async function meliGet(endpoint, accessToken) {
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export async function meliGet(endpoint, accessToken, retryCount = 0) {
   const res = await fetch(`${MELI_BASE_URL}${endpoint}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
+
+    // Retry con backoff exponencial para Rate Limit (429)
+    if (res.status === 429 && retryCount < 3) {
+      const backoffMs = Math.min(1000 * Math.pow(2, retryCount), 30000);
+      console.warn(`[meliGet] Rate limit en ${endpoint}. Reintentando en ${backoffMs}ms (intento ${retryCount + 1}/3)...`);
+      await sleep(backoffMs);
+      return meliGet(endpoint, accessToken, retryCount + 1);
+    }
+
     throw new Error(`ML API Error [${res.status}]: ${err.message || endpoint}`);
   }
+
   return res.json();
 }
 
@@ -106,11 +122,11 @@ export async function getSellerReputation(userId, accessToken) {
 
   // Mapear level_id a etiqueta legible
   const LEVEL_MAP = {
-    "1_red":    { label: "Rojo",        color: "#ef4444", emoji: "🔴" },
-    "2_orange": { label: "Naranja",     color: "#f97316", emoji: "🟠" },
-    "3_yellow": { label: "Amarillo",    color: "#eab308", emoji: "🟡" },
+    "1_red": { label: "Rojo", color: "#ef4444", emoji: "🔴" },
+    "2_orange": { label: "Naranja", color: "#f97316", emoji: "🟠" },
+    "3_yellow": { label: "Amarillo", color: "#eab308", emoji: "🟡" },
     "4_light_green": { label: "Verde Claro", color: "#84cc16", emoji: "🟢" },
-    "5_green":  { label: "Verde",       color: "#10b981", emoji: "🟢" },
+    "5_green": { label: "Verde", color: "#10b981", emoji: "🟢" },
   };
 
   const levelInfo = LEVEL_MAP[rep.level_id] || { label: "Sin color", color: "#64748b", emoji: "⚪" };
@@ -264,7 +280,7 @@ export async function getAccountOverview(userId, accessToken) {
  */
 export async function getAllItemIds(userId, accessToken, status = "active") {
   let statusesToFetch = [status];
-  
+
   if (status === "all") {
     statusesToFetch = ["active", "paused", "closed"];
   } else if (status && status.includes(",")) {
@@ -281,7 +297,7 @@ export async function getAllItemIds(userId, accessToken, status = "active") {
 
     while (hasMore) {
       const url = new URL(`${MELI_BASE_URL}/users/${userId}/items/search`);
-      
+
       // Pasar siempre el status para evitar que ML omita estados ocultos por defecto
       url.searchParams.set("status", currentStatus);
       url.searchParams.set("search_type", "scan");
@@ -295,13 +311,13 @@ export async function getAllItemIds(userId, accessToken, status = "active") {
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         console.warn(`🚧 Scroll interrumpido o API sin resultados para estado ${currentStatus} [${res.status}]: ${err.message || 'Unknown'}`);
-        break; 
+        break;
       }
 
       const data = await res.json();
       const ids = data.results || [];
       allIds = [...allIds, ...ids];
-      
+
       scrollId = data.scroll_id;
       hasMore = ids.length > 0 && !!scrollId;
 
@@ -321,7 +337,7 @@ export async function getAllItemIds(userId, accessToken, status = "active") {
  */
 export async function getItemsBatch(itemIds, accessToken) {
   if (!itemIds.length) return [];
-  
+
   // Dividir en grupos de 20
   const chunks = [];
   for (let i = 0; i < itemIds.length; i += 20) {
@@ -365,21 +381,57 @@ export async function getItemCompatibility(itemId, accessToken) {
 }
 
 /**
+ * Obtiene los atributos obligatorios para una categoría específica.
+ * Filtra aquellos que tienen tags.required = true.
+ */
+export async function getCategoryAttributes(categoryId) {
+  try {
+    const res = await fetch(`${MELI_BASE_URL}/categories/${categoryId}/attributes`);
+    if (!res.ok) return [];
+    const attributes = await res.json();
+    return attributes.filter(a => a.tags && a.tags.required);
+  } catch (err) {
+    console.error("Error obteniendo atributos de categoría:", err);
+    return [];
+  }
+}
+
+/**
  * Sube una imagen a los servidores de ML.
  * Devuelve un objeto con el ID de la imagen para asociar al ítem.
  */
 export async function uploadPicture(fileBuffer, filename, accessToken) {
-  const formData = new FormData();
-  const blob = new Blob([fileBuffer], { type: "image/jpeg" });
-  formData.append("file", blob, filename);
+  const boundary = '----MercadoLibreFormBoundary' + Math.random().toString(36).substring(2);
+  const crlf = '\r\n';
+
+  const ext = filename.split('.').pop().toLowerCase();
+  const mimeType = ext === 'png' ? 'image/png' : 'image/jpeg';
+
+  const partHeader = Buffer.from(
+    `--${boundary}${crlf}` +
+    `Content-Disposition: form-data; name="file"; filename="image.jpg"${crlf}` +
+    `Content-Type: ${mimeType}${crlf}${crlf}`
+  );
+
+  const partFooter = Buffer.from(`${crlf}--${boundary}--${crlf}`);
+  const body = Buffer.concat([partHeader, fileBuffer, partFooter]);
 
   const res = await fetch(`${MELI_BASE_URL}/pictures/items/upload`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${accessToken}` },
-    body: formData,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "Content-Type": `multipart/form-data; boundary=${boundary}`,
+      "Content-Length": body.length.toString()
+    },
+    body: body,
   });
 
-  if (!res.ok) throw new Error("Error al subir imagen a ML");
+  if (!res.ok) {
+    const errorBody = await res.text();
+    console.error("❌ ML Picture Upload Error:", errorBody);
+    throw new Error(`Error al subir imagen a ML: ${errorBody}`);
+  }
   return res.json();
 }
 
@@ -415,7 +467,7 @@ export function extractSku(item) {
     // Buscamos el primero que tenga seller_custom_field
     const withCustom = item.variations.find(v => v.seller_custom_field);
     if (withCustom) return withCustom.seller_custom_field;
-    
+
     // Si no, buscamos SELLER_SKU en atributos de variación
     for (const v of item.variations) {
       const vSku = v.attributes?.find(a => a.id === 'SELLER_SKU')?.value_name;
@@ -429,7 +481,7 @@ export function extractSku(item) {
 
   // 4. Último recurso: PART_NUMBER (Solo si no hay nada más)
   const partNumber = item.attributes?.find(a => a.id === 'PART_NUMBER')?.value_name;
-  
+
   return partNumber || null;
 }
 
@@ -440,10 +492,11 @@ export function extractSku(item) {
 export async function publishItem(itemData, accessToken) {
   const res = await fetch(`${MELI_BASE_URL}/items`, {
     method: "POST",
-    headers: { 
+    headers: {
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
-      "Accept": "application/json"
+      "Accept": "application/json",
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     },
     body: JSON.stringify(itemData),
   });

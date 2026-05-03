@@ -22,21 +22,25 @@ export async function POST(req) {
     // Crear un SET de bases de archivos NORMALIZADOS (sin caracteres especiales)
     const normalizedFileBases = new Set(files.map(f => f.split('.')[0].toLowerCase().replace(/[^a-z0-9]/gi, '')));
 
-    skus.forEach(sku => {
-      const normalizedSku = sku.replace(/[^a-z0-9]/gi, '').toLowerCase();
-      const cleanSku = sku.replace(/^0+/, '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+    skus.forEach(skuRaw => {
+      const sku = skuRaw.trim();
+      const skuLower = sku.toLowerCase();
 
-      // Verificar si el SKU normalizado existe en nuestra colección de archivos
-      if (
-        normalizedFileBases.has(normalizedSku) || 
-        normalizedFileBases.has(`${normalizedSku}0`) ||
-        (cleanSku && normalizedFileBases.has(cleanSku)) ||
-        (cleanSku && normalizedFileBases.has(`${cleanSku}0`))
-      ) {
-        photoMap[sku] = true;
-      } else {
-        photoMap[sku] = false;
-      }
+      // Coincidencia estricta: SKU exacto o SKU-N (donde N es número)
+      const hasMatch = files.some(f => {
+        const base = f.split('.')[0].toLowerCase();
+        if (base === skuLower) return true;
+        
+        const lastDashIndex = base.lastIndexOf('-');
+        if (lastDashIndex !== -1) {
+          const prefix = base.substring(0, lastDashIndex);
+          const suffix = base.substring(lastDashIndex + 1);
+          return prefix === skuLower && /^\d+$/.test(suffix);
+        }
+        return false;
+      });
+
+      photoMap[sku] = hasMatch;
     });
 
     return NextResponse.json({ photoMap });

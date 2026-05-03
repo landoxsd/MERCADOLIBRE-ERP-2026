@@ -44,6 +44,32 @@ export default function SettingsPage() {
     }
   };
 
+  const handleAutoDetectCategory = async (profitKey) => {
+    const url = prompt("Pega el link de Mercado Libre (o ID del producto) para detectar su categoría EXACTA:");
+    if (!url) return;
+
+    try {
+      // Hacemos la consulta al BACKEND para usar el Token de Autorización y evitar bloqueos
+      const res = await fetch('/api/utils/extract-category', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        const newMap = {...settings.categoryMap};
+        newMap[profitKey] = data.category_id;
+        setSettings({...settings, categoryMap: newMap});
+        alert(`✅ Categoría EXACTA detectada: ${data.category_id}\n(${data.title})`);
+      } else {
+        alert("❌ Error: " + data.error);
+      }
+    } catch (e) {
+      alert("Error al conectar con el servidor del ERP.");
+    }
+  };
+
   return (
     <div style={{ padding: '2rem', maxWidth: '1000px' }}>
       <header style={{ marginBottom: '2rem' }}>
@@ -110,7 +136,7 @@ export default function SettingsPage() {
             {Object.entries(settings.categoryMap || {}).map(([profit, ml]) => (
               <tr key={profit} style={{ borderBottom: '1px solid #222' }}>
                 <td style={{ padding: '0.8rem' }}>{profit}</td>
-                <td>
+                <td style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.8rem' }}>
                   <input 
                     type="text" 
                     value={ml}
@@ -119,8 +145,16 @@ export default function SettingsPage() {
                       newMap[profit] = e.target.value;
                       setSettings({...settings, categoryMap: newMap});
                     }}
-                    style={{ padding: '0.5rem', background: 'transparent', border: '1px solid #333', color: 'white' }}
+                    placeholder="MLVXXXXXX"
+                    style={{ padding: '0.5rem', background: 'transparent', border: '1px solid #333', color: 'white', flex: 1 }}
                   />
+                  <button 
+                    onClick={() => handleAutoDetectCategory(profit)}
+                    title="Detectar desde link de ML"
+                    style={{ background: '#3b82f6', border: 'none', color: 'white', padding: '0.5rem', borderRadius: '4px', cursor: 'pointer' }}
+                  >
+                    🔍
+                  </button>
                 </td>
                 <td>
                   <button 

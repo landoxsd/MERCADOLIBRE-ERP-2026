@@ -5,9 +5,11 @@ import { getSettings } from '@/lib/settings';
 
 export async function GET(req, { params }) {
   try {
-    const { sku } = await params;
-    const { searchParams } = await new URL(req.url);
+    let { sku } = await params;
+    sku = sku.trim();
+    const { searchParams } = new URL(req.url);
     const index = searchParams.get('index') || '0';
+    const filename = searchParams.get('filename');
     
     const settings = getSettings();
     if (!settings.photosPath) {
@@ -17,18 +19,27 @@ export async function GET(req, { params }) {
     // Escanear carpeta
     const files = fs.readdirSync(settings.photosPath);
     
-    // Normalizar SKU: eliminar guiones, puntos y espacios
-    const normalizedSku = sku.replace(/[^a-z0-9]/gi, '').toLowerCase();
-    const cleanSku = sku.replace(/^0+/, '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+    const skuLower = sku.toLowerCase();
 
-    const fileName = files.find(f => {
-      const base = f.split('.')[0].toLowerCase().replace(/[^a-z0-9]/gi, '');
-      // Coincidencia si el nombre del archivo contiene el SKU normalizado
-      return base === normalizedSku || 
-             base === `${normalizedSku}${index}` || 
-             (cleanSku && base === cleanSku) ||
-             base.startsWith(`${normalizedSku}-`);
-    });
+    let fileName = filename;
+    
+    if (!fileName) {
+      fileName = files.find(f => {
+        const base = f.split('.')[0].toLowerCase();
+        
+        // 1. Coincidencia exacta: 058054
+        if (base === skuLower) return true;
+        
+        // 2. Coincidencia con índice: 058054-0, 058054-1, etc.
+        const lastDashIndex = base.lastIndexOf('-');
+        if (lastDashIndex !== -1) {
+          const prefix = base.substring(0, lastDashIndex);
+          const suffix = base.substring(lastDashIndex + 1);
+          return prefix === skuLower && suffix === index.toString();
+        }
+        return false;
+      });
+    }
 
     if (!fileName) {
       return NextResponse.json({ error: "Imagen no encontrada" }, { status: 404 });

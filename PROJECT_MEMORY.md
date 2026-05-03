@@ -1,4 +1,4 @@
-# 🧠 MEMORIA DEL PROYECTO: MERCADOLIBRE ERP 2026
+ MEMORIA DEL PROYECTO: MERCADOLIBRE ERP 2026
 
 Este documento es el **Punto de Control (Breakpoint)** maestro. Su objetivo es proporcionar contexto inmediato a cualquier IA o desarrollador que inicie una nueva sesión, asegurando la continuidad de los roles y la arquitectura.
 
@@ -28,6 +28,22 @@ El sistema está construido para ser escalable mediante micro-servicios internos
 ### 4. Exportador Integraly (`src/app/dashboard/inventory/page.js`)
 *   **Función:** Genera un archivo `.xlsx` con la estructura exacta que requiere la plataforma Integraly para mapear SKUs masivamente.
 
+### 5. Notificaciones Push / Webhooks (`src/app/api/webhooks/meli/route.js` + Vercel)
+*   **Función:** Recibe eventos de MercadoLibre en tiempo real (items, orders_v2, questions, shipments, payments) y los encola en Supabase (`ml_notifications`).
+*   **Estado:** Implementado. Requiere deploy en Vercel y configurar Callback URL en app de ML.
+
+### 6. Vercel Cron Job — Refresh Token (`src/app/api/cron/refresh-token/route.js`)
+*   **Función:** Refresca tokens automáticamente cada 2 horas sin depender del PC local.
+*   **Estado:** Implementado. Configurado en `vercel.json` con schedule `0 */2 * * *`.
+
+### 7. Módulo de Mapeo de Categorías (`src/lib/meli-categories.js`)
+*   **Función:** Estandariza SubLíneas internas (ej: 11-001 AMORTIGUADOR NORMAL) con categorías MLV usando `domain_discovery` y validación de atributos obligatorios.
+*   **Estado:** Implementado. Tabla `category_mappings` en Supabase + endpoint `/api/categories/suggest`.
+
+### 8. Resiliencia API (`src/lib/meli.js`)
+*   **Función:** `meliGet()` ahora incluye retry con backoff exponencial para HTTP 429 (rate limit).
+*   **Estado:** Implementado. 3 reintentos automáticos (1s → 2s → 4s → max 30s).
+
 ---
 
 ## 🚩 ESTADO ACTUAL Y SIGUIENTES PASOS (TODO)
@@ -43,10 +59,60 @@ El sistema está construido para ser escalable mediante micro-servicios internos
 - [x] **Procesador de Notas de Recepción Proactivo** (Skill #8).
 - [x] **Mecanismo de Batching (2000 ítems):** Eliminados los "Statement Timeouts".
 - [x] **Aislamiento de UI (Tabs):** Previene pausar huérfanos por accidente.
+- [x] **Notificaciones Push / Webhooks** (Skill #9): Endpoint en Vercel + tabla `ml_notifications`.
+- [x] **Vercel Cron Job — Refresh Token** (Skill #10): Auto-refresh cada 2h + manejo `invalid_grant`.
+- [x] **Mapeo de Categorías Internas → ML** (Skill #11): Tabla `category_mappings` + `meli-categories.js`.
+- [x] **Resiliencia ante Rate Limits** (Skill #12): Retry con backoff exponencial en `meliGet`.
+- [x] **Recuperación ante Token Inválido** (Skill #13): Columnas `needs_reauth` + `reauth_error`.
 
 ### 🎯 PRÓXIMOS OBJETIVOS (Prioridad en orden)
-1.  **Módulo de Ventas y Visitas:** Implementar el tablero de analíticas usando los datos ya sincronizados para medir el rendimiento real por publicación.
-2.  **Extractor Universal:** Crear scripts que aprovechen la columna `raw_data` para extraer descripciones o variaciones sin llamar a la API.
+1.  **Activar Webhooks en Producción:**
+    - Deployar en Vercel.
+    - Configurar Callback URL en app de MercadoLibre.
+    - Suscribirse a topics: `items`, `orders_v2`, `questions`, `shipments`, `payments`.
+    - Probar recepción con `curl` o Postman.
+2.  **Mapear Categorías Existentes:**
+    - Importar sublíneas de `LINEAS SUBLINEAS.xlsx` a `category_mappings`.
+    - Usar script para sugerir categorías ML vía `domain_discovery` masivamente.
+    - Validar mapeos manualmente (especialmente las 20 sublíneas más usadas).
+3.  **Consumidor de Notificaciones (ERP Local):**
+    - Crear polling o Supabase Realtime para leer `ml_notifications` pending.
+    - Procesar topic `items` → sincronizar producto modificado.
+    - Procesar topic `orders_v2` → crear orden en tabla `orders` + descontar stock.
+    - Procesar topic `questions` → insertar en tabla `questions`.
+    - Marcar notificaciones como `completed` o `error`.
+4.  **Módulo de Ventas y Visitas:** Implementar el tablero de analíticas usando los datos ya sincronizados para medir el rendimiento real por publicación.
+5.  **Extractor Universal:** Crear scripts que aprovechen la columna `raw_data` para extraer descripciones o variaciones sin llamar a la API.
+
+---
+
+## 🚦 CHECKPOINT DE IMPLEMENTACIÓN (Sesión 2026-05-03)
+**Estado:** Implementación de Skills del MCP de MercadoLibre — FASE 1 COMPLETADA.
+**Contexto:** El usuario eligió Vercel como receptor de webhooks (100% uptime) y el ERP local sigue corriendo en Windows. El refresh token también se migró a Vercel Cron Job.
+
+### Archivos creados/modificados en esta sesión:
+| Archivo | Estado |
+|---|---|
+| `PROJECT_SKILLS.md` | ✅ Actualizado con 5 skills nuevas (9-13) |
+| `supabase/schema.sql` | ✅ Agregadas tablas `ml_notifications`, `category_mappings`, columnas `needs_reauth`/`reauth_error` |
+| `src/app/api/webhooks/meli/route.js` | ✅ Nuevo. Recibe POST de ML, valida IP, guarda en Supabase, responde 200 |
+| `src/app/api/cron/refresh-token/route.js` | ✅ Nuevo. Cron job cada 2h, refresca tokens, maneja `invalid_grant` |
+| `src/lib/meli-categories.js` | ✅ Nuevo. Helpers de `domain_discovery`, validación de categorías, mapeo |
+| `src/app/api/categories/suggest/route.js` | ✅ Nuevo. API para sugerir categoría ML por SubLínea interna |
+| `vercel.json` | ✅ Nuevo. Configuración del cron job |
+| `src/lib/meli.js` | ✅ Mejorado. `meliGet()` ahora tiene retry con backoff para HTTP 429 |
+
+### Pendiente técnico inmediato:
+- [ ] Ejecutar SQL actualizado en Supabase (Dashboard → SQL Editor).
+- [ ] Agregar variable `CRON_SECRET` en `.env` y en Vercel Environment Variables.
+- [ ] Hacer `git push` de todos los cambios.
+- [ ] Deployar a Vercel y obtener URL pública.
+- [ ] Configurar Callback URL en app de MercadoLibre Developers.
+
+### Decisión de arquitectura tomada:
+- **Vercel** solo recibe notificaciones y ejecuta cron jobs. Todo el ERP (dashboard, publicación, sincronización) sigue en local.
+- **Supabase** es la base de datos compartida entre Vercel y Local.
+- **Refresh token** se ejecuta en Vercel Cron cada 2 horas, eliminando dependencia de Windows Task Scheduler.
 
 ---
 
@@ -72,4 +138,4 @@ Para asegurar la continuidad eterna del proyecto, se seguirán estas reglas:
 4.  **Caché:** Los archivos `.audit_cache_*.json` son temporales y no se versionan, pero son vitales para la persistencia en caliente de la sesión.
 
 ---
-*Última actualización: 2026-04-23 00:55 (Auditoría Finalizada y Blindada)*.
+*Última actualización: 2026-05-03 02:07 (Skills del MCP de MercadoLibre implementadas: Webhooks, Cron Job, Mapeo de Categorías, Resiliencia API)*.

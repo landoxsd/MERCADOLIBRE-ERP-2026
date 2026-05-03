@@ -164,10 +164,22 @@ CREATE TABLE IF NOT EXISTS internal_inventory (
   sku             TEXT UNIQUE NOT NULL,
   title           TEXT,
   price           FLOAT,
+  cost            FLOAT,          -- Costo del Excel (Columna Z)
   stock           FLOAT,
+  brand           TEXT,           -- Marca del Excel (Columna D)
+  oem             TEXT,           -- Códigos Alternos / OEM (Columna S)
   category        TEXT,           -- Línea de producto
   subcategory     TEXT            -- Sublínea
 );
+
+-- Migración segura para columnas nuevas en caso de que la tabla ya exista
+ALTER TABLE internal_inventory ADD COLUMN IF NOT EXISTS cost FLOAT;
+ALTER TABLE internal_inventory ADD COLUMN IF NOT EXISTS brand TEXT;
+ALTER TABLE internal_inventory ADD COLUMN IF NOT EXISTS oem TEXT;
+
+-- Columnas para manejo de re-autorización (Invalid Grant Handler)
+ALTER TABLE meli_accounts ADD COLUMN IF NOT EXISTS needs_reauth BOOLEAN DEFAULT false;
+ALTER TABLE meli_accounts ADD COLUMN IF NOT EXISTS reauth_error TEXT;
 
 -- -----------------------------------------------------------------
 -- Tabla: Preguntas de compradores
@@ -226,6 +238,67 @@ CREATE INDEX IF NOT EXISTS idx_competitor_prod ON competitors_tracking(product_i
 CREATE INDEX IF NOT EXISTS idx_products_sku ON products(sku);
 CREATE INDEX IF NOT EXISTS idx_internal_sku ON internal_inventory(sku);
 
+-- -----------------------------------------------------------------
+-- Tabla: Notificaciones Push de MercadoLibre (Webhooks)
+-- -----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS ml_notifications (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at      TIMESTAMPTZ DEFAULT NOW(),
+  processed_at    TIMESTAMPTZ,
+
+  topic           TEXT NOT NULL,           -- items, orders_v2, questions, shipments, payments
+  resource        TEXT NOT NULL,           -- /orders/123456, /items/MLV123
+  user_id         BIGINT NOT NULL,         -- meli_user_id que generó el evento
+  application_id  BIGINT,
+  attempts        INTEGER DEFAULT 1,       -- intentos de envío de ML
+  payload         JSONB,                   -- JSON completo de la notificación
+
+  status          TEXT DEFAULT 'pending',  -- pending, processing, completed, error
+  error_message   TEXT,
+  ml_sent_at      TIMESTAMPTZ,             -- timestamp que envió ML
+  ml_received_at  TIMESTAMPTZ              -- timestamp que recibió ML
+);
+
+-- -----------------------------------------------------------------
+-- Tabla: Mapeo de Categorías Internas → MercadoLibre
+-- -----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS category_mappings (
+  id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at              TIMESTAMPTZ DEFAULT NOW(),
+  updated_at              TIMESTAMPTZ DEFAULT NOW(),
+
+  internal_line_code      TEXT NOT NULL,   -- ej: 11-000
+  internal_subline_code   TEXT NOT NULL,   -- ej: 11-001
+  internal_name           TEXT NOT NULL,   -- ej: AMORTIGUADOR NORMAL
+
+  ml_category_id          TEXT,            -- ej: MLA1747 (o subcategoría hoja)
+  ml_category_name        TEXT,
+  ml_domain_id            TEXT,
+  ml_domain_name          TEXT,
+
+  is_validated            BOOLEAN DEFAULT false,  -- true cuando un usuario confirmó el mapeo
+  validated_by            TEXT,                     -- usuario que validó
+  validated_at            TIMESTAMPTZ,
+
+  UNIQUE(internal_line_code, internal_subline_code)
+);
+
+-- Triggers para updated_at
+CREATE OR REPLACE TRIGGER update_category_mappings_updated_at
+  BEFORE UPDATE ON category_mappings FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- Índices para notificaciones
+CREATE INDEX IF NOT EXISTS idx_notifications_status ON ml_notifications(status);
+CREATE INDEX IF NOT EXISTS idx_notifications_topic ON ml_notifications(topic);
+CREATE INDEX IF NOT EXISTS idx_notifications_user ON ml_notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_created ON ml_notifications(created_at);
+
+-- Índices para mapeo de categorías
+CREATE INDEX IF NOT EXISTS idx_catmap_line ON category_mappings(internal_line_code);
+CREATE INDEX IF NOT EXISTS idx_catmap_subline ON category_mappings(internal_subline_code);
+CREATE INDEX IF NOT EXISTS idx_catmap_ml_cat ON category_mappings(ml_category_id);
+CREATE INDEX IF NOT EXISTS idx_catmap_validated ON category_mappings(is_validated);
+
 -- ================================================================
--- ✅ Script completado. Las 6 tablas han sido creadas exitosamente.
+-- ✅ Script completado. Las 8 tablas han sido creadas exitosamente.
 -- ================================================================

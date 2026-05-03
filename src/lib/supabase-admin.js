@@ -50,3 +50,32 @@ export const questionsTable = () => supabaseAdmin.from("questions");
 
 // Clientes CRM
 export const customersTable = () => supabaseAdmin.from("customers");
+
+// -----------------------------------------------------------------
+// Storage Helpers (Puente para Imágenes)
+// -----------------------------------------------------------------
+export async function uploadImageToStorage(fileBuffer, filename) {
+  // Asegurar un nombre único para evitar colisiones en caché
+  const uniqueFilename = `${Date.now()}_${filename}`;
+  const bucketName = "product-photos";
+
+  const { data, error } = await supabaseAdmin
+    .storage
+    .from(bucketName)
+    .upload(uniqueFilename, fileBuffer, {
+      contentType: filename.toLowerCase().endsWith('png') ? 'image/png' : 'image/jpeg',
+      upsert: true
+    });
+
+  if (error) {
+    throw new Error(`Error subiendo a Supabase Storage: ${error.message}`);
+  }
+
+  // Obtener URL pública
+  const { data: publicUrlData } = supabaseAdmin
+    .storage
+    .from(bucketName)
+    .getPublicUrl(uniqueFilename);
+
+  return publicUrlData.publicUrl;
+}

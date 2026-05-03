@@ -6,6 +6,9 @@ import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
+export const maxDuration = 300; // 5 minutos para procesar 27k+ registros
+export const dynamic = 'force-dynamic';
+
 export async function POST(req) {
   try {
     const formData = await req.formData();
@@ -40,13 +43,14 @@ export async function POST(req) {
       return NextResponse.json({ error: "No se encontró una columna de identificación (CODIGO) en las primeras 50 filas" }, { status: 400 });
     }
 
-    // 3. Mapear datos a partir de la cabecera encontrada
-    const activeHeaders = rawRows[headerRowIndex].map(h => String(h).toUpperCase());
-    const idxSku = activeHeaders.findIndex(h => h === "CODIGO A" || h.includes("CODIGO") || h.includes("CÓDIGO"));
-    const idxTitle = activeHeaders.findIndex(h => h.includes("DESCRIPCION") || h.includes("TITULO"));
-    const idxPrice = activeHeaders.findIndex(h => h.includes("PRECIO") || h.includes("TOTAL"));
-    const idxStock = activeHeaders.findIndex(h => h.includes("CANTIDAD") || h.includes("EXISTENCIA") || h.includes("STOCK"));
-    const idxMeli = activeHeaders.findIndex(h => h === "ML" || h.includes("MERCADO"));
+    // 3. Mapear datos utilizando índices fijos según el formato Profit Plus
+    // A(0): CODIGO, B(1): DESCRIPCION, D(3): MARCA, S(18): CAMPO7(OEM), T(19): STOCK, Z(25): COSTO
+    const idxSku = 0;
+    const idxTitle = 1;
+    const idxBrand = 3;
+    const idxOem = 18;
+    const idxStock = 19;
+    const idxCost = 25;
 
     // Helper para normalizar SKUs (Mayúsculas y sin espacios)
     const normalize = (s) => String(s || "").trim().toUpperCase();
@@ -56,9 +60,11 @@ export async function POST(req) {
       .map(row => ({
         sku: normalize(row[idxSku]),
         title: String(row[idxTitle] || "").trim(),
-        price: parseFloat(row[idxPrice] || 0),
+        price: parseFloat(row[idxCost] || 0), // Usamos COSTO(Z) como precio base (el ERP sumará margen luego)
+        cost: parseFloat(row[idxCost] || 0),
         stock: parseFloat(row[idxStock] || 0),
-        suggestedMeliId: idxMeli !== -1 ? String(row[idxMeli] || "").trim() : null
+        brand: String(row[idxBrand] || "").trim(),
+        oem: String(row[idxOem] || "").trim()
       }))
       .filter(item => item.sku && item.sku !== "CODIGO");
 
