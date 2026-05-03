@@ -149,9 +149,18 @@ export default function AuthPage() {
 
         {existingAccounts.length > 0 && (
           <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
-            <a href="/dashboard" className="btn-glass" style={{ display: 'block', textDecoration: 'none', padding: '1rem', border: '1px solid var(--primary)' }}>
+            <button
+              onClick={() => {
+                // Establecer cookie con la primera cuenta para poder entrar al dashboard
+                const firstAccount = existingAccounts[0];
+                document.cookie = `meli_erp_account=${firstAccount.id}; path=/; max-age=${60 * 60 * 24 * 7}`;
+                window.location.href = '/dashboard';
+              }}
+              className="btn-glass"
+              style={{ display: 'block', width: '100%', padding: '1rem', border: '1px solid var(--primary)', cursor: 'pointer', background: 'transparent', color: 'inherit', fontSize: 'inherit' }}
+            >
               🏠 Ir al Dashboard ({existingAccounts.length} cuentas vinculadas)
-            </a>
+            </button>
           </div>
         )}
 
