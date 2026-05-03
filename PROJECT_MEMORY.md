@@ -108,8 +108,9 @@ El sistema está construido para ser escalable mediante micro-servicios internos
 - [x] Agregar variable `CRON_SECRET` en `.env`.
 - [x] Hacer `git push` de todos los cambios.
 - [x] Deployar a Vercel y obtener URL pública.
-- [ ] Configurar Callback URL en app de MercadoLibre Developers.
-- [ ] Agregar variables de entorno en Vercel Dashboard (SUPABASE_SERVICE_ROLE_KEY, MELI_CLIENT_ID, MELI_CLIENT_SECRET, CRON_SECRET, MELI_REDIRECT_URI, NEXT_PUBLIC_APP_URL).
+- [x] Agregar variables de entorno en Vercel Dashboard.
+- [ ] Configurar Callback URL en app de MercadoLibre Developers (pendiente del usuario).
+- [ ] Probar webhook enviando notificación de prueba.
 
 ### Decisión de arquitectura tomada:
 - **Vercel** solo recibe notificaciones y ejecuta cron jobs. Todo el ERP (dashboard, publicación, sincronización) sigue en local.
@@ -140,4 +141,4 @@ Para asegurar la continuidad eterna del proyecto, se seguirán estas reglas:
 4.  **Caché:** Los archivos `.audit_cache_*.json` son temporales y no se versionan, pero son vitales para la persistencia en caliente de la sesión.
 
 ---
-*Última actualización: 2026-05-03 02:07 (Skills del MCP de MercadoLibre implementadas: Webhooks, Cron Job, Mapeo de Categorías, Resiliencia API)*.
+*Última actualización: 2026-05-03 14:18 (Deploy exitoso en Vercel. Skills 9-13 activas en producción. Webhook verificado y respondiendo OK. Pendiente: configurar ML Developers).*

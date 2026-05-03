@@ -63,10 +63,11 @@ Este documento recopila las "Habilidades Especiales" desarrolladas en este proye
 
 ## 10. Habilidad: Vercel Cron Job para Auto-Refresh de Tokens
 **Descripción:** Mantiene tokens vigentes usando la infraestructura serverless de Vercel en lugar de Task Scheduler local.
-*   **Lógica:** Un Cron Job de Vercel ejecuta cada 2 horas (`0 */2 * * *`) un endpoint que revisa todas las cuentas en `meli_accounts`, identifica tokens próximos a expirar (< 30 min) y los refresca vía OAuth2.
+*   **Lógica:** Un Cron Job de Vercel ejecuta cada 24 horas (`0 0 * * *`) un endpoint que revisa todas las cuentas en `meli_accounts`, identifica tokens próximos a expirar (< 30 min) y los refresca vía OAuth2. En plan Pro puede configurarse cada 2 horas (`0 */2 * * *`).
 *   **Ubicación:** `src/app/api/cron/refresh-token/route.js` + `vercel.json`
 *   **Valor:** Descentraliza la infraestructura crítica. Si el PC local se apaga, los tokens siguen vivos.
 *   **Doc oficial ML:** El access_token dura 6 horas. El refresh_token es de un solo uso y se invalida si no se usa la app en 4 meses.
+*   **Nota:** Plan Hobby limita cron jobs a 1 por día. Plan Pro permite múltiples por día.
 
 ## 11. Habilidad: Mapeo de Categorías Internas → MercadoLibre
 **Descripción:** Estandariza las SubLíneas del ERP (ej: `11-001 AMORTIGUADOR NORMAL`) con las categorías oficiales de MLV para evitar errores de categorización al publicar.
