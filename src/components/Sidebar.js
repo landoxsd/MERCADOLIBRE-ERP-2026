@@ -5,15 +5,16 @@ import { usePathname, useRouter } from 'next/navigation';
 import styles from './Sidebar.module.css';
 
 const NAV_ITEMS = [
-  { href: '/dashboard',         label: 'Dashboard',       icon: '📊' },
-  { href: '/dashboard/orders',  label: 'Órdenes',         icon: '📦' },
-   { href: '/dashboard/products',label: 'Publicaciones',   icon: '🏷️' },
-  { href: '/dashboard/inventory',label: 'Auditoría Inventario',icon: '🔍' },
-  { href: '/dashboard/questions',label: 'Preguntas',      icon: '💬' },
-  { href: '/dashboard/customers',label: 'Clientes CRM',   icon: '👥' },
-  { href: '/dashboard/whatsapp',label: 'WhatsApp',        icon: '📱' },
-  { href: '/dashboard/analytics',label: 'Analíticas',     icon: '📈' },
-  { href: '/dashboard/competition',label: 'Competencia',  icon: '🎯' },
+  { href: '/dashboard', label: 'Dashboard', icon: '📊' },
+  { href: '/dashboard/orders', label: 'Órdenes', icon: '📦' },
+  { href: '/dashboard/products', label: 'Publicaciones', icon: '🏷️' },
+  { href: '/dashboard/inventory', label: 'Auditoría Inventario', icon: '🔍' },
+  { href: '/dashboard/webhooks', label: 'Webhooks', icon: '🔔' },
+  { href: '/dashboard/questions', label: 'Preguntas', icon: '💬' },
+  { href: '/dashboard/customers', label: 'Clientes CRM', icon: '👥' },
+  { href: '/dashboard/whatsapp', label: 'WhatsApp', icon: '📱' },
+  { href: '/dashboard/analytics', label: 'Analíticas', icon: '📈' },
+  { href: '/dashboard/competition', label: 'Competencia', icon: '🎯' },
 ];
 
 export default function Sidebar({ accounts = [], activeAccountId }) {
@@ -55,8 +56,8 @@ export default function Sidebar({ accounts = [], activeAccountId }) {
               </Link>
             ) : (
               <>
-                <select 
-                  className={styles.accountSelect} 
+                <select
+                  className={styles.accountSelect}
                   value={activeAccountId || ''}
                   onChange={handleAccountChange}
                 >
