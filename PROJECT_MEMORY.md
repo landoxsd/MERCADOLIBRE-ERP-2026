@@ -87,8 +87,9 @@ El sistema está construido para ser escalable mediante micro-servicios internos
 ---
 
 ## 🚦 CHECKPOINT DE IMPLEMENTACIÓN (Sesión 2026-05-03)
-**Estado:** Implementación de Skills del MCP de MercadoLibre — FASE 1 COMPLETADA.
-**Contexto:** El usuario eligió Vercel como receptor de webhooks (100% uptime) y el ERP local sigue corriendo en Windows. El refresh token también se migró a Vercel Cron Job.
+**Estado:** Deploy exitoso en Vercel — Skills MCP activos en producción.
+**URL de Producción:** https://mercadolibre-erp.vercel.app
+**Contexto:** El usuario eligió Vercel como receptor de webhooks (100% uptime) y el ERP local sigue corriendo en Windows. El refresh token corre en Vercel Cron Job cada 24h (plan Hobby).
 
 ### Archivos creados/modificados en esta sesión:
 | Archivo | Estado |
@@ -103,11 +104,12 @@ El sistema está construido para ser escalable mediante micro-servicios internos
 | `src/lib/meli.js` | ✅ Mejorado. `meliGet()` ahora tiene retry con backoff para HTTP 429 |
 
 ### Pendiente técnico inmediato:
-- [ ] Ejecutar SQL actualizado en Supabase (Dashboard → SQL Editor).
-- [ ] Agregar variable `CRON_SECRET` en `.env` y en Vercel Environment Variables.
-- [ ] Hacer `git push` de todos los cambios.
-- [ ] Deployar a Vercel y obtener URL pública.
+- [x] Ejecutar SQL actualizado en Supabase (Dashboard → SQL Editor).
+- [x] Agregar variable `CRON_SECRET` en `.env`.
+- [x] Hacer `git push` de todos los cambios.
+- [x] Deployar a Vercel y obtener URL pública.
 - [ ] Configurar Callback URL en app de MercadoLibre Developers.
+- [ ] Agregar variables de entorno en Vercel Dashboard (SUPABASE_SERVICE_ROLE_KEY, MELI_CLIENT_ID, MELI_CLIENT_SECRET, CRON_SECRET, MELI_REDIRECT_URI, NEXT_PUBLIC_APP_URL).
 
 ### Decisión de arquitectura tomada:
 - **Vercel** solo recibe notificaciones y ejecuta cron jobs. Todo el ERP (dashboard, publicación, sincronización) sigue en local.
