@@ -11,6 +11,10 @@ export default function SettingsPage() {
   const [message, setMessage] = useState('');
   const [detecting, setDetecting] = useState(false);
   const [batchResults, setBatchResults] = useState([]);
+  const [searchModal, setSearchModal] = useState({ open: false, profitKey: null });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
 
   useEffect(() => {
     fetchSettings();
@@ -170,6 +174,51 @@ export default function SettingsPage() {
     }
   };
 
+  const openSearchModal = (profitKey) => {
+    setSearchModal({ open: true, profitKey });
+    setSearchQuery(profitKey);
+    setSearchResults([]);
+  };
+
+  const closeSearchModal = () => {
+    setSearchModal({ open: false, profitKey: null });
+    setSearchQuery('');
+    setSearchResults([]);
+    setSearching(false);
+  };
+
+  const handleSearchSubmit = async () => {
+    if (!searchQuery.trim()) return;
+    setSearching(true);
+    setSearchResults([]);
+    try {
+      const res = await fetch('/api/categories/search-with-breadcrumb', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: searchQuery })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSearchResults(data.results);
+      } else {
+        alert("❌ " + data.error);
+      }
+    } catch (e) {
+      alert("Error al conectar con el servidor.");
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const applySearchResult = (categoryId) => {
+    if (!searchModal.profitKey) return;
+    const newMap = { ...settings.categoryMap };
+    newMap[searchModal.profitKey] = categoryId;
+    setSettings({ ...settings, categoryMap: newMap });
+    closeSearchModal();
+    alert(`✅ Categoría aplicada: ${categoryId}`);
+  };
+
   return (
     <div style={{ padding: '2rem', maxWidth: '1000px' }}>
       <header style={{ marginBottom: '2rem' }}>
@@ -296,6 +345,13 @@ export default function SettingsPage() {
                       style={{ padding: '0.5rem', background: 'transparent', border: '1px solid #333', color: 'white', flex: 1 }}
                     />
                     <button
+                      onClick={() => openSearchModal(profit)}
+                      title="Buscar categoría con breadcrumb"
+                      style={{ background: '#f59e0b', border: 'none', color: 'white', padding: '0.5rem', borderRadius: '4px', cursor: 'pointer' }}
+                    >
+                      🔎
+                    </button>
+                    <button
                       onClick={() => handleDetectOne(profit)}
                       title="Detectar automáticamente por nombre de sublínea"
                       style={{ background: '#8b5cf6', border: 'none', color: 'white', padding: '0.5rem', borderRadius: '4px', cursor: 'pointer' }}
@@ -407,6 +463,99 @@ export default function SettingsPage() {
       >
         {saving ? 'Guardando...' : '💾 Guardar Cambios'}
       </button>
+
+      {/* MODAL DE BÚSQUEDA CON BREADCRUMB */}
+      {searchModal.open && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.8)', zIndex: 9999,
+          display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}>
+          <div style={{
+            background: '#1e1e2e', borderRadius: '15px', padding: '2rem',
+            width: '90%', maxWidth: '700px', maxHeight: '80vh',
+            overflowY: 'auto', border: '1px solid rgba(255,255,255,0.1)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h2 style={{ margin: 0, color: '#f59e0b' }}>🔎 Buscar Categoría</h2>
+              <button
+                onClick={closeSearchModal}
+                style={{ background: 'transparent', border: 'none', color: 'white', fontSize: '1.5rem', cursor: 'pointer' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <p style={{ color: 'rgba(255,255,255,0.6)', marginBottom: '1rem', fontSize: '0.9rem' }}>
+              Sublínea: <strong>{searchModal.profitKey}</strong>
+            </p>
+
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearchSubmit()}
+                placeholder="Escribe un término (ej: amortiguador, frenos, etc.)"
+                style={{
+                  flex: 1, padding: '0.8rem', background: 'black', border: '1px solid #333',
+                  color: 'white', borderRadius: '8px'
+                }}
+              />
+              <button
+                onClick={handleSearchSubmit}
+                disabled={searching}
+                style={{
+                  padding: '0.8rem 1.5rem', background: searching ? '#555' : '#f59e0b',
+                  border: 'none', color: 'white', borderRadius: '8px',
+                  cursor: searching ? 'not-allowed' : 'pointer', fontWeight: 'bold'
+                }}
+              >
+                {searching ? '⏳ Buscando...' : 'Buscar'}
+              </button>
+            </div>
+
+            {searchResults.length > 0 && (
+              <div>
+                <h3 style={{ color: '#10b981', marginBottom: '1rem' }}>📊 Resultados ({searchResults.length})</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                  {searchResults.map((result, idx) => (
+                    <div key={idx} style={{
+                      background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)',
+                      padding: '1rem', borderRadius: '8px'
+                    }}>
+                      <div style={{ fontWeight: 'bold', color: 'white', marginBottom: '0.3rem' }}>
+                        {result.category_name}
+                      </div>
+                      <div style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '0.5rem' }}>
+                        {result.breadcrumb}
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: '#60a5fa', fontSize: '0.8rem', fontFamily: 'monospace' }}>
+                          {result.category_id}
+                        </span>
+                        <button
+                          onClick={() => applySearchResult(result.category_id)}
+                          style={{
+                            background: '#10b981', border: 'none', color: 'white',
+                            padding: '0.4rem 1rem', borderRadius: '5px', cursor: 'pointer', fontSize: '0.85rem'
+                          }}
+                        >
+                          ✅ Seleccionar
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {!searching && searchResults.length === 0 && searchQuery && (
+              <p style={{ color: '#ef4444', textAlign: 'center' }}>No se encontraron resultados.</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

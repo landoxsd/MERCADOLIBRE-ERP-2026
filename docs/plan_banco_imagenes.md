@@ -112,10 +112,26 @@ Si no se especifica ninguna, el script **falla con un mensaje claro** indicando 
 **¿Qué hace?**
 - Lee la carpeta especificada (con soporte para subcarpetas si `recursive: true`)
 - Parsea el nombre `sku-index.jpg` → extrae SKU e índice
-- Calcula MD5 para detectar si la imagen cambió
-- Inserta/actualiza registros en `image_bank` (upsert por `sku + image_index`)
+- Calcula el **hash MD5** de cada archivo local
+- Compara el MD5 con el valor guardado en Supabase (`file_hash`)
+- **Solo marca como `pending` las imágenes que cambiaron o son nuevas** — las sin cambios quedan intactas
 - No sube nada, solo cataloga
 - Al terminar muestra un resumen: nuevas / actualizadas / sin cambios / errores
+
+### 🔁 Lógica de detección de cambios (por imagen)
+
+```
+┌─ ¿Existe en image_bank? ─────────────────────────────────────┐
+│  NO  → Insertar con sync_status = 'pending'                  │
+│  SÍ  → Calcular MD5 del archivo local                        │
+│           ¿MD5 igual al guardado?                            │
+│           SÍ → No hacer nada (skip)                          │
+│           NO → Actualizar file_hash, sync_status = 'changed' │
+└──────────────────────────────────────────────────────────────┘
+```
+
+> [!IMPORTANT]
+> **Solo se actualizan las imágenes que realmente cambiaron.** Si un archivo `KIT430-0.jpg` tiene el mismo contenido que la última vez que se escaneó, el script lo ignora completamente. Esto hace que re-escanear 30.000 archivos sea rápido y seguro en cualquier momento.
 
 **Patrón de nombre soportado:**
 ```
@@ -134,15 +150,25 @@ FILTRO-HMB-01-2.jpg  → sku = "FILTRO-HMB-01",  index = 2
 **Archivo:** `scripts/sync-images-to-ml.js`
 
 **¿Qué hace?**
-- Lee registros con `sync_status = 'pending'` en lotes (ej. 50 a la vez)
+- Lee **solo** registros con `sync_status IN ('pending', 'changed')` — nunca toca los `synced`
 - Lee la ruta local de cada imagen desde la columna `local_path` guardada en `image_bank`
 - Por cada imagen: `POST https://api.mercadolibre.com/pictures` con multipart
-- Guarda el `picture_id` retornado en Supabase
+- Guarda el `picture_id` + URL retornados en Supabase
 - Maneja errores, límite de rate, y reintentos
 - Actualiza estado: `synced` | `error`
 
+### 🔁 Lógica de qué se sube
+
+| Estado en DB | ¿Se sube? | Motivo |
+|---|---|---|
+| `pending` | ✅ Sí | Imagen nueva, nunca subida |
+| `changed` | ✅ Sí | Imagen modificada localmente (MD5 cambió) |
+| `synced` | ❌ No | Ya está en ML, sin cambios |
+| `error` | ❌ No (usar `--retry`) | Falló antes, requiere revisión |
+| `local_deleted` | ❌ No | Archivo ya no existe localmente |
+
 > [!IMPORTANT]
-> El sync worker **no necesita que le indiques la carpeta** — lee la `local_path` que guardó el scanner en Supabase. Por eso el paso de scan siempre va primero.
+> El sync worker **no necesita que le indiques la carpeta** — lee la `local_path` que guardó el scanner en Supabase. Por eso el flujo siempre es: **scan → sync**.
 
 **Control de velocidad:**
 ```
@@ -152,8 +178,9 @@ ML permite ~50 req/min en uploads → 1 imagen cada 1.2 segundos
 
 **Modos de operación:**
 - `--batch 100` — subir solo N imágenes (para pruebas)
-- `--sku KIT430` — subir solo imágenes de un SKU específico  
-- `--force` — re-subir imágenes ya sincronizadas (si cambiaron)
+- `--sku KIT430` — subir solo imágenes de un SKU específico
+- `--retry` — re-intentar imágenes en estado `error`
+- `--force` — forzar re-subida de imágenes ya `synced` (solo si cambiaste la imagen y quieres forzar sin re-escanear)
 - `--dry-run` — solo muestra qué subiría sin hacer nada
 
 ---
