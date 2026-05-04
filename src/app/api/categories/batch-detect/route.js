@@ -74,53 +74,58 @@ export async function POST(request) {
             }
         }
 
+        // Procesar en paralelo por lotes de 10 para velocidad
+        const BATCH_SIZE = 10;
         const results = [];
-        let processed = 0;
 
-        for (const subline of sublines) {
-            const trimmed = subline.trim();
-            if (!trimmed) continue;
+        for (let i = 0; i < sublines.length; i += BATCH_SIZE) {
+            const batch = sublines.slice(i, i + BATCH_SIZE);
+            const batchPromises = batch.map(async (subline) => {
+                const trimmed = subline.trim();
+                if (!trimmed) return null;
 
-            const existing = existingMap.get(trimmed);
+                const existing = existingMap.get(trimmed);
 
-            if (existing) {
-                results.push({
-                    subline: trimmed,
-                    status: "mapped",
-                    category_id: existing.ml_category_id,
-                    category_name: existing.ml_category_name,
-                    is_validated: existing.is_validated,
-                    suggestions: [],
-                });
-                continue;
-            }
+                if (existing) {
+                    return {
+                        subline: trimmed,
+                        status: "mapped",
+                        category_id: existing.ml_category_id,
+                        category_name: existing.ml_category_name,
+                        is_validated: existing.is_validated,
+                        suggestions: [],
+                    };
+                }
 
-            // Intentar sugerir categoría
-            const suggestions = await suggestCategory(trimmed);
+                // Intentar sugerir categoría
+                const suggestions = await suggestCategory(trimmed);
 
-            if (suggestions.length > 0) {
-                const best = suggestions[0];
-                results.push({
-                    subline: trimmed,
-                    status: "suggested",
-                    category_id: best.category_id,
-                    category_name: best.category_name,
-                    suggestions: suggestions,
-                });
-            } else {
-                results.push({
-                    subline: trimmed,
-                    status: "not_found",
-                    category_id: null,
-                    category_name: null,
-                    suggestions: [],
-                });
-            }
+                if (suggestions.length > 0) {
+                    const best = suggestions[0];
+                    return {
+                        subline: trimmed,
+                        status: "suggested",
+                        category_id: best.category_id,
+                        category_name: best.category_name,
+                        suggestions: suggestions,
+                    };
+                } else {
+                    return {
+                        subline: trimmed,
+                        status: "not_found",
+                        category_id: null,
+                        category_name: null,
+                        suggestions: [],
+                    };
+                }
+            });
 
-            // Pequeño delay para no saturar la API de ML
-            processed++;
-            if (processed % 5 === 0) {
-                await new Promise((r) => setTimeout(r, 300));
+            const batchResults = await Promise.all(batchPromises);
+            results.push(...batchResults.filter(Boolean));
+
+            // Pequeño delay entre lotes para no saturar ML
+            if (i + BATCH_SIZE < sublines.length) {
+                await new Promise((r) => setTimeout(r, 200));
             }
         }
 

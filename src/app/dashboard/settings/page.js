@@ -268,7 +268,15 @@ export default function SettingsPage() {
                       status.status === 'mapped' ? (
                         <span style={{ color: '#10b981', fontSize: '0.85rem' }}>✅ Mapeada</span>
                       ) : status.status === 'suggested' ? (
-                        <span style={{ color: '#fbbf24', fontSize: '0.85rem' }}>💡 Sugerida: {status.category_id}</span>
+                        <div style={{ color: '#fbbf24', fontSize: '0.85rem' }}>
+                          <div>💡 {status.category_name || status.category_id}</div>
+                          <div style={{ opacity: 0.6, fontSize: '0.75rem' }}>{status.category_id}</div>
+                          {status.suggestions && status.suggestions.length > 1 && (
+                            <div style={{ marginTop: '0.3rem', fontSize: '0.7rem', color: '#94a3b8' }}>
+                              +{status.suggestions.length - 1} alternativas
+                            </div>
+                          )}
+                        </div>
                       ) : status.status === 'not_found' ? (
                         <span style={{ color: '#ef4444', fontSize: '0.85rem' }}>❌ Sin coincidencia</span>
                       ) : status.status === 'rejected' ? (
