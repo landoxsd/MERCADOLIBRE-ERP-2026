@@ -71,7 +71,7 @@ if %errorlevel% neq 0 (
 echo  ✅ Tarea "%TASK_NAME%" creada exitosamente.
 echo.
 echo  📅 Configuración:
-echo     • Frecuencia: Cada 5 horas
+echo     • Frecuencia: Cada 3 horas
 echo     • Comando:    %NODE_PATH% %SCRIPT_PATH%
 echo     • Usuario:    %USERNAME%
 echo.

@@ -48,72 +48,85 @@ const STATUS_STYLES = {
     error: { bg: '#fee2e2', color: '#991b1b', label: 'Error' },
 };
 
-// Botón para suscribir la cuenta activa a los webhooks de ML
-function SubscribeButton({ onSuccess }) {
-    const [subscribing, setSubscribing] = useState(false);
-    const [result, setResult] = useState(null);
-
-    const handleSubscribe = async () => {
-        setSubscribing(true);
-        setResult(null);
-        try {
-            // Obtener accountId de la cookie
-            const cookieMatch = document.cookie.match(/meli_erp_account=([^;]+)/);
-            const accountId = cookieMatch ? cookieMatch[1] : null;
-
-            if (!accountId) {
-                setResult({ error: 'No hay cuenta activa. Conecta una cuenta primero.' });
-                setSubscribing(false);
-                return;
-            }
-
-            const res = await fetch('/api/webhooks/subscribe', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ accountId }),
-            });
-
-            const data = await res.json();
-            setResult(data);
-
-            if (res.ok && onSuccess) {
-                onSuccess();
-            }
-        } catch (err) {
-            setResult({ error: err.message });
-        } finally {
-            setSubscribing(false);
-        }
-    };
+// Instrucciones para configurar webhooks manualmente
+function WebhookSetupInstructions() {
+    const [showInstructions, setShowInstructions] = useState(false);
 
     return (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ marginBottom: '16px' }}>
             <button
-                onClick={handleSubscribe}
-                disabled={subscribing}
+                onClick={() => setShowInstructions(!showInstructions)}
                 style={{
                     padding: '8px 16px',
                     borderRadius: '8px',
-                    border: 'none',
-                    background: subscribing ? '#9ca3af' : '#059669',
-                    color: '#fff',
+                    border: '1px solid #e5e7eb',
+                    background: '#fff',
+                    color: '#374151',
                     fontSize: '13px',
-                    cursor: subscribing ? 'not-allowed' : 'pointer',
+                    cursor: 'pointer',
                     fontWeight: 500,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
                 }}
             >
-                {subscribing ? '⏳ Suscribiendo...' : '🔔 Suscribir a Webhooks'}
+                ⚙️ {showInstructions ? 'Ocultar instrucciones' : 'Configurar Webhooks'}
             </button>
-            {result && (
-                <span style={{
-                    fontSize: '12px',
-                    color: result.error ? '#dc2626' : '#059669',
-                    fontWeight: 500,
+
+            {showInstructions && (
+                <div style={{
+                    marginTop: '12px',
+                    padding: '16px',
+                    background: '#f0f9ff',
+                    borderRadius: '12px',
+                    border: '1px solid #bae6fd',
+                    fontSize: '13px',
+                    color: '#1e3a5f',
                 }}>
-                    {result.error
-                        ? `❌ ${result.error}`
-                        : `✅ ${result.subscribed}/${result.total} topics suscritos`}
-                </span>
+                    <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: 600 }}>
+                        🔧 Configuración manual requerida en MercadoLibre
+                    </h4>
+                    <p style={{ margin: '0 0 12px 0' }}>
+                        MercadoLibre <strong>no permite suscribir webhooks por API</strong>. Debes configurarlos manualmente desde el panel de desarrolladores:
+                    </p>
+                    <ol style={{ margin: '0 0 12px 0', paddingLeft: '20px', lineHeight: '1.8' }}>
+                        <li>Ve a <a href="https://applications.mercadolibre.com/" target="_blank" rel="noopener noreferrer" style={{ color: '#0284c7', fontWeight: 600 }}>applications.mercadolibre.com</a></li>
+                        <li>Inicia sesión con tu cuenta de desarrollador</li>
+                        <li>Busca tu aplicación (Client ID: 2657663366318591)</li>
+                        <li>Ve a la sección <strong>"Notificaciones"</strong></li>
+                        <li>Pega esta <strong>Callback URL</strong>:</li>
+                    </ol>
+                    <div style={{
+                        padding: '10px 14px',
+                        background: '#1e293b',
+                        color: '#e2e8f0',
+                        borderRadius: '8px',
+                        fontFamily: 'monospace',
+                        fontSize: '12px',
+                        wordBreak: 'break-all',
+                        marginBottom: '12px',
+                    }}>
+                        https://mercadolibre-erp.vercel.app/api/webhooks/ml
+                    </div>
+                    <p style={{ margin: '0 0 8px 0', fontWeight: 600 }}>Topics a activar:</p>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {Object.entries(TOPIC_INFO).map(([key, info]) => (
+                            <span key={key} style={{
+                                padding: '4px 10px',
+                                borderRadius: '20px',
+                                background: info.color + '15',
+                                color: info.color,
+                                fontSize: '11px',
+                                fontWeight: 600,
+                            }}>
+                                {info.icon} {info.label}
+                            </span>
+                        ))}
+                    </div>
+                    <p style={{ margin: '12px 0 0 0', fontSize: '12px', color: '#64748b' }}>
+                        💡 Una vez configurado, las notificaciones llegarán automáticamente y el sistema actualizará productos, órdenes y preguntas sin intervención manual.
+                    </p>
+                </div>
             )}
         </div>
     );
@@ -200,6 +213,9 @@ export default function WebhooksMonitorPage() {
                 </p>
             </div>
 
+            {/* Setup Instructions */}
+            <WebhookSetupInstructions />
+
             {/* Stats Cards */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '24px' }}>
                 <div style={{ background: '#fff', borderRadius: '12px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
@@ -239,7 +255,7 @@ export default function WebhooksMonitorPage() {
                 </div>
             </div>
 
-            {/* Filters + Subscribe */}
+            {/* Filters */}
             <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
                 <select
                     value={filterTopic}
@@ -268,7 +284,6 @@ export default function WebhooksMonitorPage() {
                 >
                     🔄 Actualizar
                 </button>
-                <SubscribeButton onSuccess={fetchNotifications} />
             </div>
 
             {/* Table */}
@@ -279,7 +294,7 @@ export default function WebhooksMonitorPage() {
                     <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>
                         <div style={{ fontSize: '32px', marginBottom: '8px' }}>📭</div>
                         <div>No hay notificaciones aún.</div>
-                        <div style={{ fontSize: '12px', marginTop: '8px' }}>Haz un cambio en una publicación de ML o espera a que llegue un evento.</div>
+                        <div style={{ fontSize: '12px', marginTop: '8px' }}>Configura los webhooks en applications.mercadolibre.com para empezar a recibir eventos.</div>
                     </div>
                 ) : (
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
@@ -369,6 +384,11 @@ export default function WebhooksMonitorPage() {
                                                         <div style={{ marginBottom: '8px' }}>
                                                             <span style={{ fontWeight: 600 }}>Significado:</span> {topicInfo.description}
                                                         </div>
+                                                        {n.processed_at && (
+                                                            <div style={{ marginBottom: '8px', color: '#059669' }}>
+                                                                <span style={{ fontWeight: 600 }}>Procesado:</span> {formatDate(n.processed_at)}
+                                                            </div>
+                                                        )}
                                                         {n.error_message && (
                                                             <div style={{ marginBottom: '8px', color: '#dc2626' }}>
                                                                 <span style={{ fontWeight: 600 }}>Error:</span> {n.error_message}

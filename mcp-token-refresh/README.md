@@ -6,9 +6,9 @@ Script automatizado para refrescar el `access_token` de MercadoLibre y mantener 
 
 ## ¿Qué hace este script?
 
-1. **Lee** el `refresh_token` de la cuenta `CORPORACIONRWCCA` desde Supabase.
-2. **Solicita** un nuevo `access_token` a la API de MercadoLibre.
-3. **Actualiza** la base de datos con el nuevo token y su fecha de expiración.
+1. **Lee** los `refresh_token` de **TODAS las cuentas** (o una específica) desde Supabase.
+2. **Solicita** un nuevo `access_token` a la API de MercadoLibre por cada cuenta.
+3. **Actualiza** la base de datos con los nuevos tokens y sus fechas de expiración.
 4. **Reemplaza** el token en los archivos de configuración de Cline (`cline_mcp_settings.json`).
 
 > **Nota:** Los tokens de MercadoLibre expiran cada **6 horas**. Este script asegura que nunca tengas un token vencido.
@@ -97,10 +97,16 @@ Si necesitas cambiar algo, edita estas variables al inicio de `refresh-token.js`
 
 | Variable | Descripción | Valor por defecto |
 |----------|-------------|-------------------|
-| `ACCOUNT_NICKNAME` | Cuenta de ML a refrescar | `CORPORACIONRWCCA` |
+| `ACCOUNT_NICKNAME` | Cuenta de ML a refrescar (vacío = todas) | `CORPORACIONRWCCA` |
 | `CONFIG_PATHS` | Rutas a los archivos de config | Array con 2 rutas |
 
 Las credenciales de Supabase y MercadoLibre se leen de las variables de entorno si existen, o usan los valores por defecto del proyecto.
+
+### Modo: todas las cuentas
+Para refrescar **todas** las cuentas vinculadas, deja `ACCOUNT_NICKNAME` vacío o coméntala:
+```javascript
+const ACCOUNT_NICKNAME = ""; // Vacío = todas las cuentas
+```
 
 ---
 

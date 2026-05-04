@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import { accountsTable } from "@/lib/supabase-admin";
 import { meliGet } from "@/lib/meli";
+import { getValidAccessToken } from "@/lib/meli-auth-helper";
 import { cookies } from "next/headers";
 
 export async function GET(request) {
@@ -31,13 +32,8 @@ export async function GET(request) {
             return NextResponse.json({ error: "Cuenta no encontrada" }, { status: 404 });
         }
 
-        // Verificar token
-        if (new Date(account.token_expiry) < new Date()) {
-            return NextResponse.json(
-                { error: "Token expirado, reconectar cuenta", code: "TOKEN_EXPIRED" },
-                { status: 401 }
-            );
-        }
+        // Obtener token válido (refresca automáticamente si expiró)
+        const accessToken = await getValidAccessToken(accountId);
 
         // Construir query a la API de ML
         let endpoint = `/orders/search?seller=${account.meli_user_id}&sort=date_desc&limit=${limit}`;
@@ -45,7 +41,7 @@ export async function GET(request) {
             endpoint += `&order.status=${status}`;
         }
 
-        const data = await meliGet(endpoint, account.access_token);
+        const data = await meliGet(endpoint, accessToken);
 
         const orders = (data.results || []).map((order) => ({
             id: order.id,

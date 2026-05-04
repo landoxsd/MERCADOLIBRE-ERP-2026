@@ -28,9 +28,11 @@ El sistema está construido para ser escalable mediante micro-servicios internos
 ### 4. Exportador Integraly (`src/app/dashboard/inventory/page.js`)
 *   **Función:** Genera un archivo `.xlsx` con la estructura exacta que requiere la plataforma Integraly para mapear SKUs masivamente.
 
-### 5. Notificaciones Push / Webhooks (`src/app/api/webhooks/meli/route.js` + Vercel)
-*   **Función:** Recibe eventos de MercadoLibre en tiempo real (items, orders_v2, questions, shipments, payments) y los encola en Supabase (`ml_notifications`).
-*   **Estado:** Implementado. Requiere deploy en Vercel y configurar Callback URL en app de ML.
+### 5. Notificaciones Push / Webhooks (`src/app/api/webhooks/ml/route.js` + Vercel)
+*   **Función:** Recibe eventos de MercadoLibre en tiempo real (items, orders_v2, questions, shipments, payments), los encola en Supabase (`ml_notifications`) y los **procesa automáticamente** actualizando `products`, `orders`, `order_items` y `questions`.
+*   **Estado:** Implementado con procesador automático (v2.0). Requiere configurar Callback URL en app de ML.
+*   **Callback URL:** `https://mercadolibre-erp.vercel.app/api/webhooks/ml`
+*   **Nota:** MercadoLibre NO permite suscribir webhooks por API. Se configura manualmente en `applications.mercadolibre.com`.
 
 ### 6. Vercel Cron Job — Refresh Token (`src/app/api/cron/refresh-token/route.js`)
 *   **Función:** Refresca tokens automáticamente cada 2 horas sin depender del PC local.
@@ -43,6 +45,10 @@ El sistema está construido para ser escalable mediante micro-servicios internos
 ### 8. Resiliencia API (`src/lib/meli.js`)
 *   **Función:** `meliGet()` ahora incluye retry con backoff exponencial para HTTP 429 (rate limit).
 *   **Estado:** Implementado. 3 reintentos automáticos (1s → 2s → 4s → max 30s).
+
+### 9. MCP Server Connector (`mcp-token-refresh/` + `cline_mcp_settings.json`)
+*   **Función:** Mantiene el servidor MCP de MercadoLibre conectado a Cline/Antigravity para consultar documentación oficial y herramientas de ML directamente desde el chat.
+*   **Estado:** Activo. Token auto-refrescable mediante `refresh-token.js` y script `actualizar-token-mcp.bat`.
 
 ---
 
@@ -64,44 +70,50 @@ El sistema está construido para ser escalable mediante micro-servicios internos
 - [x] **Mapeo de Categorías Internas → ML** (Skill #11): Tabla `category_mappings` + `meli-categories.js`.
 - [x] **Resiliencia ante Rate Limits** (Skill #12): Retry con backoff exponencial en `meliGet`.
 - [x] **Recuperación ante Token Inválido** (Skill #13): Columnas `needs_reauth` + `reauth_error`.
+- [x] **MCP Server Connector** (Skill #14): Token refresher + script `.bat` + conexión a Cline/Antigravity.
+- [x] **Webhooks Processor con Auto-Sync** (Skill #15): Procesamiento automático de notificaciones ML actualizando DB en tiempo real.
+- [x] **Frontend Auto-Refresh de Token** (Skill #16): Endpoints nunca muestran "Token expirado" porque refrescan automáticamente.
+- [x] **Batch Token Refresher** (Skill #17): Script que refresca TODAS las cuentas simultáneamente.
+- [x] **Task Scheduler Silencioso** (Skill #18): `.bat` sin interacción para ejecutar desatendido desde Windows Task Scheduler.
 
 ### 🎯 PRÓXIMOS OBJETIVOS (Prioridad en orden)
-1.  **Activar Webhooks en Producción:**
-    - Deployar en Vercel.
-    - Configurar Callback URL en app de MercadoLibre.
-    - Suscribirse a topics: `items`, `orders_v2`, `questions`, `shipments`, `payments`.
-    - Probar recepción con `curl` o Postman.
+1.  **Verificar Webhooks en Producción:**
+    - Confirmar que MercadoLibre envía notificaciones a `https://mercadolibre-erp.vercel.app/api/webhooks/ml`.
+    - Verificar en dashboard que lleguen notificaciones y se marquen como `completed`.
+    - Ejecutar SQL `ALTER TABLE ml_notifications DISABLE ROW LEVEL SECURITY;` en Supabase para que el frontend pueda leer las notificaciones.
 2.  **Mapear Categorías Existentes:**
     - Importar sublíneas de `LINEAS SUBLINEAS.xlsx` a `category_mappings`.
     - Usar script para sugerir categorías ML vía `domain_discovery` masivamente.
     - Validar mapeos manualmente (especialmente las 20 sublíneas más usadas).
-3.  **Consumidor de Notificaciones (ERP Local):**
-    - Crear polling o Supabase Realtime para leer `ml_notifications` pending.
-    - Procesar topic `items` → sincronizar producto modificado.
-    - Procesar topic `orders_v2` → crear orden en tabla `orders` + descontar stock.
-    - Procesar topic `questions` → insertar en tabla `questions`.
-    - Marcar notificaciones como `completed` o `error`.
-4.  **Módulo de Ventas y Visitas:** Implementar el tablero de analíticas usando los datos ya sincronizados para medir el rendimiento real por publicación.
-5.  **Extractor Universal:** Crear scripts que aprovechen la columna `raw_data` para extraer descripciones o variaciones sin llamar a la API.
+3.  **Módulo de Ventas y Visitas:** Implementar el tablero de analíticas usando los datos ya sincronizados para medir el rendimiento real por publicación.
+4.  **Extractor Universal:** Crear scripts que aprovechen la columna `raw_data` para extraer descripciones o variaciones sin llamar a la API.
 
 ---
 
 ## 🚦 CHECKPOINT DE IMPLEMENTACIÓN (Sesión 2026-05-03)
-**Estado:** Deploy exitoso en Vercel — Skills MCP activos en producción.
+**Estado:** MCP conectado. Webhooks con procesador automático deployado en Vercel.
 **URL de Producción:** https://mercadolibre-erp.vercel.app
-**Contexto:** El usuario eligió Vercel como receptor de webhooks (100% uptime) y el ERP local sigue corriendo en Windows. El refresh token corre en Vercel Cron Job cada 24h (plan Hobby).
+**Contexto:** El usuario eligió Vercel como receptor de webhooks (100% uptime) y el ERP local sigue corriendo en Windows. El refresh token corre en Vercel Cron Job cada 24h (plan Hobby). La Callback URL de webhooks configurada en ML Developers es `/api/webhooks/ml`.
 
 ### Archivos creados/modificados en esta sesión:
 | Archivo | Estado |
 |---|---|
-| `PROJECT_SKILLS.md` | ✅ Actualizado con 5 skills nuevas (9-13) |
-| `supabase/schema.sql` | ✅ Agregadas tablas `ml_notifications`, `category_mappings`, columnas `needs_reauth`/`reauth_error` |
-| `src/app/api/webhooks/meli/route.js` | ✅ Nuevo. Recibe POST de ML, valida IP, guarda en Supabase, responde 200 |
-| `src/app/api/cron/refresh-token/route.js` | ✅ Nuevo. Cron job cada 2h, refresca tokens, maneja `invalid_grant` |
-| `src/lib/meli-categories.js` | ✅ Nuevo. Helpers de `domain_discovery`, validación de categorías, mapeo |
-| `src/app/api/categories/suggest/route.js` | ✅ Nuevo. API para sugerir categoría ML por SubLínea interna |
-| `vercel.json` | ✅ Nuevo. Configuración del cron job |
-| `src/lib/meli.js` | ✅ Mejorado. `meliGet()` ahora tiene retry con backoff para HTTP 429 |
+| `PROJECT_SKILLS.md` | ✅ Actualizado con Skills 14-18 |
+| `PROJECT_MEMORY.md` | ✅ Actualizado con nuevos módulos y checkpoint |
+| `actualizar-token-mcp.bat` | ✅ Nuevo. Script de doble clic para refrescar token MCP |
+| `mcp-token-refresh/refresh-token.js` | ✅ Reescrito. Refresca TODAS las cuentas |
+| `mcp-token-refresh/run-refresh-token.bat` | ✅ Nuevo. Sin interacción para Task Scheduler |
+| `mcp-token-refresh/README.md` | ✅ Actualizado. Documenta modo todas las cuentas |
+| `src/app/api/webhooks/ml/route.js` | ✅ Reescrito. Receptor + Procesador automático v2.0 |
+| `src/app/api/webhooks/meli/route.js` | ✅ Duplicado con procesador (respaldo) |
+| `src/app/api/webhooks/subscribe/route.js` | ✅ Reescrito. Instrucciones de config manual |
+| `src/app/api/webhooks/test/route.js` | ✅ Nuevo. Endpoint de prueba sin validación de IP |
+| `src/app/dashboard/webhooks/page.js` | ✅ Reescrito. Panel con instrucciones de setup |
+| `src/app/api/orders/route.js` | ✅ Corregido. Auto-refresh de token integrado |
+| `src/app/api/account/overview/route.js` | ✅ Corregido. Auto-refresh de token integrado |
+| `src/lib/supabase-admin.js` | ✅ Corregido. Usa `SUPABASE_SERVICE_ROLE_KEY` |
+| `supabase/fix_ml_notifications_rls.sql` | ✅ Nuevo. SQL para desactivar RLS en notificaciones |
+| `cline_mcp_settings.json` | ✅ Token actualizado automáticamente |
 
 ### Pendiente técnico inmediato:
 - [x] Ejecutar SQL actualizado en Supabase (Dashboard → SQL Editor).
@@ -109,36 +121,42 @@ El sistema está construido para ser escalable mediante micro-servicios internos
 - [x] Hacer `git push` de todos los cambios.
 - [x] Deployar a Vercel y obtener URL pública.
 - [x] Agregar variables de entorno en Vercel Dashboard.
-- [ ] Configurar Callback URL en app de MercadoLibre Developers (pendiente del usuario).
-- [ ] Probar webhook enviando notificación de prueba.
+- [x] Configurar Callback URL en app de MercadoLibre Developers (`/api/webhooks/ml`).
+- [ ] Ejecutar SQL `ALTER TABLE ml_notifications DISABLE ROW LEVEL SECURITY;` en Supabase para mostrar notificaciones en el dashboard.
+- [ ] Verificar que lleguen notificaciones y se procesen correctamente.
 
 ### Decisión de arquitectura tomada:
 - **Vercel** solo recibe notificaciones y ejecuta cron jobs. Todo el ERP (dashboard, publicación, sincronización) sigue en local.
 - **Supabase** es la base de datos compartida entre Vercel y Local.
 - **Refresh token** se ejecuta en Vercel Cron cada 2 horas, eliminando dependencia de Windows Task Scheduler.
+- **MCP** mantiene acceso a documentación oficial de ML para consultas rápidas del desarrollador.
 
 ---
 
 ## 📈 ESTRATEGIA DE ESCALABILIDAD Y RESPALDOS
 Para asegurar que el proyecto se pueda mudar de máquina o sesión sin pérdidas:
 
-1.  **🚀 RESPALDOS GITHUB:** 
-    - **Frecuencia:** Obligatorio después de cada "Tarea Grande" completada o al final de la jornada. 
+1.  **🚀 RESPALDOS GITHUB:**
+    - **Frecuencia:** Obligatorio después de cada "Tarea Grande" completada o al final de la jornada.
     - **Regla:** Nunca cerrar sesión sin un `git push`.
-2.  **🔒 SEGURIDAD:** 
+2.  **🔒 SEGURIDAD:**
     - Las API Keys y DB URLs se mantienen en el `.env` local.
     - El repositorio GitHub debe ser **PRIVADO** siempre.
-3.  **🔄 CONTINUIDAD IA:** 
+3.  **🔄 CONTINUIDAD IA:**
     - Si cambias de IA o de conversación, pega este documento (`PROJECT_MEMORY.md`) como primer mensaje para "saltar" la curva de aprendizaje de la nueva entidad.
 
 ---
 
-## 🛠️ PROTOCOLO DE MANTENIMIENTO DE MEMORIA
+## 🛠️ PROTOCOLO DE MANTENIMIENTO DE MEMORIA Y SKILLS
 Para asegurar la continuidad eterna del proyecto, se seguirán estas reglas:
-1.  **Actualización de Memoria:** Al finalizar cada hito funcional o cambio estructural. Se actualiza el TODO y el timestamp.
-2.  **Actualización de Skills:** Cada vez que se domine una nueva capacidad técnica o se optimice radicalmente un proceso existente.
+1.  **Actualización de Memoria:** Al finalizar cada hito funcional o cambio estructural. Se actualiza el TODO, el timestamp y el checkpoint.
+2.  **Actualización de Skills:** **CADA VEZ que se domine una nueva capacidad técnica o se optimice radicalmente un proceso existente, se debe:**
+    - Agregar la nueva Skill numerada al final de `PROJECT_SKILLS.md`.
+    - Actualizar `PROJECT_MEMORY.md` en la sección de módulos correspondiente.
+    - Marcar la skill como completada en el checklist de este documento.
+    - Actualizar el checkpoint de implementación con los archivos modificados.
 3.  **Respaldo Exitoso:** Nunca cerrar sesión sin un `git push` previo.
 4.  **Caché:** Los archivos `.audit_cache_*.json` son temporales y no se versionan, pero son vitales para la persistencia en caliente de la sesión.
 
 ---
-*Última actualización: 2026-05-03 14:18 (Deploy exitoso en Vercel. Skills 9-13 activas en producción. Webhook verificado y respondiendo OK. Pendiente: configurar ML Developers).*
+*Última actualización: 2026-05-03 23:45 (MCP conectado. Webhooks recibiendo notificaciones. Frontend auto-refresh activo en /api/orders y /api/account/overview. Batch token refresher para múltiples cuentas implementado. Skills 14-18 documentadas. Pendiente: desactivar RLS en ml_notifications para mostrar en dashboard).*

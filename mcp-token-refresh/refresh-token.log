@@ -1,0 +1,41 @@
+
+🔄 MCP Token Refresher — 2026-05-04T03:40:49.341Z
+
+🔍 Modo: TODAS las cuentas
+📋 Cuentas encontradas: 3
+
+
+📡 Refrescando cuenta "CORPORACIONRWCCA" (ID: 248086934)...
+✅ Nuevo token recibido
+   Expira en: 21600 segundos (~6h)
+   User ID: 248086934
+💾 Base de datos actualizada
+
+📡 Refrescando cuenta "ORTOSISTEMAS" (ID: 77327265)...
+✅ Nuevo token recibido
+   Expira en: 21600 segundos (~6h)
+   User ID: 77327265
+💾 Base de datos actualizada
+
+📡 Refrescando cuenta "CORPORACIONRWC2" (ID: 1539376793)...
+✅ Nuevo token recibido
+   Expira en: 21600 segundos (~6h)
+   User ID: 1539376793
+💾 Base de datos actualizada
+
+📝 Actualizando archivos de configuración...
+✅ Config actualizado: C:\Users\ORLANDO\AppData\Roaming\Antigravity\User\globalStorage\saoudrizwan.claude-dev\settings\cline_mcp_settings.json
+✅ Config actualizado: C:\Users\ORLANDO\Documents\ANTIGRAVITY\MERCADOLIBRE 18042026 - copia\claude_desktop_config_snippet.json
+   Archivos actualizados: 2
+
+📊 RESUMEN:
+   ✅ Exitosas: 3
+   ❌ Fallidas: 0
+   ✅ CORPORACIONRWCCA
+   ✅ ORTOSISTEMAS
+   ✅ CORPORACIONRWC2
+
+🎉 Proceso completado!
+
+💡 Nota: Si Cline/Antigravity está abierto, reinícialo para que lea el nuevo token.
+

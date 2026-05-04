@@ -19,19 +19,19 @@ const path = require("path");
 // CONFIGURACIÓN (modifica según tu entorno)
 // ---------------------------------------------------------------------------
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://zqxesjcchykncxpekmbz.supabase.co";
-const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || "sb_publishable_ZMzOEp7m4QlwTUQOqZcmrA_cwu-Yk0U";
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || "sb_publishable_ZMzOEp7m4QlwTUQOqZcmrA_cwu-Yk0U";
 const MELI_CLIENT_ID = process.env.MELI_CLIENT_ID || "2657663366318591";
 const MELI_CLIENT_SECRET = process.env.MELI_CLIENT_SECRET || "VgPvucR8v97fp8ruCEfb2QOyeeAdvj73";
 
-// Cuenta de MercadoLibre a refrescar
-const ACCOUNT_NICKNAME = "CORPORACIONRWCCA";
+// Cuenta de MercadoLibre a refrescar (dejar vacío "" para refrescar TODAS)
+const ACCOUNT_NICKNAME = process.env.ACCOUNT_NICKNAME || "";
 
 // Rutas al archivo de configuración de Cline (usa doble barra invertida en Windows)
 const CONFIG_PATHS = [
     // Antigravity / Cline
     path.join(
-        process.env.APPDATA || "C:/\Users/\ORLANDO/\AppData/\Roaming",
-        "Antigravity/\User/\globalStorage/\saoudrizwan.claude-dev/\settings/\cline_mcp_settings.json"
+        process.env.APPDATA || "C:/Users/ORLANDO/AppData/Roaming",
+        "Antigravity/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json"
     ),
     // Backup en el proyecto
     path.join(__dirname, "..", "claude_desktop_config_snippet.json"),
@@ -93,6 +93,42 @@ function updateConfigFile(filePath, newToken) {
     return true;
 }
 
+async function refreshAccount(account) {
+    console.log(`\n📡 Refrescando cuenta "${account.nickname}" (ID: ${account.meli_user_id})...`);
+
+    try {
+        // 1. Refrescar token en MercadoLibre
+        const freshData = await refreshToken(account.refresh_token);
+
+        console.log(`✅ Nuevo token recibido`);
+        console.log(`   Expira en: ${freshData.expires_in} segundos (~${Math.round(freshData.expires_in / 3600)}h)`);
+        console.log(`   User ID: ${freshData.user_id}`);
+
+        // 2. Actualizar base de datos
+        const newExpiry = new Date(Date.now() + freshData.expires_in * 1000).toISOString();
+
+        const { error: updateError } = await supabase
+            .from("meli_accounts")
+            .update({
+                access_token: freshData.access_token,
+                refresh_token: freshData.refresh_token,
+                token_expiry: newExpiry,
+                updated_at: new Date().toISOString(),
+            })
+            .eq("id", account.id);
+
+        if (updateError) {
+            throw new Error(`Error actualizando DB: ${updateError.message}`);
+        }
+        console.log(`💾 Base de datos actualizada`);
+
+        return { success: true, token: freshData.access_token, expiry: newExpiry };
+    } catch (err) {
+        console.error(`❌ Error refrescando ${account.nickname}: ${err.message}`);
+        return { success: false, error: err.message };
+    }
+}
+
 // ---------------------------------------------------------------------------
 // MAIN
 // ---------------------------------------------------------------------------
@@ -100,63 +136,66 @@ function updateConfigFile(filePath, newToken) {
 async function main() {
     console.log(`\n🔄 MCP Token Refresher — ${new Date().toISOString()}\n`);
 
-    // 1. Obtener refresh_token de la DB
-    console.log(`📡 Buscando cuenta "${ACCOUNT_NICKNAME}" en Supabase...`);
-    const { data: account, error } = await supabase
-        .from("meli_accounts")
-        .select("refresh_token")
-        .eq("nickname", ACCOUNT_NICKNAME)
-        .single();
+    // 1. Obtener cuentas a refrescar
+    let query = supabase.from("meli_accounts").select("id, meli_user_id, nickname, refresh_token");
 
-    if (error || !account) {
-        throw new Error(`No se encontró la cuenta: ${error?.message || "Desconocido"}`);
+    if (ACCOUNT_NICKNAME) {
+        console.log(`🔍 Modo: una sola cuenta (${ACCOUNT_NICKNAME})`);
+        query = query.eq("nickname", ACCOUNT_NICKNAME);
+    } else {
+        console.log(`🔍 Modo: TODAS las cuentas`);
     }
 
-    console.log(`🔑 Refresh token encontrado`);
+    const { data: accounts, error } = await query;
 
-    // 2. Refrescar token en MercadoLibre
-    console.log(`🌐 Solicitando nuevo access_token a MercadoLibre...`);
-    const freshData = await refreshToken(account.refresh_token);
-
-    console.log(`✅ Nuevo token recibido`);
-    console.log(`   Expira en: ${freshData.expires_in} segundos (~${Math.round(freshData.expires_in / 3600)}h)`);
-    console.log(`   User ID: ${freshData.user_id}`);
-
-    // 3. Actualizar base de datos
-    const newExpiry = new Date(Date.now() + freshData.expires_in * 1000).toISOString();
-
-    console.log(`💾 Actualizando base de datos...`);
-    const { error: updateError } = await supabase
-        .from("meli_accounts")
-        .update({
-            access_token: freshData.access_token,
-            refresh_token: freshData.refresh_token,
-            token_expiry: newExpiry,
-            updated_at: new Date().toISOString(),
-        })
-        .eq("nickname", ACCOUNT_NICKNAME);
-
-    if (updateError) {
-        throw new Error(`Error actualizando DB: ${updateError.message}`);
-    }
-    console.log(`✅ Base de datos actualizada`);
-
-    // 4. Actualizar archivos de configuración de Cline
-    console.log(`\n📝 Actualizando archivos de configuración...`);
-    let updatedCount = 0;
-    for (const configPath of CONFIG_PATHS) {
-        const updated = updateConfigFile(configPath, freshData.access_token);
-        if (updated) updatedCount++;
+    if (error) {
+        throw new Error(`Error consultando cuentas: ${error.message}`);
     }
 
-    if (updatedCount === 0) {
-        console.warn(`\n⚠️  Ningún archivo de configuración fue actualizado.`);
-        console.warn(`   Verifica que las rutas en CONFIG_PATHS sean correctas.`);
+    if (!accounts || accounts.length === 0) {
+        throw new Error("No se encontraron cuentas para refrescar");
     }
 
-    console.log(`\n🎉 Proceso completado exitosamente!`);
-    console.log(`   Token válido hasta: ${newExpiry}`);
-    console.log(`   Archivos actualizados: ${updatedCount}`);
+    console.log(`📋 Cuentas encontradas: ${accounts.length}\n`);
+
+    // 2. Refrescar cada cuenta
+    const results = [];
+    let primaryToken = null;
+
+    for (const account of accounts) {
+        const result = await refreshAccount(account);
+        results.push({ nickname: account.nickname, ...result });
+        if (result.success && !primaryToken) {
+            primaryToken = result.token;
+        }
+    }
+
+    // 3. Actualizar archivos de configuración de Cline (con el primer token válido)
+    if (primaryToken) {
+        console.log(`\n📝 Actualizando archivos de configuración...`);
+        let updatedCount = 0;
+        for (const configPath of CONFIG_PATHS) {
+            const updated = updateConfigFile(configPath, primaryToken);
+            if (updated) updatedCount++;
+        }
+        console.log(`   Archivos actualizados: ${updatedCount}`);
+    } else {
+        console.warn(`\n⚠️  No se pudo obtener ningún token válido. Configuración NO actualizada.`);
+    }
+
+    // 4. Resumen
+    console.log(`\n📊 RESUMEN:`);
+    const ok = results.filter(r => r.success).length;
+    const fail = results.filter(r => !r.success).length;
+    console.log(`   ✅ Exitosas: ${ok}`);
+    console.log(`   ❌ Fallidas: ${fail}`);
+
+    for (const r of results) {
+        const icon = r.success ? "✅" : "❌";
+        console.log(`   ${icon} ${r.nickname}${r.error ? ` — ${r.error}` : ""}`);
+    }
+
+    console.log(`\n🎉 Proceso completado!`);
     console.log(`\n💡 Nota: Si Cline/Antigravity está abierto, reinícialo para que lea el nuevo token.\n`);
 }
 

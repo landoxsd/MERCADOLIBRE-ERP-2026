@@ -1,4 +1,4 @@
-# 🛠️ PROYECTO: LIBRERÍA DE HABILIDADES (SKILLS) - MERCADOLIBRE ERP
+-1# 🛠️ PROYECTO: LIBRERÍA DE HABILIDADES (SKILLS) - MERCADOLIBRE ERP
 
 Este documento recopila las "Habilidades Especiales" desarrolladas en este proyecto. Son patrones de código probados en batalla (battle-tested) que pueden ser reutilizados en otros proyectos de Mercado Libre o Gestión de Inventarios.
 
@@ -55,8 +55,8 @@ Este documento recopila las "Habilidades Especiales" desarrolladas en este proye
 
 ## 9. Habilidad: Notificaciones Push en Tiempo Real (Webhooks)
 **Descripción:** Recibe eventos de MercadoLibre instantáneamente sin hacer polling constante.
-*   **Lógica:** Vercel recibe POST de ML en `/api/webhooks/meli`, valida origen (IP whitelist), responde HTTP 200 en < 200ms y guarda la notificación en Supabase (`ml_notifications`). El ERP local procesa las notificaciones pendientes desde Supabase.
-*   **Ubicación:** `src/app/api/webhooks/meli/route.js`
+*   **Lógica:** Vercel recibe POST de ML en `/api/webhooks/ml`, valida origen (IP whitelist), responde HTTP 200 en < 200ms y guarda la notificación en Supabase (`ml_notifications`). El ERP local procesa las notificaciones pendientes desde Supabase.
+*   **Ubicación:** `src/app/api/webhooks/ml/route.js`
 *   **Valor:** Reduce drásticamente las llamadas a la API, mejora reactividad (ventas, preguntas, cambios de stock) y evita perder eventos.
 *   **Topics ML recomendados:** `items`, `orders_v2`, `questions`, `shipments`, `payments`.
 *   **Doc oficial ML:** Las notificaciones requieren respuesta HTTP 200 en 500ms. Si fallan, ML reintenta por 1 hora y luego desactiva el topic.
@@ -94,4 +94,55 @@ Este documento recopila las "Habilidades Especiales" desarrolladas en este proye
 
 ---
 
-*Este inventario de habilidades permite que este ERP sea el cimiento para cualquier otra herramienta de automatización comercial. Las skills 9-13 fueron diseñadas a partir de la documentación oficial del MCP de MercadoLibre Developers.*
+## 14. Habilidad: MCP Server Connector para Cline/Antigravity
+**Descripción:** Mantiene el servidor MCP de MercadoLibre conectado a Cline/Antigravity mediante token auto-refrescable y scripts de utilidad.
+*   **Lógica:**
+    1. **Token Refresher Node (`mcp-token-refresh/refresh-token.js`)**: Lee el `refresh_token` de Supabase, solicita un nuevo `access_token` a la API de MercadoLibre, actualiza la base de datos y reemplaza el token en el archivo `cline_mcp_settings.json` de Cline.
+    2. **Script manual `.bat` (`actualizar-token-mcp.bat`)**: Wrapper de doble clic para ejecutar el refresher sin abrir terminal manualmente.
+    3. **Vercel Cron Job (`src/app/api/cron/refresh-token/route.js`)**: Refresca tokens automáticamente en la nube cada 24h (o cada 2h en plan Pro).
+    4. **Task Scheduler de Windows (`setup-task-scheduler.bat`)**: Instala una tarea programada que corre el refresher cada 5 horas localmente.
+*   **Ubicación:** `mcp-token-refresh/` + `cline_mcp_settings.json`
+*   **Valor:** Garantiza que el asistente de IA (Cline/Antigravity) siempre tenga acceso vivo a la documentación y herramientas oficiales de MercadoLibre sin intervención manual.
+*   **Doc oficial ML:** El `access_token` expira cada 6 horas. El `refresh_token` es de un solo uso. El MCP server de MercadoLibre expone herramientas como `search_documentation` y `get_documentation_page`.
+*   **Nota de resiliencia:** Si el puerto local del proxy SSE (`mcp-remote`) queda ocupado por una instancia zombie, reiniciar Cline/Antigravity libera el puerto y recarga la configuración.
+
+## 15. Habilidad: Webhooks Processor con Auto-Sync (Ingesta en Tiempo Real)
+**Descripción:** Recibe notificaciones push de MercadoLibre y actualiza automáticamente la base de datos sin intervención manual, eliminando la necesidad de sincronizaciones masivas completas.
+*   **Lógica:**
+    1. **Receptor (`src/app/api/webhooks/ml/route.js`)**: Recibe POST de MercadoLibre, responde HTTP 200 en < 200ms (obligatorio), guarda la notificación en `ml_notifications` y la procesa asíncronamente según el topic:
+       - `items` → Upsert en tabla `products` (precio, stock, estado, atributos)
+       - `orders_v2` → Upsert en tabla `orders` + `order_items` (nueva venta, cambio de estado)
+       - `questions` → Upsert en tabla `questions` (pregunta nueva o respondida)
+       - `shipments` → Actualiza estado de envío en `orders`
+       - `payments` → Actualiza estado de pago en `orders`
+    2. **Configuración Manual**: MercadoLibre NO permite suscribir webhooks por API. Se configura desde `applications.mercadolibre.com` especificando la Callback URL y los topics.
+    3. **Procesamiento asíncrono**: El procesamiento ocurre después de responder HTTP 200, evitando que ML desactive el topic por timeout.
+*   **Ubicación:** `src/app/api/webhooks/ml/route.js`
+*   **Valor:** Automatización real de inventario, ventas y atención al cliente sin polling masivo. Solo se actualizan los registros que cambiaron.
+*   **Doc oficial ML:** La URL de callback debe responder HTTP 200 en 500ms. Si falla, ML reintenta 1 hora y desactiva el topic. Las IPs oficiales de ML son: 54.88.218.97, 18.215.140.160, 18.213.114.129, 18.206.34.84.
+*   **Nota:** Para reactivar un topic desactivado, hay que re-configurarlo en applications.mercadolibre.com. No se pierden notificaciones antiguas (hasta 2 días) vía endpoint `GET /missed_feeds`.
+
+---
+
+## 16. Habilidad: Frontend Auto-Refresh de Token (Sin Errores de Expiración)
+**Descripción:** Los endpoints del frontend nunca muestran "Token expirado" porque refrescan automáticamente el token antes de llamar a la API de MercadoLibre.
+*   **Lógica:** Todas las API routes (`/api/orders`, `/api/account/overview`, etc.) usan `getValidAccessToken()` de `meli-auth-helper.js` que verifica la caducidad con margen de 5 minutos y refresca vía OAuth2 si es necesario.
+*   **Ubicación:** `src/lib/meli-auth-helper.js` + todos los endpoints que llaman a ML
+*   **Valor:** Elimina por completo la necesidad de reconectar cuentas manualmente. El usuario nunca ve errores de token vencido.
+
+## 17. Habilidad: Batch Token Refresher para Múltiples Cuentas
+**Descripción:** Script de Node.js que refresca los tokens de **todas** las cuentas vinculadas simultáneamente, no solo una.
+*   **Lógica:** El script `mcp-token-refresh/refresh-token.js` itera sobre la tabla `meli_accounts`, refresca cada cuenta con su propio `refresh_token`, actualiza la DB y genera un resumen de éxito/fallo por cuenta.
+*   **Ubicación:** `mcp-token-refresh/refresh-token.js`
+*   **Valor:** Gestión centralizada de múltiples sellers. Una sola ejecución mantiene vivas todas las cuentas.
+*   **Nota:** Configurable para una sola cuenta vía variable `ACCOUNT_NICKNAME`.
+
+## 18. Habilidad: Task Scheduler Silencioso (No-Interaction .bat)
+**Descripción:** Script `.bat` diseñado específicamente para ejecutarse desatendido desde Windows Task Scheduler sin ventanas ni prompts.
+*   **Lógica:** `run-refresh-token.bat` usa `@echo off`, redirige stdout/stderr a un archivo de log (`refresh-token.log`) y termina con `exit /b` sin ninguna interacción.
+*   **Ubicación:** `mcp-token-refresh/run-refresh-token.bat`
+*   **Valor:** Automatización completa. El PC puede estar bloqueado o el usuario ausente y los tokens siguen refrescándose en segundo plano.
+
+---
+
+*Este inventario de habilidades permite que este ERP sea el cimiento para cualquier otra herramienta de automatización comercial. Las skills 9-18 fueron diseñadas a partir de la documentación oficial del MCP de MercadoLibre Developers.*

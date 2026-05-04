@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import { accountsTable } from "@/lib/supabase-admin";
 import { getAccountOverview } from "@/lib/meli";
+import { getValidAccessToken } from "@/lib/meli-auth-helper";
 import { cookies } from "next/headers";
 
 export async function GET(request) {
@@ -29,16 +30,11 @@ export async function GET(request) {
       return NextResponse.json({ error: "Cuenta no encontrada" }, { status: 404 });
     }
 
-    // Verificar que el token no haya expirado
-    if (new Date(account.token_expiry) < new Date()) {
-      return NextResponse.json(
-        { error: "Token expirado, reconectar cuenta", code: "TOKEN_EXPIRED" },
-        { status: 401 }
-      );
-    }
+    // Obtener token válido (refresca automáticamente si expiró)
+    const accessToken = await getValidAccessToken(accountId);
 
     // Obtener resumen completo desde la API de ML
-    const overview = await getAccountOverview(account.meli_user_id, account.access_token);
+    const overview = await getAccountOverview(account.meli_user_id, accessToken);
 
     return NextResponse.json({
       account: { id: account.id, nickname: account.nickname },
