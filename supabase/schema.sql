@@ -299,6 +299,35 @@ CREATE INDEX IF NOT EXISTS idx_catmap_subline ON category_mappings(internal_subl
 CREATE INDEX IF NOT EXISTS idx_catmap_ml_cat ON category_mappings(ml_category_id);
 CREATE INDEX IF NOT EXISTS idx_catmap_validated ON category_mappings(is_validated);
 
+-- -----------------------------------------------------------------
+-- Tabla: Banco de Imágenes (Image Bank)
+-- -----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS image_bank (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    sku             TEXT NOT NULL,
+    image_index     INTEGER NOT NULL,
+    local_filename  TEXT NOT NULL,
+    local_path      TEXT,
+    file_hash       TEXT,
+    file_size_bytes INTEGER,
+    sync_status     TEXT NOT NULL DEFAULT 'pending',
+    ml_picture_id   TEXT,
+    ml_url          TEXT,
+    ml_secure_url   TEXT,
+    meli_account_id TEXT REFERENCES meli_accounts(id),
+    error_message   TEXT,
+    upload_attempts INTEGER DEFAULT 0,
+    last_synced_at  TIMESTAMPTZ,
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(sku, image_index)
+);
+
+-- Índices para image_bank
+CREATE INDEX IF NOT EXISTS idx_image_bank_sku ON image_bank(sku);
+CREATE INDEX IF NOT EXISTS idx_image_bank_status ON image_bank(sync_status);
+CREATE INDEX IF NOT EXISTS idx_image_bank_ml_url ON image_bank(ml_url);
+
 -- ================================================================
--- ✅ Script completado. Las 8 tablas han sido creadas exitosamente.
+-- ✅ Script completado. Las tablas han sido creadas exitosamente.
 -- ================================================================

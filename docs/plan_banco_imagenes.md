@@ -1,6 +1,32 @@
 # 🖼️ Plan: Banco de Imágenes ML — Sincronización Local ↔ MercadoLibre
 
-> **Objetivo:** Tener 30.000 imágenes locales (`sku-N.jpg`) catalogadas en Supabase, subidas al CDN de MercadoLibre, y disponibles para publicaciones masivas desde el CRM sin repetir cargas.
+> **Objetivo:** Tener 30.000 imágenes locales (`sku-N.jpg`) catalogadas en Supabase, subidas al CDN de MercadoLibre, y disponibles para publicaciones masivas desde el ERP sin repetir cargas.
+
+---
+
+## 🎯 Decisión de Arquitectura: Proyecto Separado
+
+> [!IMPORTANT]
+> Esta herramienta se desarrolla como un **proyecto Node.js local independiente**, completamente separado del ERP (`MERCADOLIBRE 18042026`). Corre en Windows desde la línea de comandos, **sin Next.js, sin Vercel, sin servidor web**.
+
+### ¿Por qué separado?
+- El ERP es una aplicación web Next.js en Vercel — no puede acceder al sistema de archivos local
+- Los 30.000 archivos están en el disco local, por eso la herramienta debe correr en Windows
+- Mantenerlo separado permite usarlo sin afectar al ERP durante el desarrollo
+- La integración futura es simple: **ambos proyectos comparten la misma tabla `image_bank` en Supabase**
+
+### Contrato de integración (cómo se conecta al ERP en el futuro)
+Cuando el ERP necesite imágenes, simplemente consulta Supabase:
+```js
+// Dentro del ERP (Next.js) — NO necesita saber nada de la herramienta local
+const { data } = await supabase
+  .from('image_bank')
+  .select('ml_picture_id, image_index')
+  .eq('sku', 'KIT-CADENA-430')
+  .eq('sync_status', 'synced')
+  .order('image_index');
+// → devuelve los picture_id listos para usar en ML
+```
 
 ---
 
@@ -8,19 +34,77 @@
 
 ```
 ┌──────────────────────┐      ┌─────────────────────┐      ┌──────────────────┐
-│  LOCAL (Windows)     │      │   SUPABASE           │      │  MERCADOLIBRE    │
-│  D:/images/          │─────▶│   image_bank         │◀────▶│  CDN Pictures    │
-│  sku-0.jpg           │      │   (tabla maestra)    │      │  picture_id      │
-│  sku-1.jpg           │      │                      │      │  URL pública     │
-│  ...                 │      └─────────────────────-┘      └──────────────────┘
+│  HERRAMIENTA LOCAL    │      │   SUPABASE            │      │  MERCADOLIBRE     │
+│  Node.js CLI          │─────▶│   image_bank          │◄────▶│  CDN Pictures    │
+│  (proyecto propio)    │      │   (tabla compartida) │      │  picture_id      │
+└──────────────────────┘      └─────────────────────┘      └──────────────────┘
+         ↑                                  ↑
+┌──────────────────────┐      ┌─────────────────────┐
+│  D:/Imagenes/         │      │  ERP (Next.js/Vercel) │
+│  KIT430-0.jpg         │      │  Consulta image_bank │
+│  KIT430-1.jpg         │      │  por SKU al publicar  │
+│  ...                  │      └─────────────────────┘
 └──────────────────────┘
 ```
 
 **Flujo completo:**
 1. Script local escanea carpeta → registra archivos en `image_bank` (estado: `pending`)
 2. Worker sube imágenes a ML API → guarda `picture_id` + URL en Supabase (estado: `synced`)
-3. Al publicar → el CRM busca en `image_bank` por SKU y usa los `picture_id` directamente
-4. ML envía webhook si imagen se rechaza/modifica → se actualiza estado en DB
+3. Al publicar en el ERP → consulta `image_bank` por SKU y usa los `picture_id` directamente
+
+---
+
+## 📂 Estructura del Proyecto Local
+
+**Carpeta sugerida:**
+```
+C:\Users\ORLANDO\Documents\ANTIGRAVITY\ml-image-bank\
+│
+├── .env                    ← Credenciales (NO versionado)
+├── .env.example             ← Plantilla pública
+├── .gitignore
+├── README.md                ← Instrucciones completas
+├── package.json
+├── image-config.json        ← Carpeta fuente de imágenes
+├── scan-images.js           ← Script 1: inventario local
+├── sync-images-to-ml.js     ← Script 2: subida a ML
+├── stats.js                 ← Script 3: ver estado actual
+└── logs\                    ← Logs de ejecución
+```
+
+**`.env` del proyecto local:**
+```env
+# Supabase (mismas credenciales que el ERP)
+SUPABASE_URL=https://zqxesjcchykncxpekmbz.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=tu_service_role_key
+
+# MercadoLibre (account_id del ERP en Supabase)
+MELI_ACCOUNT_ID=uuid-de-la-cuenta-en-meli_accounts
+
+# Carpeta de imágenes (override de image-config.json)
+# IMAGE_BANK_FOLDER=D:\Imagenes\MercadoLibre
+```
+
+**`package.json` (dependencias mínimas):**
+```json
+{
+  "name": "ml-image-bank",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "scan":  "node scan-images.js",
+    "sync":  "node sync-images-to-ml.js",
+    "stats": "node stats.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2",
+    "dotenv": "^16"
+  }
+}
+```
+
+> [!TIP]
+> **Para empezar:** `npm install` → configurar `.env` → `npm run scan` → revisar con `npm run stats` → `npm run sync`
 
 ---
 

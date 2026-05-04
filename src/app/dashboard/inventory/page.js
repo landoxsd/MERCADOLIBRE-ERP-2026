@@ -11,22 +11,22 @@ const LocalPhoto = ({ sku, index = 0, filename = null, size = 150 }) => {
   useEffect(() => {
     const fetchPhoto = async () => {
       try {
-        const url = filename 
+        const url = filename
           ? `/api/media/local/${encodeURIComponent(sku)}?filename=${encodeURIComponent(filename)}`
           : `/api/media/local/${encodeURIComponent(sku)}?index=${index}`;
-          
+
         const res = await fetch(url);
         const json = await res.json();
         if (json.success) setData(json.data);
-      } catch (e) {} finally {
+      } catch (e) { } finally {
         setLoading(false);
       }
     };
     fetchPhoto();
   }, [sku, index, filename]);
 
-  if (loading) return <div style={{width: size, height: size, display:'flex', alignItems:'center', justifyContent:'center', background:'#111', borderRadius: '12px', fontSize:'0.7rem'}}>Cargando...</div>;
-  if (!data) return <div style={{width: size, height: size, display:'flex', alignItems:'center', justifyContent:'center', background:'#111', borderRadius: '12px', fontSize:'0.7rem'}}>No disponible</div>;
+  if (loading) return <div style={{ width: size, height: size, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#111', borderRadius: '12px', fontSize: '0.7rem' }}>Cargando...</div>;
+  if (!data) return <div style={{ width: size, height: size, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#111', borderRadius: '12px', fontSize: '0.7rem' }}>No disponible</div>;
 
   return <img src={data} style={{ width: size, height: size, objectFit: 'cover', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }} alt="Preview" />;
 };
@@ -92,7 +92,7 @@ const CategoryPredictor = ({ title }) => {
         if (Array.isArray(data) && data.length > 0) {
           setPrediction(data[0]);
         }
-      } catch (e) {} finally {
+      } catch (e) { } finally {
         setLoading(false);
       }
     };
@@ -117,7 +117,7 @@ export default function InventoryAuditPage() {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [pausing, setPausing] = useState(false);
   const [auditMode, setAuditMode] = useState('master'); // 'master' o 'inbound'
-  
+
   // Memoria Dual: Estados independientes para cada modo
   const [fileMaster, setFileMaster] = useState(null);
   const [resultsMaster, setResultsMaster] = useState(null);
@@ -128,7 +128,7 @@ export default function InventoryAuditPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [publishStatus, setPublishStatus] = useState({}); // { SKU: 'idle' | 'loading' | 'success' | 'error' }
   const [publishedLinks, setPublishedLinks] = useState({}); // { SKU: permalink }
-  
+
   // Preview State
   const [previewItem, setPreviewItem] = useState(null); // { item, subline }
 
@@ -149,7 +149,7 @@ export default function InventoryAuditPage() {
             setActiveAccount(data.accounts[0].id);
           }
         }
-      } catch(e) {}
+      } catch (e) { }
     };
 
     fetchActiveAccount();
@@ -179,7 +179,7 @@ export default function InventoryAuditPage() {
           setResultsMaster(null);
           setResultsInbound(null);
         }
-      } catch(e) {}
+      } catch (e) { }
     };
 
     fetchHistory();
@@ -191,7 +191,7 @@ export default function InventoryAuditPage() {
       const allMissingSkus = [];
       if (resultsMaster?.missing) allMissingSkus.push(...resultsMaster.missing.map(m => m.sku));
       if (resultsInbound?.missing) allMissingSkus.push(...resultsInbound.missing.map(m => m.sku));
-      
+
       if (allMissingSkus.length === 0) return;
 
       try {
@@ -202,7 +202,7 @@ export default function InventoryAuditPage() {
         });
         const data = await res.json();
         if (data.photoMap) setPhotoStatus(data.photoMap);
-      } catch(e) {}
+      } catch (e) { }
     };
 
     checkPhotos();
@@ -224,6 +224,14 @@ export default function InventoryAuditPage() {
 
   const [suggestedAttrs, setSuggestedAttrs] = useState([]);
   const [suggesting, setSuggesting] = useState(false);
+
+  // Estados para Exportación Masiva ML
+  const [exportingMassive, setExportingMassive] = useState(false);
+  const [massiveFilters, setMassiveFilters] = useState({
+    withStock: true,
+    withPhotos: false,
+    limit: 5000
+  });
 
   const handleSuggestAttributes = async () => {
     if (!previewItem || !activeAccount) return;
@@ -281,15 +289,15 @@ export default function InventoryAuditPage() {
   const handlePauseOrphans = async () => {
     if (auditMode !== 'master' || !resultsMaster?.orphans?.length) return;
     if (!confirm(`¿Estás seguro de pausar ${resultsMaster.orphans.length} publicaciones huérfanas?`)) return;
-    
+
     setPausing(true);
     try {
       const res = await fetch('/api/inventory/orphans/pause', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          accountId: activeAccount, 
-          itemIds: resultsMaster.orphans.map(o => o.meli_item_id) 
+        body: JSON.stringify({
+          accountId: activeAccount,
+          itemIds: resultsMaster.orphans.map(o => o.meli_item_id)
         }),
       });
       const data = await res.json();
@@ -341,12 +349,12 @@ export default function InventoryAuditPage() {
 
   const handleDownloadMassiveExcel = (items, subline) => {
     const origin = window.location.origin;
-    
+
     const massiveData = items.map(i => {
       // Intentar obtener la primera foto para el Excel si existe
       // Nota: ML Masivo pide URLs absolutas. 
       const photoUrl = photoStatus[i.sku] ? `${origin}/api/inventory/photos/view?sku=${i.sku}` : "";
-      
+
       return {
         "Título": i.title,
         "Precio (USD)": i.price,
@@ -364,14 +372,49 @@ export default function InventoryAuditPage() {
     const worksheet = XLSX.utils.json_to_sheet(massiveData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, subline.substring(0, 30));
-    
+
     // Auto-ajustar columnas
     worksheet['!cols'] = [
-      { wch: 50 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, 
+      { wch: 50 }, { wch: 15 }, { wch: 15 }, { wch: 10 },
       { wch: 60 }, { wch: 60 }, { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 20 }
     ];
 
     XLSX.writeFile(workbook, `Masivo_ML_${subline.replace(/\s+/g, '_')}.xlsx`);
+  };
+
+  const handleExportMassiveML = async () => {
+    if (!activeAccount) return;
+    setExportingMassive(true);
+    try {
+      const res = await fetch('/api/inventory/export-massive-excel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountId: activeAccount,
+          filters: massiveFilters
+        })
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err.error || 'Error al generar el Excel masivo');
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Publicacion_Masiva_ML_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('Error de red al generar el Excel masivo');
+    } finally {
+      setExportingMassive(false);
+    }
   };
 
   const handlePublish = (item, subline) => {
@@ -380,7 +423,7 @@ export default function InventoryAuditPage() {
 
   const confirmPublish = async (item, subline, extraAttrs = []) => {
     if (!activeAccount) return;
-    
+
     setPublishStatus(prev => ({ ...prev, [item.sku]: 'loading' }));
     setPreviewItem(null);
 
@@ -441,9 +484,9 @@ export default function InventoryAuditPage() {
       if (filterPhoto === 'no' && photoStatus[item.sku]) return acc;
 
       // Aplicar Filtro de Búsqueda
-      if (searchQuery && 
-          !item.sku.toLowerCase().includes(searchQuery.toLowerCase()) && 
-          !item.title.toLowerCase().includes(searchQuery.toLowerCase())) {
+      if (searchQuery &&
+        !item.sku.toLowerCase().includes(searchQuery.toLowerCase()) &&
+        !item.title.toLowerCase().includes(searchQuery.toLowerCase())) {
         return acc;
       }
 
@@ -458,15 +501,15 @@ export default function InventoryAuditPage() {
         <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h3 style={{ margin: 0, color: '#fbbf24' }}>📂 {sub} ({items.length} items)</h3>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button 
-              className={styles.secondaryBtn} 
+            <button
+              className={styles.secondaryBtn}
               style={{ padding: '0.5rem 1rem', fontSize: '0.8rem', background: '#3b82f6', color: 'white', border: 'none' }}
               onClick={() => handleDownloadMassiveExcel(items, sub)}
             >
               📥 Excel Masivo ML
             </button>
-            <button 
-              className={styles.primaryBtn} 
+            <button
+              className={styles.primaryBtn}
               style={{ padding: '0.5rem 1rem', fontSize: '0.8rem', background: '#10b981' }}
               onClick={() => handlePublishGroup(items, sub)}
             >
@@ -493,7 +536,7 @@ export default function InventoryAuditPage() {
                       <span title="Sin foto local" style={{ opacity: 0.3 }}>❌</span>
                     )}
                   </td>
-                  <td style={{fontWeight:'bold', color:'#fbbf24'}}>{m.sku}</td>
+                  <td style={{ fontWeight: 'bold', color: '#fbbf24' }}>{m.sku}</td>
                   <td>{m.title}</td><td>${m.price}</td><td>{m.stock}</td><td>{m.suggestedMeliId || '-'}</td>
                   <td>
                     {status === 'loading' ? (
@@ -502,9 +545,9 @@ export default function InventoryAuditPage() {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                         <span style={{ fontSize: '0.8rem', color: '#10b981' }}>✅ Publicado</span>
                         {publishedLinks[m.sku] && (
-                          <a 
-                            href={publishedLinks[m.sku]} 
-                            target="_blank" 
+                          <a
+                            href={publishedLinks[m.sku]}
+                            target="_blank"
                             rel="noopener noreferrer"
                             style={{ fontSize: '0.7rem', color: '#3b82f6', textDecoration: 'underline' }}
                           >
@@ -513,8 +556,8 @@ export default function InventoryAuditPage() {
                         )}
                       </div>
                     ) : (
-                      <button 
-                        className={styles.primaryBtn} 
+                      <button
+                        className={styles.primaryBtn}
                         style={{ padding: '0.4rem 0.8rem', fontSize: '0.7rem', opacity: photoStatus[m.sku] ? 1 : 0.3 }}
                         onClick={() => handlePublish(m, sub)}
                         disabled={!photoStatus[m.sku]}
@@ -542,7 +585,7 @@ export default function InventoryAuditPage() {
       </header>
 
       <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem' }}>
-        <button 
+        <button
           onClick={() => setAuditMode('master')}
           style={{
             padding: '1rem 2rem', borderRadius: '12px', cursor: 'pointer', border: 'none', fontWeight: 'bold',
@@ -553,7 +596,7 @@ export default function InventoryAuditPage() {
         >
           🏢 Auditoría Maestro (Global)
         </button>
-        <button 
+        <button
           onClick={() => setAuditMode('inbound')}
           style={{
             padding: '1rem 2rem', borderRadius: '12px', cursor: 'pointer', border: 'none', fontWeight: 'bold',
@@ -571,8 +614,8 @@ export default function InventoryAuditPage() {
           💡 Modo: {auditMode === 'master' ? 'AUDITORÍA MAESTRA' : 'ENTRADA DE MERCANCÍA'}
         </h3>
         <p style={{ margin: 0, color: 'rgba(255,255,255,0.8)' }}>
-          {auditMode === 'master' 
-            ? 'Usa este modo para comparar todo tu almacén. Detecta qué publicaciones sobran (Huérfanos) para pausarlas.' 
+          {auditMode === 'master'
+            ? 'Usa este modo para comparar todo tu almacén. Detecta qué publicaciones sobran (Huérfanos) para pausarlas.'
             : 'Usa este modo al recibir mercancía nueva. El sistema ignorará los huérfanos y se enfocará solo en lo que falta publicar.'}
         </p>
       </div>
@@ -580,17 +623,17 @@ export default function InventoryAuditPage() {
       <section className={styles.uploadCard}>
         <h2>Subir archivo de {auditMode === 'master' ? 'Inventario Completo' : 'Nota de Recepción'}</h2>
         <div className={styles.dropzone}>
-          <input 
-            type="file" 
+          <input
+            type="file"
             onChange={(e) => {
               if (auditMode === 'master') setFileMaster(e.target.files[0]);
               else setFileInbound(e.target.files[0]);
-            }} 
-            accept=".xlsx, .xls, .csv" 
+            }}
+            accept=".xlsx, .xls, .csv"
           />
-          <button className={styles.primaryBtn} 
-                  style={{ background: auditMode === 'inbound' ? '#fbbf24' : '#3b82f6', color: auditMode === 'inbound' ? 'black' : 'white' }}
-                  onClick={handleUpload} disabled={loading || !currentFile}>
+          <button className={styles.primaryBtn}
+            style={{ background: auditMode === 'inbound' ? '#fbbf24' : '#3b82f6', color: auditMode === 'inbound' ? 'black' : 'white' }}
+            onClick={handleUpload} disabled={loading || !currentFile}>
             {loading ? `🔍 Procesando... (${elapsedTime}s)` : (auditMode === 'master' ? '🔍 Iniciar Auditoría' : '📦 Procesar Entrada')}
           </button>
         </div>
@@ -598,24 +641,24 @@ export default function InventoryAuditPage() {
 
       {results && (
         <div className={styles.resultsGrid}>
-          <div 
-            className={styles.statCard} 
+          <div
+            className={styles.statCard}
             style={{ cursor: 'pointer', border: '1px solid rgba(16, 185, 129, 0.2)' }}
             onClick={() => document.getElementById('matched-section')?.scrollIntoView({ behavior: 'smooth' })}
           >
             <h3>Sincronizados</h3>
-            <div className={styles.statValue} style={{color: '#10b981'}}>{results.summary.matched}</div>
+            <div className={styles.statValue} style={{ color: '#10b981' }}>{results.summary.matched}</div>
             <p>SKUs que ya están publicados correctamente.</p>
           </div>
 
           {auditMode === 'master' && (
-            <div 
-              className={styles.statCard} 
+            <div
+              className={styles.statCard}
               style={{ cursor: 'pointer', border: '1px solid rgba(239, 68, 68, 0.2)' }}
               onClick={() => document.getElementById('orphans-section')?.scrollIntoView({ behavior: 'smooth' })}
             >
               <h3>Huérfanos (ML)</h3>
-              <div className={styles.statValue} style={{color: '#ef4444'}}>{results.summary.orphansCount}</div>
+              <div className={styles.statValue} style={{ color: '#ef4444' }}>{results.summary.orphansCount}</div>
               <p>Publicaciones que NO están en este Excel.</p>
               <button className={styles.dangerBtn} onClick={(e) => { e.stopPropagation(); handlePauseOrphans(); }} disabled={pausing}>
                 {pausing ? 'Pausando...' : '⏸️ Pausar Huérfanos'}
@@ -623,14 +666,71 @@ export default function InventoryAuditPage() {
             </div>
           )}
 
-          <div 
-            className={styles.statCard} 
+          <div
+            className={styles.statCard}
             style={{ cursor: 'pointer', border: '1px solid rgba(251, 191, 36, 0.2)' }}
             onClick={() => document.getElementById('missing-section')?.scrollIntoView({ behavior: 'smooth' })}
           >
             <h3>Faltantes (ML)</h3>
-            <div className={styles.statValue} style={{color: '#fbbf24'}}>{results.summary.missingCount}</div>
+            <div className={styles.statValue} style={{ color: '#fbbf24' }}>{results.summary.missingCount}</div>
             <p>Productos de este Excel que NO están publicados.</p>
+          </div>
+        </div>
+      )}
+
+      {/* PANEL DE EXPORTACIÓN MASIVA ML */}
+      {results?.missing?.length > 0 && (
+        <div style={{ background: 'rgba(59, 130, 246, 0.05)', border: '1px solid rgba(59, 130, 246, 0.2)', borderRadius: '12px', padding: '1.5rem', marginBottom: '2rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <div>
+              <h3 style={{ margin: 0, color: '#60a5fa', fontSize: '1.2rem' }}>📥 Exportar Excel para Publicación Masiva (ML)</h3>
+              <p style={{ margin: '0.3rem 0 0 0', opacity: 0.6, fontSize: '0.85rem' }}>Genera un Excel compatible con https://www.mercadolibre.com.ve/publicar-masivamente/</p>
+            </div>
+            <button
+              onClick={handleExportMassiveML}
+              disabled={exportingMassive}
+              style={{
+                background: exportingMassive ? '#1e3a5f' : '#3b82f6', color: 'white', padding: '1rem 2rem',
+                borderRadius: '10px', border: 'none', fontWeight: 'bold', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: '0.5rem'
+              }}
+            >
+              {exportingMassive ? '⏳ Generando...' : '📥 Descargar Excel Masivo ML'}
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.9rem' }}>
+              <input
+                type="checkbox"
+                checked={massiveFilters.withStock}
+                onChange={(e) => setMassiveFilters(prev => ({ ...prev, withStock: e.target.checked }))}
+              />
+              Solo con Stock disponible
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.9rem' }}>
+              <input
+                type="checkbox"
+                checked={massiveFilters.withPhotos}
+                onChange={(e) => setMassiveFilters(prev => ({ ...prev, withPhotos: e.target.checked }))}
+              />
+              Solo con fotos subidas al banco de imágenes
+            </label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <label style={{ fontSize: '0.9rem' }}>Máximo:</label>
+              <input
+                type="number"
+                value={massiveFilters.limit}
+                onChange={(e) => setMassiveFilters(prev => ({ ...prev, limit: parseInt(e.target.value) || 5000 }))}
+                style={{ width: '80px', padding: '0.4rem', background: 'black', border: '1px solid #333', color: 'white', borderRadius: '6px' }}
+              />
+              <span style={{ fontSize: '0.85rem', opacity: 0.6 }}>productos</span>
+            </div>
+          </div>
+
+          <div style={{ marginTop: '1rem', fontSize: '0.8rem', opacity: 0.5 }}>
+            💡 El Excel se agrupará automáticamente por categoría de MercadoLibre (una pestaña por categoría).
+            Los títulos se optimizarán automáticamente para SEO y se expandirán las abreviaciones.
           </div>
         </div>
       )}
@@ -644,7 +744,7 @@ export default function InventoryAuditPage() {
             <tbody>
               {results.matchedItems.slice(0, 500).map(m => (
                 <tr key={m.sku}>
-                  <td><a href={m.permalink} target="_blank" style={{color:'#60a5fa'}}>{m.meli_item_id} ↗</a></td>
+                  <td><a href={m.permalink} target="_blank" style={{ color: '#60a5fa' }}>{m.meli_item_id} ↗</a></td>
                   <td>{m.sku}</td><td>{m.title}</td><td>${m.price}</td>
                 </tr>
               ))}
@@ -665,7 +765,7 @@ export default function InventoryAuditPage() {
             <tbody>
               {results.orphans.map(o => (
                 <tr key={o.meli_item_id}>
-                  <td><a href={o.permalink} target="_blank" style={{color:'#60a5fa'}}>{o.meli_item_id} ↗</a></td>
+                  <td><a href={o.permalink} target="_blank" style={{ color: '#60a5fa' }}>{o.meli_item_id} ↗</a></td>
                   <td>{o.sku}</td><td>{o.title}</td><td>${o.price}</td>
                 </tr>
               ))}
@@ -684,10 +784,10 @@ export default function InventoryAuditPage() {
               </h2>
               <p style={{ margin: 0, opacity: 0.7 }}>{results.missing.length} productos organizados por Sublínea.</p>
             </div>
-            <button 
+            <button
               onClick={handleDownloadMissingIntegraly}
               style={{
-                background: '#fbbf24', color: 'black', padding: '1rem 1.5rem', borderRadius: '10px', 
+                background: '#fbbf24', color: 'black', padding: '1rem 1.5rem', borderRadius: '10px',
                 border: 'none', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem'
               }}
             >
@@ -699,18 +799,18 @@ export default function InventoryAuditPage() {
           <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', background: 'rgba(255,255,255,0.02)', padding: '1.5rem', borderRadius: '15px', border: '1px solid rgba(255,255,255,0.05)' }}>
             <div style={{ flex: 1 }}>
               <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', marginBottom: '0.5rem', fontWeight: 'bold' }}>🔍 BUSCAR PRODUCTO</label>
-              <input 
-                type="text" 
-                placeholder="Busca por SKU o nombre..." 
+              <input
+                type="text"
+                placeholder="Busca por SKU o nombre..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{ width: '100%', padding: '0.8rem', background: 'black', border: '1px solid #333', color: 'white', borderRadius: '8px' }}
               />
             </div>
-            
+
             <div style={{ width: '200px' }}>
               <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', marginBottom: '0.5rem', fontWeight: 'bold' }}>📸 ESTADO FOTO</label>
-              <select 
+              <select
                 value={filterPhoto}
                 onChange={(e) => setFilterPhoto(e.target.value)}
                 style={{ width: '100%', padding: '0.8rem', background: 'black', border: '1px solid #333', color: 'white', borderRadius: '8px' }}
@@ -721,7 +821,7 @@ export default function InventoryAuditPage() {
               </select>
             </div>
           </div>
-          
+
           {renderMissingGroups()}
 
           {/* Modal de Vista Previa */}
@@ -735,7 +835,7 @@ export default function InventoryAuditPage() {
                 boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)', border: '1px solid rgba(255,255,255,0.1)'
               }}>
                 <h2 style={{ marginBottom: '1.5rem', fontSize: '1.8rem', fontWeight: '800' }}>Confirmar Publicación</h2>
-                
+
                 <div style={{ marginBottom: '2rem' }}>
                   <label style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: '0.8rem', fontWeight: 'bold', letterSpacing: '0.05em' }}>📸 GALERÍA DE FOTOS DETECTADAS</label>
                   <LocalPhotoGallery sku={previewItem.item.sku} />
@@ -776,7 +876,7 @@ export default function InventoryAuditPage() {
                 <div style={{ background: 'rgba(251, 191, 36, 0.05)', padding: '1.5rem', borderRadius: '12px', marginBottom: '2rem', border: '1px solid rgba(251, 191, 36, 0.2)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                     <label style={{ fontSize: '0.7rem', color: '#fbbf24', margin: 0, fontWeight: 'bold' }}>📝 ATRIBUTOS TÉCNICOS</label>
-                    <button 
+                    <button
                       onClick={handleSuggestAttributes}
                       disabled={suggesting}
                       style={{ background: '#fbbf24', color: 'black', border: 'none', padding: '0.4rem 0.8rem', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 'bold', cursor: 'pointer', opacity: suggesting ? 0.5 : 1 }}
@@ -784,7 +884,7 @@ export default function InventoryAuditPage() {
                       {suggesting ? '🔍 Buscando...' : '✨ Mejorar con Competencia'}
                     </button>
                   </div>
-                  
+
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                     <div>
                       <label style={{ fontSize: '0.6rem', opacity: 0.5, display: 'block' }}>MARCA</label>
@@ -820,13 +920,13 @@ export default function InventoryAuditPage() {
                 </div>
 
                 <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
-                  <button 
+                  <button
                     onClick={() => { setPreviewItem(null); setSuggestedAttrs([]); }}
                     style={{ padding: '0.8rem 1.5rem', borderRadius: '12px', background: 'transparent', color: 'white', border: '1px solid rgba(255,255,255,0.2)', cursor: 'pointer' }}
                   >
                     Cancelar
                   </button>
-                  <button 
+                  <button
                     onClick={() => {
                       confirmPublish(previewItem.item, previewItem.subline, suggestedAttrs);
                       setSuggestedAttrs([]);
