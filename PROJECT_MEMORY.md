@@ -182,4 +182,18 @@ Para asegurar la continuidad eterna del proyecto, se seguirán estas reglas:
 4.  **Caché:** Los archivos `.audit_cache_*.json` son temporales y no se versionan, pero son vitales para la persistencia en caliente de la sesión.
 
 ---
+
+## 📋 REGLAS DE INTEGRACIÓN CON MERCADOLIBRE
+### ⚠️ REGLA CRÍTICA: Consultar MCP antes de asumir
+> **Cuando exista CUALQUIER DUDA sobre cómo funciona una API, endpoint, o comportamiento de MercadoLibre, SIEMPRE consultar primero el MCP Server de MercadoLibre conectado (`mercadolibre-mcp-server`) antes de asumir o implementar.**
+
+**Ejemplos de cuándo consultar el MCP:**
+- ¿Requiere autenticación un endpoint específico? (ej: `/items/{id}` SÍ requiere token, NO es público).
+- ¿Cuál es el formato correcto de un ID de item? (ej: `MLV12345678` sin guión para la API, aunque en URLs aparezca como `MLV-12345678`).
+- ¿Qué parámetros acepta un endpoint de búsqueda?
+- ¿Cómo manejar errores específicos de ML (401, 403, 404, 429)?
+
+**NO asumir que un endpoint es público o no requiere token sin confirmar en la documentación oficial via MCP.**
+
+---
 *Última actualización: 2026-05-03 23:45 (MCP conectado. Webhooks recibiendo notificaciones. Frontend auto-refresh activo en /api/orders y /api/account/overview. Batch token refresher para múltiples cuentas implementado. Skills 14-18 documentadas. Pendiente: desactivar RLS en ml_notifications para mostrar en dashboard).*
