@@ -1,4 +1,4 @@
- MEMORIA DEL PROYECTO: MERCADOLIBRE ERP 2026
+lta MEMORIA DEL PROYECTO: MERCADOLIBRE ERP 2026
 
 Este documento es el **Punto de Control (Breakpoint)** maestro. Su objetivo es proporcionar contexto inmediato a cualquier IA o desarrollador que inicie una nueva sesión, asegurando la continuidad de los roles y la arquitectura.
 
@@ -217,4 +217,34 @@ Para asegurar la continuidad eterna del proyecto, se seguirán estas reglas:
 - [ ] Probar los 4 métodos de mapeo de categorías en producción y confirmar que funcionan correctamente.
 
 ---
-*Última actualización: 2026-05-04 02:48 (Mapeo de categorías con 4 métodos de detección deployado. Endpoint extract-category corregido para usar token con auto-refresh. Modal de búsqueda con breadcrumb implementado. Regla crítica de consultar MCP documentada).*
+
+## 🚦 CHECKPOINT DE IMPLEMENTACIÓN (Sesión 2026-05-04 05:00)
+**Estado:** Exportador masivo ML completamente implementado y deployado. Build exitoso. Push a GitHub realizado.
+**URL de Producción:** https://mercadolibre-erp.vercel.app
+**Contexto:** Se implementó un sistema completo para generar archivos Excel compatibles con la plataforma de publicación masiva de MercadoLibre Venezuela (https://www.mercadolibre.com.ve/publicar-masivamente/), diseñado específicamente para la cuenta CORPORACIONRWC que tiene limitaciones de API por tienda oficial.
+
+### Archivos creados/modificados en esta sesión:
+| Archivo | Estado |
+|---|---|
+| `src/app/api/inventory/export-massive-excel/route.js` | ✅ Nuevo. API que genera Excel ML con pestañas por categoría, headers dinámicos, fotos múltiples, títulos SEO 60 chars. |
+| `src/app/dashboard/inventory/page.js` | ✅ Modificado. Nuevo panel de exportación masiva con filtros (stock, fotos, límite) y botón de descarga. |
+| `src/app/api/inventory/upload/route.js` | ✅ Modificado. Detección dinámica de columna SubLínea desde Excel de Profit Plus. |
+| `supabase/schema.sql` | ✅ Actualizado. Tablas `image_bank` y `category_mappings` agregadas. Columna `subcategory` en `internal_inventory`. |
+| `PROJECT_SKILLS.md` | ✅ Actualizado. Skill #19: Generador de Excel para Publicación Masiva ML. |
+| `PLANILLA PUBLICACION MASIVA ML.xlsx` | ✅ Referencia. Ejemplo oficial de ML para comparar estructura. |
+
+### Pendiente técnico inmediato:
+- [ ] Ejecutar SQL `supabase/schema.sql` en Supabase si aún no existen las tablas `image_bank` y `category_mappings`.
+- [ ] Poblar `category_mappings` con las sublíneas de Profit Plus y sus IDs de categoría ML correspondientes.
+- [ ] Subir fotos al banco de imágenes (`image_bank`) para que aparezcan en el Excel.
+- [ ] Probar la descarga del Excel en producción con datos reales.
+
+### Decisiones de arquitectura tomadas:
+- El Excel se agrupa por **categoría de MercadoLibre** (una pestaña por categoría), no por sublínea interna.
+- Los títulos se optimizan a **máximo 60 caracteres** con abreviaciones automáticas (DEL → Delantero, TRAS → Trasero, etc.).
+- Las fotos se toman de `image_bank` (URLs de ML), no de fotos locales.
+- Los atributos técnicos se obtienen dinámicamente de `/categories/{id}/attributes` de la API de ML.
+- Columnas ML manejadas: Tipo de publicación, Cargo por venta, Forma de envío, Costo de envío, Zonas/regiones, Retiro en persona, Tipo de garantía, Tiempo, Unidad, Origen.
+
+---
+*Última actualización: 2026-05-04 07:44 (Exportador masivo ML deployado. Build exitoso. GitHub actualizado. Skills y memoria documentados).*

@@ -145,4 +145,21 @@ Este documento recopila las "Habilidades Especiales" desarrolladas en este proye
 
 ---
 
-*Este inventario de habilidades permite que este ERP sea el cimiento para cualquier otra herramienta de automatización comercial. Las skills 9-18 fueron diseñadas a partir de la documentación oficial del MCP de MercadoLibre Developers.*
+## 19. Habilidad: Generador de Excel para Publicación Masiva ML (Multi-Sheet por Categoría)
+**Descripción:** Crea archivos Excel compatibles 100% con la plataforma de publicación masiva de MercadoLibre Venezuela (https://www.mercadolibre.com.ve/publicar-masivamente/), con una pestaña por categoría ML y headers dinámicos de atributos técnicos.
+*   **Lógica:**
+    1. Lee el caché de auditoría maestra (`.audit_cache_master_{accountId}.json`).
+    2. Consulta `internal_inventory` en Supabase para obtener sublíneas de cada producto faltante.
+    3. Busca el mapeo en `category_mappings` (por `internal_name` o `internal_subline_code`).
+    4. Para cada categoría ML, consulta `/categories/{id}/attributes` para obtener los atributos obligatorios.
+    5. Construye una pestaña (`WorkSheet`) por categoría con columnas base + atributos dinámicos.
+    6. Las fotos se insertan como URLs separadas por coma, tomadas de la tabla `image_bank`.
+    7. Los títulos se optimizan SEO (máx. 60 caracteres, abreviaciones automáticas: DEL → Delantero, TRAS → Trasero, etc.).
+    8. Columnas ML obligatorias manejadas: Tipo de publicación, Cargo por venta, Forma de envío, Costo de envío, Zonas/regiones, Retiro en persona, Tipo de garantía, Tiempo, Unidad, Origen.
+*   **Ubicación:** `src/app/api/inventory/export-massive-excel/route.js` + `src/app/dashboard/inventory/page.js`
+*   **Valor:** Permite publicar masivamente productos de la cuenta CORPORACIONRWC (que tiene limitaciones de API por tienda oficial) subiendo el Excel directamente a la plataforma oficial de ML.
+*   **Doc oficial ML:** https://vendedores.mercadolibre.com.ve/nota/publica-muchos-productos-a-la-vez
+
+---
+
+*Este inventario de habilidades permite que este ERP sea el cimiento para cualquier otra herramienta de automatización comercial. Las skills 9-19 fueron diseñadas a partir de la documentación oficial del MCP de MercadoLibre Developers.*
