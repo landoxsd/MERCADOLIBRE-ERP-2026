@@ -10,7 +10,7 @@ import { cookies } from "next/headers";
 export async function GET(request) {
   try {
     const cookieStore = await cookies();
-    const activeAccountId = cookieStore.get("active_account_id")?.value;
+    const activeAccountId = cookieStore.get("meli_erp_account")?.value;
 
     const { searchParams } = new URL(request.url);
     const accountId = searchParams.get("accountId") || activeAccountId;
