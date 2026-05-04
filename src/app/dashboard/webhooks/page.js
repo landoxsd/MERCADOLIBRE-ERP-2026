@@ -48,6 +48,77 @@ const STATUS_STYLES = {
     error: { bg: '#fee2e2', color: '#991b1b', label: 'Error' },
 };
 
+// Botón para suscribir la cuenta activa a los webhooks de ML
+function SubscribeButton({ onSuccess }) {
+    const [subscribing, setSubscribing] = useState(false);
+    const [result, setResult] = useState(null);
+
+    const handleSubscribe = async () => {
+        setSubscribing(true);
+        setResult(null);
+        try {
+            // Obtener accountId de la cookie
+            const cookieMatch = document.cookie.match(/meli_erp_account=([^;]+)/);
+            const accountId = cookieMatch ? cookieMatch[1] : null;
+
+            if (!accountId) {
+                setResult({ error: 'No hay cuenta activa. Conecta una cuenta primero.' });
+                setSubscribing(false);
+                return;
+            }
+
+            const res = await fetch('/api/webhooks/subscribe', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ accountId }),
+            });
+
+            const data = await res.json();
+            setResult(data);
+
+            if (res.ok && onSuccess) {
+                onSuccess();
+            }
+        } catch (err) {
+            setResult({ error: err.message });
+        } finally {
+            setSubscribing(false);
+        }
+    };
+
+    return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+                onClick={handleSubscribe}
+                disabled={subscribing}
+                style={{
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: subscribing ? '#9ca3af' : '#059669',
+                    color: '#fff',
+                    fontSize: '13px',
+                    cursor: subscribing ? 'not-allowed' : 'pointer',
+                    fontWeight: 500,
+                }}
+            >
+                {subscribing ? '⏳ Suscribiendo...' : '🔔 Suscribir a Webhooks'}
+            </button>
+            {result && (
+                <span style={{
+                    fontSize: '12px',
+                    color: result.error ? '#dc2626' : '#059669',
+                    fontWeight: 500,
+                }}>
+                    {result.error
+                        ? `❌ ${result.error}`
+                        : `✅ ${result.subscribed}/${result.total} topics suscritos`}
+                </span>
+            )}
+        </div>
+    );
+}
+
 export default function WebhooksMonitorPage() {
     const [notifications, setNotifications] = useState([]);
     const [stats, setStats] = useState({ total: 0, pending: 0, completed: 0, error: 0 });
@@ -168,8 +239,8 @@ export default function WebhooksMonitorPage() {
                 </div>
             </div>
 
-            {/* Filters */}
-            <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
+            {/* Filters + Subscribe */}
+            <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
                 <select
                     value={filterTopic}
                     onChange={(e) => setFilterTopic(e.target.value)}
@@ -197,6 +268,7 @@ export default function WebhooksMonitorPage() {
                 >
                     🔄 Actualizar
                 </button>
+                <SubscribeButton onSuccess={fetchNotifications} />
             </div>
 
             {/* Table */}
