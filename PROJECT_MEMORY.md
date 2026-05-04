@@ -195,5 +195,26 @@ Para asegurar la continuidad eterna del proyecto, se seguirán estas reglas:
 
 **NO asumir que un endpoint es público o no requiere token sin confirmar en la documentación oficial via MCP.**
 
+## 🚦 CHECKPOINT DE IMPLEMENTACIÓN (Sesión 2026-05-04)
+**Estado:** Mapeo de categorías completamente refactorizado. Error 403 corregido. Nuevo modal de búsqueda con breadcrumb deployado.
+**URL de Producción:** https://mercadolibre-erp.vercel.app
+**Contexto:** Se corrigió el endpoint `extract-category` para usar token con auto-refresh (la API `/items/{id}` de ML requiere autenticación según documentación oficial). Se agregaron 3 nuevos endpoints para mapeo de categorías y un modal de búsqueda con breadcrumb en el frontend.
+
+### Archivos creados/modificados en esta sesión:
+| Archivo | Estado |
+|---|---|
+| `src/app/api/utils/extract-category/route.js` | ✅ Reescrito. Usa `getValidAccessToken()` con auto-refresh. Regex corregido para IDs de cualquier país de ML. |
+| `src/app/api/categories/batch-detect/route.js` | ✅ Nuevo. Detecta categorías de múltiples sublíneas en paralelo (lotes de 10). |
+| `src/app/api/categories/detect-one/route.js` | ✅ Nuevo. Detecta categoría para UNA sublínea por su nombre. |
+| `src/app/api/categories/search-with-breadcrumb/route.js` | ✅ Nuevo. Busca categorías por término y devuelve breadcrumb completo (ruta de categorías). |
+| `src/app/dashboard/settings/page.js` | ✅ Reescrito. UI con 4 métodos de detección: 🔎 Buscar breadcrumb, 🎯 Auto-detectar, 🔍 Link exacto, 🤖 Detectar todas. |
+| `scripts/download-mlv-categories.js` | ✅ Nuevo. Script para descargar jerarquía completa de categorías MLV (requiere token). |
+| `PROJECT_MEMORY.md` | ✅ Actualizado. Nueva regla crítica: consultar MCP antes de asumir comportamiento de ML. |
+
+### Pendiente técnico inmediato:
+- [ ] Ejecutar SQL `ALTER TABLE ml_notifications DISABLE ROW LEVEL SECURITY;` en Supabase para mostrar notificaciones en el dashboard.
+- [ ] Verificar que lleguen notificaciones y se procesen correctamente.
+- [ ] Probar los 4 métodos de mapeo de categorías en producción y confirmar que funcionan correctamente.
+
 ---
-*Última actualización: 2026-05-03 23:45 (MCP conectado. Webhooks recibiendo notificaciones. Frontend auto-refresh activo en /api/orders y /api/account/overview. Batch token refresher para múltiples cuentas implementado. Skills 14-18 documentadas. Pendiente: desactivar RLS en ml_notifications para mostrar en dashboard).*
+*Última actualización: 2026-05-04 02:48 (Mapeo de categorías con 4 métodos de detección deployado. Endpoint extract-category corregido para usar token con auto-refresh. Modal de búsqueda con breadcrumb implementado. Regla crítica de consultar MCP documentada).*
