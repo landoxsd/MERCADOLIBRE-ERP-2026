@@ -109,7 +109,6 @@ export default function SettingsPage() {
     if (!url) return;
 
     try {
-      // Hacemos la consulta al BACKEND para usar el Token de Autorización y evitar bloqueos
       const res = await fetch('/api/utils/extract-category', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -124,6 +123,47 @@ export default function SettingsPage() {
         alert(`✅ Categoría EXACTA detectada: ${data.category_id}\n(${data.title})`);
       } else {
         alert("❌ Error: " + data.error);
+      }
+    } catch (e) {
+      alert("Error al conectar con el servidor del ERP.");
+    }
+  };
+
+  const handleDetectOne = async (profitKey) => {
+    try {
+      const res = await fetch('/api/categories/detect-one', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: profitKey })
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        const newMap = { ...settings.categoryMap };
+        newMap[profitKey] = data.category_id;
+        setSettings({ ...settings, categoryMap: newMap });
+
+        // Actualizar batchResults para mostrar como sugerida
+        setBatchResults(prev => {
+          const exists = prev.find(r => r.subline === profitKey);
+          if (exists) {
+            return prev.map(r => r.subline === profitKey
+              ? { ...r, status: 'suggested', category_id: data.category_id, category_name: data.category_name }
+              : r
+            );
+          }
+          return [...prev, {
+            subline: profitKey,
+            status: 'suggested',
+            category_id: data.category_id,
+            category_name: data.category_name,
+            suggestions: [data, ...(data.alternatives || [])]
+          }];
+        });
+
+        alert(`✅ Sugerencia para "${profitKey}":\n${data.category_name}\n(${data.category_id})`);
+      } else {
+        alert("❌ " + data.error);
       }
     } catch (e) {
       alert("Error al conectar con el servidor del ERP.");
@@ -255,6 +295,13 @@ export default function SettingsPage() {
                       placeholder="MLVXXXXXX"
                       style={{ padding: '0.5rem', background: 'transparent', border: '1px solid #333', color: 'white', flex: 1 }}
                     />
+                    <button
+                      onClick={() => handleDetectOne(profit)}
+                      title="Detectar automáticamente por nombre de sublínea"
+                      style={{ background: '#8b5cf6', border: 'none', color: 'white', padding: '0.5rem', borderRadius: '4px', cursor: 'pointer' }}
+                    >
+                      🎯
+                    </button>
                     <button
                       onClick={() => handleAutoDetectCategory(profit)}
                       title="Detectar desde link de ML (precisión exacta)"

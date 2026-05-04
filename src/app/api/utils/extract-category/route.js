@@ -19,9 +19,9 @@ export async function POST(req) {
       return NextResponse.json({ error: "Falta la URL o el ID" }, { status: 400 });
     }
 
-    // Extraer el ID del item del input (cualquier país de ML: MLV, MLA, MLB, etc.)
-    // Soporta: MLV12345678, MLV-12345678, o URLs que lo contengan
-    const match = url.match(/(ML[A-Z][A-Z][-_]?\d{7,})/i);
+    // Extraer el ID del item del input (cualquier país de ML: MLV, MLA, MLB, MCO, etc.)
+    // Soporta: MLV12345678, MLV-12345678, MLA12345678, MCO-12345678, o URLs que lo contengan
+    const match = url.match(/(ML[A-Z]{1,2}[-_]?\d{7,})/i);
     if (!match) {
       return NextResponse.json({
         error: "No se encontró un ID de Mercado Libre válido. Pegá el link completo o el ID (ej: MLV-581037829)."
