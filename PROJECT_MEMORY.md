@@ -10,6 +10,29 @@ Este documento es el **Punto de Control (Breakpoint)** maestro. Su objetivo es p
 
 ---
 
+## 🚀 ONBOARDING PARA NUEVA SESIÓN DE IA
+
+Cuando inicies una nueva conversación con una IA (Cline, Claude, ChatGPT, etc.), **siempre pega este documento (`PROJECT_MEMORY.md`) como el PRIMER mensaje**. Eso le da contexto completo del proyecto sin perder tiempo.
+
+### Si la tarea es técnica compleja, también pega `PROJECT_SKILLS.md` junto con este archivo.
+
+### Datos clave del proyecto (mencionar si la IA lo pide):
+| Dato | Valor |
+|---|---|
+| **URL Producción** | https://mercadolibre-erp.vercel.app |
+| **Client ID ML** | 2657663366318591 |
+| **Site ID** | MLV (Venezuela) |
+| **Stack** | Next.js 14 + Supabase + Vercel |
+| **Supabase Project** | zqxesjcchykncxpekmbz |
+| **Repo GitHub** | https://github.com/landoxsd/MERCADOLIBRE-ERP-2026.git |
+
+### ⚠️ NUNCA compartir:
+- `.env` completo (tiene secrets)
+- `cline_mcp_settings.json` (tiene token Bearer activo)
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+---
+
 ## 🏗️ ARQUITECTURA Y MÓDULOS
 El sistema está construido para ser escalable mediante micro-servicios internos (API Routes) en Next.js.
 
