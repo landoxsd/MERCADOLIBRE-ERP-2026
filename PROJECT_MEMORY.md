@@ -236,8 +236,11 @@ Para asegurar la continuidad eterna del proyecto, se seguirán estas reglas:
 ### Pendiente técnico inmediato:
 - [ ] Ejecutar SQL `supabase/schema.sql` en Supabase si aún no existen las tablas `image_bank` y `category_mappings`.
 - [ ] Poblar `category_mappings` con las sublíneas de Profit Plus y sus IDs de categoría ML correspondientes.
-- [ ] Subir fotos al banco de imágenes (`image_bank`) para que aparezcan en el Excel.
-- [ ] Probar la descarga del Excel en producción con datos reales.
+- [x] **Hito 3: Banco de Imágenes & Dashboard**  
+  - Creación de tabla `image_bank` en Supabase.
+  - Script de escaneo y sincronización masiva (v1.1 con Smart Skip).
+  - Dashboard visual en `/dashboard/image-bank` (Desplegado en producción).
+  - Integración en Sidebar del ERP.
 
 ### Decisiones de arquitectura tomadas:
 - El Excel se agrupa por **categoría de MercadoLibre** (una pestaña por categoría), no por sublínea interna.
@@ -246,5 +249,19 @@ Para asegurar la continuidad eterna del proyecto, se seguirán estas reglas:
 - Los atributos técnicos se obtienen dinámicamente de `/categories/{id}/attributes` de la API de ML.
 - Columnas ML manejadas: Tipo de publicación, Cargo por venta, Forma de envío, Costo de envío, Zonas/regiones, Retiro en persona, Tipo de garantía, Tiempo, Unidad, Origen.
 
+## 🚦 CHECKPOINT DE IMPLEMENTACIÓN (Sesión 2026-05-05)
+**Estado:** Integración de Image Bank (Internet) en Auditoría y Exportador Masivo en curso.
+**Contexto:** Se detectó que el Exportador Masivo generaba Excel con fotos vacías porque buscaba `ml_url` (que es NULL) en lugar de construir la URL desde `ml_picture_id`. Se inició el plan para migrar la Auditoría de fotos locales a fotos de internet.
+
+### Archivos respaldados (Pre-integración):
+- `src/app/api/inventory/export-massive-excel/route.BACKUP_20260505.js`
+- `src/app/dashboard/inventory/page.BACKUP_20260505.js`
+
+### Próximos pasos técnicos:
+1.  **[Cambio #4]** Corregir construcción de URL de fotos en Exportador Excel (Usar `ml_picture_id`).
+2.  **[Cambio #1]** Crear API `/api/image-bank/by-sku` para consulta centralizada de imágenes.
+3.  **[Cambio #2]** Actualizar `checkPhotos` en Auditoría para usar la nueva API de internet.
+4.  **[Cambio #3]** Implementar `MLPhotoGallery` en Auditoría para visualización directa desde ML CDN.
+
 ---
-*Última actualización: 2026-05-04 07:44 (Exportador masivo ML deployado. Build exitoso. GitHub actualizado. Skills y memoria documentados).*
+*Última actualización: 2026-05-05 12:05 (Iniciando integración de Image Bank).*

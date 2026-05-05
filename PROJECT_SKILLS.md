@@ -146,6 +146,11 @@ Este documento recopila las "Habilidades Especiales" desarrolladas en este proye
 ---
 
 ## 19. Habilidad: Generador de Excel para Publicación Masiva ML (Multi-Sheet por Categoría)
+- **Habilidad #20: Dashboard "Banco de Imágenes" (Next.js)**  
+  Panel de monitoreo visual en tiempo real que muestra estadísticas globales de inventario, imágenes sincronizadas, pendientes y errores. Incluye galería interactiva con fallback dinámico de URLs desde Mercado Libre.
+  
+- **Habilidad #21: Sincronización Inteligente (Smart Skip)**  
+  Lógica de optimización en `sync-images-to-ml.js` que detecta IDs preexistentes para evitar subidas redundantes, ahorrando ancho de banda y tiempo de procesamiento masivo.
 **Descripción:** Crea archivos Excel compatibles 100% con la plataforma de publicación masiva de MercadoLibre Venezuela (https://www.mercadolibre.com.ve/publicar-masivamente/), con una pestaña por categoría ML y headers dinámicos de atributos técnicos.
 *   **Lógica:**
     1. Lee el caché de auditoría maestra (`.audit_cache_master_{accountId}.json`).

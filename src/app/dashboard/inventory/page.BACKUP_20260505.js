@@ -3,12 +3,35 @@ import { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import styles from './Inventory.module.css';
 
-// Componente para visualizar fotos del Image Bank (Internet)
-const RemotePhoto = ({ url, size = 150 }) => {
-  return <img src={url} style={{ width: size, height: size, objectFit: 'cover', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }} alt="Preview" />;
+// Componente para cargar fotos locales bajo demanda
+const LocalPhoto = ({ sku, index = 0, filename = null, size = 150 }) => {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchPhoto = async () => {
+      try {
+        const url = filename
+          ? `/api/media/local/${encodeURIComponent(sku)}?filename=${encodeURIComponent(filename)}`
+          : `/api/media/local/${encodeURIComponent(sku)}?index=${index}`;
+
+        const res = await fetch(url);
+        const json = await res.json();
+        if (json.success) setData(json.data);
+      } catch (e) { } finally {
+        setLoading(false);
+      }
+    };
+    fetchPhoto();
+  }, [sku, index, filename]);
+
+  if (loading) return <div style={{ width: size, height: size, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#111', borderRadius: '12px', fontSize: '0.7rem' }}>Cargando...</div>;
+  if (!data) return <div style={{ width: size, height: size, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#111', borderRadius: '12px', fontSize: '0.7rem' }}>No disponible</div>;
+
+  return <img src={data} style={{ width: size, height: size, objectFit: 'cover', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }} alt="Preview" />;
 };
 
-const ImageBankGallery = ({ sku }) => {
+const LocalPhotoGallery = ({ sku }) => {
   const [photos, setPhotos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -16,23 +39,22 @@ const ImageBankGallery = ({ sku }) => {
   useEffect(() => {
     let isMounted = true;
     const fetchList = async () => {
+      console.log(`[Gallery] Iniciando búsqueda para: ${sku}`);
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch('/api/image-bank/by-sku', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ skus: [sku] })
-        });
+        const res = await fetch(`/api/media/list/${encodeURIComponent(sku)}`);
+        if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
         const json = await res.json();
         if (isMounted) {
           if (json.success) {
-            setPhotos(json.photoMap[sku] || []);
+            setPhotos(json.files || []);
           } else {
             setError(json.error || 'Error en API');
           }
         }
       } catch (e) {
+        console.error("[Gallery] Error:", e);
         if (isMounted) setError(e.message);
       } finally {
         if (isMounted) setLoading(false);
@@ -42,16 +64,16 @@ const ImageBankGallery = ({ sku }) => {
     return () => { isMounted = false; };
   }, [sku]);
 
-  if (loading) return <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.8rem' }}>🖼️ Consultando Image Bank para {sku}...</div>;
+  if (loading) return <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.8rem' }}>🔍 Buscando fotos para {sku}...</div>;
   if (error) return <div style={{ color: '#ef4444', fontSize: '0.8rem' }}>❌ Error: {error}</div>;
-  if (photos.length === 0) return <div style={{ color: '#fbbf24', fontSize: '0.8rem' }}>⚠️ Sin fotos sincronizadas en ML para "{sku}".</div>;
+  if (photos.length === 0) return <div style={{ color: '#fbbf24', fontSize: '0.8rem' }}>⚠️ No se encontraron fotos exactas para "{sku}".</div>;
 
   return (
     <div style={{ display: 'flex', gap: '0.8rem', overflowX: 'auto', paddingBottom: '1rem', scrollbarWidth: 'thin' }}>
-      {photos.map((url, i) => (
+      {photos.map((f, i) => (
         <div key={i} style={{ flexShrink: 0, textAlign: 'center' }}>
-          <RemotePhoto url={url} size={120} />
-          <div style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.3)', marginTop: '0.3rem' }}>ML Picture {i+1}</div>
+          <LocalPhoto sku={sku} filename={f} size={120} />
+          <div style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.3)', marginTop: '0.3rem' }}>{f}</div>
         </div>
       ))}
     </div>
@@ -163,20 +185,20 @@ export default function InventoryAuditPage() {
     fetchHistory();
   }, [activeAccount]);
 
-  // Auditor de Fotos en Image Bank (Supabase)
+  // Auditor de Fotos Locales
   useEffect(() => {
     const checkPhotos = async () => {
-      const allSkus = [];
-      if (resultsMaster?.missing) allSkus.push(...resultsMaster.missing.map(m => m.sku));
-      if (resultsInbound?.missing) allSkus.push(...resultsInbound.missing.map(m => m.sku));
+      const allMissingSkus = [];
+      if (resultsMaster?.missing) allMissingSkus.push(...resultsMaster.missing.map(m => m.sku));
+      if (resultsInbound?.missing) allMissingSkus.push(...resultsInbound.missing.map(m => m.sku));
 
-      if (allSkus.length === 0) return;
+      if (allMissingSkus.length === 0) return;
 
       try {
-        const res = await fetch('/api/image-bank/by-sku', {
+        const res = await fetch('/api/media/check-bulk', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ skus: allSkus.slice(0, 5000), countOnly: true })
+          body: JSON.stringify({ skus: allMissingSkus.slice(0, 5000) }) // Limite de seguridad
         });
         const data = await res.json();
         if (data.photoMap) setPhotoStatus(data.photoMap);
@@ -326,11 +348,12 @@ export default function InventoryAuditPage() {
   };
 
   const handleDownloadMassiveExcel = (items, subline) => {
+    const origin = window.location.origin;
+
     const massiveData = items.map(i => {
-      // Intentar obtener la primera foto si está marcada como disponible
-      // Nota: Si photoStatus[sku] es true, significa que hay al menos una foto en el Image Bank
-      // Como no tenemos la URL aquí, usaremos el endpoint de redirección o simplemente indicaremos que requiere el exportador masivo oficial
-      const photoUrl = photoStatus[i.sku] ? "URL en Image Bank (Usar Exportador Masivo ML para obtener links)" : "";
+      // Intentar obtener la primera foto para el Excel si existe
+      // Nota: ML Masivo pide URLs absolutas. 
+      const photoUrl = photoStatus[i.sku] ? `${origin}/api/inventory/photos/view?sku=${i.sku}` : "";
 
       return {
         "Título": i.title,
@@ -504,11 +527,13 @@ export default function InventoryAuditPage() {
                   <td>
                     {photoStatus[m.sku] ? (
                       <div className={styles.photoPreviewContainer}>
-                        <span title="Foto sincronizada en ML" style={{ cursor: 'pointer', fontSize: '1.2rem' }}>🖼️</span>
-                        {/* El hover ahora es opcional o se puede implementar con ImageBankGallery si se desea */}
+                        <span title="Foto local encontrada" style={{ cursor: 'pointer', fontSize: '1.2rem' }}>📸</span>
+                        <div className={styles.photoHover}>
+                          <LocalPhoto sku={m.sku} />
+                        </div>
                       </div>
                     ) : (
-                      <span title="Sin foto en Image Bank" style={{ opacity: 0.3 }}>❌</span>
+                      <span title="Sin foto local" style={{ opacity: 0.3 }}>❌</span>
                     )}
                   </td>
                   <td style={{ fontWeight: 'bold', color: '#fbbf24' }}>{m.sku}</td>
@@ -812,8 +837,8 @@ export default function InventoryAuditPage() {
                 <h2 style={{ marginBottom: '1.5rem', fontSize: '1.8rem', fontWeight: '800' }}>Confirmar Publicación</h2>
 
                 <div style={{ marginBottom: '2rem' }}>
-                  <label style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: '0.8rem', fontWeight: 'bold', letterSpacing: '0.05em' }}>🖼️ FOTOS EN IMAGE BANK (LISTAS PARA ML)</label>
-                  <ImageBankGallery sku={previewItem.item.sku} />
+                  <label style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: '0.8rem', fontWeight: 'bold', letterSpacing: '0.05em' }}>📸 GALERÍA DE FOTOS DETECTADAS</label>
+                  <LocalPhotoGallery sku={previewItem.item.sku} />
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>

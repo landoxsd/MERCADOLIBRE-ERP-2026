@@ -42,68 +42,76 @@ export async function POST(req) {
       }, { status: 400 });
     }
 
-    // 3. Buscar y Subir Fotos Locales
-    if (!settings.photosPath || !fs.existsSync(settings.photosPath)) {
-      return NextResponse.json({ error: "Ruta de fotos no configurada o inaccesible." }, { status: 400 });
-    }
-
-    const allFiles = fs.readdirSync(settings.photosPath);
-    const skuLower = sku.toLowerCase();
-
-    // Encontrar archivos que coincidan con el SKU (máximo 10 para Mercado Libre)
-    const matchingFiles = allFiles.filter(f => {
-      const base = f.split('.')[0].toLowerCase();
-      
-      // Coincidencia exacta
-      if (base === skuLower) return true;
-      
-      // Coincidencia SKU-N (ej: 058054-0)
-      const lastDashIndex = base.lastIndexOf('-');
-      if (lastDashIndex !== -1) {
-        const prefix = base.substring(0, lastDashIndex);
-        const suffix = base.substring(lastDashIndex + 1);
-        return prefix === skuLower && /^\d+$/.test(suffix);
-      }
-      
-      return false;
-    }).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).slice(0, 10);
-
-    if (matchingFiles.length === 0) {
-      return NextResponse.json({ 
-        error: `No se encontraron fotos locales para el SKU "${sku}". Asegúrate de que el archivo comience exactamente con el SKU.` 
-      }, { status: 400 });
-    }
-
-    console.log(`📸 Detectadas ${matchingFiles.length} fotos para el SKU ${sku}:`, matchingFiles);
+    // 3. Buscar Fotos (Primero en Image Bank, luego Local)
     const picturePayloads = [];
     
-    // Importar el helper de Supabase (lo hacemos dinámico si no está arriba)
-    const { uploadImageToStorage } = require("@/lib/supabase-admin");
+    // Consulta al Image Bank en Supabase
+    const { data: bankPhotos, error: bankError } = await supabaseAdmin
+      .from('image_bank')
+      .select('ml_picture_id, ml_url')
+      .eq('sku', sku)
+      .eq('sync_status', 'synced')
+      .order('image_index', { ascending: true });
 
-    for (const fileName of matchingFiles) {
-      const filePath = path.join(settings.photosPath, fileName);
-      const buffer = fs.readFileSync(filePath);
-      
-      try {
-        // Intento 1: Subida Directa a Mercado Libre
-        const picRes = await uploadPicture(buffer, fileName, accessToken);
-        if (picRes.id) {
-          picturePayloads.push({ id: picRes.id });
-          console.log(`✅ Foto subida directo a ML: ${picRes.id}`);
+    if (!bankError && bankPhotos && bankPhotos.length > 0) {
+      console.log(`🌐 Usando ${bankPhotos.length} fotos desde Image Bank para SKU ${sku}`);
+      bankPhotos.forEach(p => {
+        if (p.ml_picture_id) {
+          picturePayloads.push({ id: p.ml_picture_id });
+        } else if (p.ml_url) {
+          picturePayloads.push({ source: p.ml_url });
         }
-      } catch (uploadErr) {
-        console.warn(`⚠️ Falla subiendo ${fileName} directo a ML (${uploadErr.message}). Activando Puente Supabase...`);
-        
-        // Intento 2: Fallback al Puente de Supabase (Evita PolicyAgent)
-        try {
-          const publicUrl = await uploadImageToStorage(buffer, fileName);
-          picturePayloads.push({ source: publicUrl });
-          console.log(`✅ Foto puenteada por Supabase: ${publicUrl}`);
-        } catch (supabaseErr) {
-          console.error(`❌ Falla en el Puente Supabase para ${fileName}:`, supabaseErr.message);
-          throw new Error(`Imposible subir imagen. Bloqueo de ML y fallo en Supabase: ${supabaseErr.message}. Verifica que el bucket 'product-photos' exista y sea público.`);
+      });
+    } else {
+      // FALLBACK: Buscar y Subir Fotos Locales
+      console.log(`🔍 No hay fotos en Image Bank para ${sku}, buscando en local...`);
+      
+      if (settings.photosPath && fs.existsSync(settings.photosPath)) {
+        const allFiles = fs.readdirSync(settings.photosPath);
+        const skuLower = sku.toLowerCase();
+
+        const matchingFiles = allFiles.filter(f => {
+          const base = f.split('.')[0].toLowerCase();
+          if (base === skuLower) return true;
+          const lastDashIndex = base.lastIndexOf('-');
+          if (lastDashIndex !== -1) {
+            const prefix = base.substring(0, lastDashIndex);
+            const suffix = base.substring(lastDashIndex + 1);
+            return prefix === skuLower && /^\d+$/.test(suffix);
+          }
+          return false;
+        }).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).slice(0, 10);
+
+        if (matchingFiles.length > 0) {
+          console.log(`📸 Detectadas ${matchingFiles.length} fotos locales para el SKU ${sku}`);
+          const { uploadImageToStorage } = require("@/lib/supabase-admin");
+
+          for (const fileName of matchingFiles) {
+            const filePath = path.join(settings.photosPath, fileName);
+            const buffer = fs.readFileSync(filePath);
+            
+            try {
+              const picRes = await uploadPicture(buffer, fileName, accessToken);
+              if (picRes.id) {
+                picturePayloads.push({ id: picRes.id });
+              }
+            } catch (uploadErr) {
+              try {
+                const publicUrl = await uploadImageToStorage(buffer, fileName);
+                picturePayloads.push({ source: publicUrl });
+              } catch (supabaseErr) {
+                console.error(`❌ Falló subida local para ${fileName}`);
+              }
+            }
+          }
         }
       }
+    }
+
+    if (picturePayloads.length === 0) {
+      return NextResponse.json({ 
+        error: `No se encontraron fotos (ni en Image Bank ni locales) para el SKU "${sku}".` 
+      }, { status: 400 });
     }
 
     // Validación estricta de precio mínimo

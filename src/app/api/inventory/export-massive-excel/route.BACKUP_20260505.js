@@ -250,7 +250,7 @@ export async function POST(req) {
                 const batchSkus = allSkus.slice(i, i + BATCH);
                 const { data: photoData } = await supabaseAdmin
                     .from('image_bank')
-                    .select('sku, ml_url, ml_picture_id')
+                    .select('sku, ml_url')
                     .in('sku', batchSkus)
                     .eq('sync_status', 'synced')
                     .order('image_index', { ascending: true });
@@ -258,10 +258,7 @@ export async function POST(req) {
                 if (photoData) {
                     photoData.forEach(p => {
                         if (!skuPhotoMap[p.sku]) skuPhotoMap[p.sku] = [];
-                        
-                        // Construir URL desde ID si ml_url es null
-                        const photoUrl = p.ml_url || (p.ml_picture_id ? `https://http2.mlstatic.com/D_${p.ml_picture_id}-O.jpg` : null);
-                        if (photoUrl) skuPhotoMap[p.sku].push(photoUrl);
+                        if (p.ml_url) skuPhotoMap[p.sku].push(p.ml_url);
                     });
                 }
             }
@@ -273,7 +270,7 @@ export async function POST(req) {
                 const batchSkus = allSkus.slice(i, i + BATCH);
                 const { data: photoData } = await supabaseAdmin
                     .from('image_bank')
-                    .select('sku, ml_url, ml_picture_id')
+                    .select('sku, ml_url')
                     .in('sku', batchSkus)
                     .eq('sync_status', 'synced')
                     .order('image_index', { ascending: true });
@@ -281,10 +278,7 @@ export async function POST(req) {
                 if (photoData) {
                     photoData.forEach(p => {
                         if (!skuPhotoMap[p.sku]) skuPhotoMap[p.sku] = [];
-                        
-                        // Construir URL desde ID si ml_url es null
-                        const photoUrl = p.ml_url || (p.ml_picture_id ? `https://http2.mlstatic.com/D_${p.ml_picture_id}-O.jpg` : null);
-                        if (photoUrl) skuPhotoMap[p.sku].push(photoUrl);
+                        if (p.ml_url) skuPhotoMap[p.sku].push(p.ml_url);
                     });
                 }
             }
