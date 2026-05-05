@@ -11,23 +11,17 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search');
 
-    // 1. Obtener Stats
-    const { data: allData, error: errStats } = await supabase
-      .from('image_bank')
-      .select('sync_status');
-
-    if (errStats) throw errStats;
-
-    const counts = allData.reduce((acc, curr) => {
-      acc[curr.sync_status] = (acc[curr.sync_status] || 0) + 1;
-      return acc;
-    }, {});
+    // 1. Obtener Stats Globales (sin límite de 1000)
+    const { count: total } = await supabase.from('image_bank').select('*', { count: 'exact', head: true });
+    const { count: synced } = await supabase.from('image_bank').select('*', { count: 'exact', head: true }).eq('sync_status', 'synced');
+    const { count: errorCount } = await supabase.from('image_bank').select('*', { count: 'exact', head: true }).eq('sync_status', 'error');
+    const { count: pending } = await supabase.from('image_bank').select('*', { count: 'exact', head: true }).in('sync_status', ['pending', 'changed']);
 
     const stats = {
-      total: allData.length,
-      synced: counts.synced || 0,
-      pending: (counts.pending || 0) + (counts.changed || 0),
-      error: counts.error || 0
+      total: total || 0,
+      synced: synced || 0,
+      pending: pending || 0,
+      error: errorCount || 0
     };
 
     // 2. Obtener imágenes (búsqueda o recientes)

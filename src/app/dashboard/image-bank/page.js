@@ -38,6 +38,16 @@ export default function ImageBankPage() {
 
   const progress = stats.total > 0 ? Math.round((stats.synced / stats.total) * 100) : 0;
 
+  const getImageUrl = (img) => {
+    if (img.ml_url || img.ml_secure_url) return img.ml_url || img.ml_secure_url;
+    if (img.ml_picture_id) {
+      // Extraer solo la primera parte del ID si es necesario o usar el ID completo
+      // Formato estándar de ML: https://http2.mlstatic.com/D_[ID]-O.jpg
+      return `https://http2.mlstatic.com/D_${img.ml_picture_id}-O.jpg`;
+    }
+    return null;
+  };
+
   return (
     <div style={{ background: '#0a0a0a', minHeight: '100vh', color: 'white', padding: '2rem' }}>
       <header style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -93,7 +103,7 @@ export default function ImageBankPage() {
           <div key={img.id} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '16px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.05)', transition: 'transform 0.2s', cursor: 'pointer' }}>
             <div style={{ position: 'relative', paddingTop: '100%' }}>
               <img 
-                src={img.ml_url || img.ml_secure_url} 
+                src={getImageUrl(img)} 
                 style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }} 
                 alt={img.sku}
               />
