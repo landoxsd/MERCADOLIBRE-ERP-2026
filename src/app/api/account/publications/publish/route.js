@@ -4,7 +4,7 @@ import path from "path";
 import { getSettings } from "@/lib/settings";
 import { getValidAccessToken } from "@/lib/meli-auth-helper";
 import { uploadPicture, publishItem, getCategoryAttributes } from "@/lib/meli";
-import { productsTable } from "@/lib/supabase-admin";
+import { productsTable, supabaseAdmin } from "@/lib/supabase-admin";
 
 export async function POST(req) {
   try {
