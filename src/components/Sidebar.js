@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { href: '/dashboard/orders', label: 'Órdenes', icon: '📦' },
   { href: '/dashboard/products', label: 'Publicaciones', icon: '🏷️' },
   { href: '/dashboard/inventory', label: 'Auditoría Inventario', icon: '🔍' },
+  { href: '/dashboard/image-bank', label: 'Banco de Imágenes', icon: '🖼️' },
   { href: '/dashboard/webhooks', label: 'Webhooks', icon: '🔔' },
   { href: '/dashboard/questions', label: 'Preguntas', icon: '💬' },
   { href: '/dashboard/customers', label: 'Clientes CRM', icon: '👥' },
