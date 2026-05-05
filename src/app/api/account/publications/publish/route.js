@@ -18,18 +18,28 @@ export async function POST(req) {
     // 1. Obtener Token
     const accessToken = await getValidAccessToken(accountId);
 
-    // 2. Obtener Settings y Mapeo de Categoría
-    const settings = getSettings();
-    let categoryId = settings.categoryMap[subline] || settings.categoryMap["DEFAULT"];
+    // 2. Obtener Categoría desde Supabase (category_mappings)
+    let categoryId = null;
+    
+    console.log(`🔍 Buscando mapeo para sublínea: "${subline}"...`);
+    const { data: mapping } = await supabaseAdmin
+      .from('category_mappings')
+      .select('ml_category_id')
+      .ilike('internal_name', subline)
+      .limit(1)
+      .single();
 
-    if (!categoryId) {
-      console.log(`🔍 No hay mapeo para "${subline}", intentando predecir categoría para "${title}"...`);
+    if (mapping && mapping.ml_category_id) {
+      categoryId = mapping.ml_category_id;
+      console.log(`✅ Categoría encontrada en mapeo: ${categoryId}`);
+    } else {
+      console.log(`⚠️ No hay mapeo para "${subline}", intentando predecir categoría para "${title}"...`);
       try {
         const predictRes = await fetch(`https://api.mercadolibre.com/sites/MLV/domain_discovery/search?q=${encodeURIComponent(title)}`);
         const predictData = await predictRes.json();
         if (Array.isArray(predictData) && predictData.length > 0 && predictData[0].category_id) {
           categoryId = predictData[0].category_id;
-          console.log(`✅ Categoría predicha: ${categoryId} (${predictData[0].category_name})`);
+          console.log(`✨ Categoría predicha automáticamente: ${categoryId} (${predictData[0].category_name})`);
         }
       } catch (predictErr) {
         console.error("❌ Error al predecir categoría:", predictErr);
