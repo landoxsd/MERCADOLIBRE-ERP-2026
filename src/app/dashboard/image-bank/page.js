@@ -1,11 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import styles from '../dashboard.module.css';
 
 export default function ImageBankPage() {
-  const supabase = createClientComponentClient();
   const [stats, setStats] = useState({ total: 0, synced: 0, pending: 0, error: 0 });
   const [recentImages, setRecentImages] = useState([]);
   const [searchSku, setSearchSku] = useState('');
@@ -13,48 +10,21 @@ export default function ImageBankPage() {
 
   useEffect(() => {
     fetchData();
-    // Suscribirse a cambios para ver el progreso en tiempo real
-    const channel = supabase
-      .channel('image_bank_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'image_bank' }, () => {
-        fetchData(false); // Refrescar stats sin loading spinner
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
+    // Refrescar cada 30 segundos para ver progreso
+    const interval = setInterval(() => fetchData(false), 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const fetchData = async (showLoading = true) => {
     if (showLoading) setLoading(true);
     try {
-      // 1. Obtener Stats
-      const { data: allData, error: errStats } = await supabase
-        .from('image_bank')
-        .select('sync_status');
-
-      if (!errStats) {
-        const counts = allData.reduce((acc, curr) => {
-          acc[curr.sync_status] = (acc[curr.sync_status] || 0) + 1;
-          return acc;
-        }, {});
-        setStats({
-          total: allData.length,
-          synced: counts.synced || 0,
-          pending: (counts.pending || 0) + (counts.changed || 0),
-          error: counts.error || 0
-        });
+      const res = await fetch('/api/image-bank/stats' + (searchSku ? `?search=${searchSku}` : ''));
+      const data = await res.json();
+      
+      if (data.success) {
+        setStats(data.stats);
+        setRecentImages(data.recent);
       }
-
-      // 2. Obtener imágenes recientes sincronizadas
-      const { data: recent, error: errRecent } = await supabase
-        .from('image_bank')
-        .select('*')
-        .eq('sync_status', 'synced')
-        .order('last_synced_at', { ascending: false })
-        .limit(24);
-
-      if (!errRecent) setRecentImages(recent);
-
     } catch (e) {
       console.error(e);
     } finally {
@@ -62,22 +32,14 @@ export default function ImageBankPage() {
     }
   };
 
-  const handleSearch = async () => {
-    if (!searchSku) { fetchData(); return; }
-    setLoading(true);
-    const { data } = await supabase
-      .from('image_bank')
-      .select('*')
-      .ilike('sku', `%${searchSku}%`)
-      .order('image_index', { ascending: true });
-    setRecentImages(data || []);
-    setLoading(false);
+  const handleSearch = () => {
+    fetchData(true);
   };
 
   const progress = stats.total > 0 ? Math.round((stats.synced / stats.total) * 100) : 0;
 
   return (
-    <div className={styles.container} style={{ background: '#050505', minHeight: '100vh', color: 'white' }}>
+    <div style={{ background: '#0a0a0a', minHeight: '100vh', color: 'white', padding: '2rem' }}>
       <header style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h1 style={{ fontSize: '2.5rem', fontWeight: '800', margin: 0, background: 'linear-gradient(to right, #fbbf24, #f59e0b)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
@@ -94,7 +56,7 @@ export default function ImageBankPage() {
       </header>
 
       {/* Stats Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.5rem', marginBottom: '3rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', marginBottom: '3rem' }}>
         {[
           { label: 'Total Inventario', value: stats.total, color: '#3b82f6', icon: '📦' },
           { label: 'Sincronizadas (ML)', value: stats.synced, color: '#10b981', icon: '✅' },
@@ -113,25 +75,22 @@ export default function ImageBankPage() {
         <input 
           type="text" 
           placeholder="Buscar por SKU..." 
-          className={styles.input}
           value={searchSku}
           onChange={(e) => setSearchSku(e.target.value)}
           onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-          style={{ flex: 1, padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', color: 'white' }}
+          style={{ flex: 1, padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', color: 'white', outline: 'none' }}
         />
-        <button onClick={handleSearch} className={styles.primaryBtn} style={{ padding: '0 2rem', borderRadius: '12px' }}>🔍 Buscar</button>
+        <button onClick={handleSearch} style={{ padding: '0 2rem', borderRadius: '12px', background: '#fbbf24', color: 'black', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}>🔍 Buscar</button>
       </div>
 
       {/* Galería */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1.5rem' }}>
-        {loading ? (
+        {loading && recentImages.length === 0 ? (
           <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '5rem', opacity: 0.5 }}>Cargando galería...</div>
         ) : recentImages.length === 0 ? (
           <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '5rem', opacity: 0.5 }}>No se encontraron imágenes sincronizadas aún.</div>
         ) : recentImages.map((img, i) => (
-          <div key={img.id} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '16px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.05)', transition: 'transform 0.2s', cursor: 'pointer' }}
-               onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
-               onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}>
+          <div key={img.id} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '16px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.05)', transition: 'transform 0.2s', cursor: 'pointer' }}>
             <div style={{ position: 'relative', paddingTop: '100%' }}>
               <img 
                 src={img.ml_url || img.ml_secure_url} 
