@@ -8,7 +8,7 @@ import { productsTable, supabaseAdmin } from "@/lib/supabase-admin";
 
 export async function POST(req) {
   try {
-    let { accountId, sku, title, price, stock, subline } = await req.json();
+    let { accountId, sku, title, price, stock, subline, brand, oem, extraAttrs } = await req.json();
     sku = sku?.trim();
 
     if (!accountId || !sku || !title) {
