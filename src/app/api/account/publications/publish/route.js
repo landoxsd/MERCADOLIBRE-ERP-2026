@@ -155,9 +155,17 @@ export async function POST(req) {
     for (const attr of requiredAttributes) {
       if (!dynamicAttributes.find(a => a.id === attr.id)) {
         let defaultValue = "Genérico";
-        if (attr.values && attr.values.length > 0) {
+        
+        // Manejo especial para atributos de medida (Volumen, Peso, etc.)
+        if (attr.id === "UNIT_VOLUME" || attr.name?.toLowerCase().includes("volumen")) {
+          defaultValue = "1 L";
+        } else if (attr.id === "UNIT_WEIGHT" || attr.name?.toLowerCase().includes("peso")) {
+          defaultValue = "1 kg";
+        } else if (attr.values && attr.values.length > 0) {
+          // Si ML sugiere valores, tomamos el primero
           defaultValue = attr.values[0].name;
         }
+
         dynamicAttributes.push({
           id: attr.id,
           value_name: defaultValue

@@ -389,7 +389,12 @@ export async function getCategoryAttributes(categoryId) {
     const res = await fetch(`${MELI_BASE_URL}/categories/${categoryId}/attributes`);
     if (!res.ok) return [];
     const attributes = await res.json();
-    return attributes.filter(a => a.tags && a.tags.required);
+    
+    // Filtramos atributos que son obligatorios de forma general o para catalogo
+    return attributes.filter(a => 
+      (a.tags && a.tags.required) || 
+      (a.tags && a.tags.catalog_required)
+    );
   } catch (err) {
     console.error("Error obteniendo atributos de categoría:", err);
     return [];

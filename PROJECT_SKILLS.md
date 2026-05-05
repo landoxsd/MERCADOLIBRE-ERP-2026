@@ -145,26 +145,34 @@ Este documento recopila las "Habilidades Especiales" desarrolladas en este proye
 
 ---
 
-## 19. Habilidad: Generador de Excel para Publicación Masiva ML (Multi-Sheet por Categoría)
-- **Habilidad #20: Dashboard "Banco de Imágenes" (Next.js)**  
-  Panel de monitoreo visual en tiempo real que muestra estadísticas globales de inventario, imágenes sincronizadas, pendientes y errores. Incluye galería interactiva con fallback dinámico de URLs desde Mercado Libre.
-  
-- **Habilidad #21: Sincronización Inteligente (Smart Skip)**  
-  Lógica de optimización en `sync-images-to-ml.js` que detecta IDs preexistentes para evitar subidas redundantes, ahorrando ancho de banda y tiempo de procesamiento masivo.
-**Descripción:** Crea archivos Excel compatibles 100% con la plataforma de publicación masiva de MercadoLibre Venezuela (https://www.mercadolibre.com.ve/publicar-masivamente/), con una pestaña por categoría ML y headers dinámicos de atributos técnicos.
-*   **Lógica:**
-    1. Lee el caché de auditoría maestra (`.audit_cache_master_{accountId}.json`).
-    2. Consulta `internal_inventory` en Supabase para obtener sublíneas de cada producto faltante.
-    3. Busca el mapeo en `category_mappings` (por `internal_name` o `internal_subline_code`).
-    4. Para cada categoría ML, consulta `/categories/{id}/attributes` para obtener los atributos obligatorios.
-    5. Construye una pestaña (`WorkSheet`) por categoría con columnas base + atributos dinámicos.
-    6. Las fotos se insertan como URLs separadas por coma, tomadas de la tabla `image_bank`.
-    7. Los títulos se optimizan SEO (máx. 60 caracteres, abreviaciones automáticas: DEL → Delantero, TRAS → Trasero, etc.).
-    8. Columnas ML obligatorias manejadas: Tipo de publicación, Cargo por venta, Forma de envío, Costo de envío, Zonas/regiones, Retiro en persona, Tipo de garantía, Tiempo, Unidad, Origen.
-*   **Ubicación:** `src/app/api/inventory/export-massive-excel/route.js` + `src/app/dashboard/inventory/page.js`
-*   **Valor:** Permite publicar masivamente productos de la cuenta CORPORACIONRWC (que tiene limitaciones de API por tienda oficial) subiendo el Excel directamente a la plataforma oficial de ML.
-*   **Doc oficial ML:** https://vendedores.mercadolibre.com.ve/nota/publica-muchos-productos-a-la-vez
+## 19. Habilidad: Generador de Excel para Publicación Masiva ML (Multi-Sheet)
+**Descripción:** Crea archivos Excel compatibles con la plataforma de carga masiva de MercadoLibre, con una pestaña por categoría y atributos técnicos dinámicos.
+*   **Lógica:** Consulta atributos obligatorios vía `/categories/{id}/attributes`, construye pestañas por categoría y optimiza títulos SEO.
+*   **Valor:** Permite publicaciones masivas en cuentas con restricciones de API (Tiendas Oficiales).
+
+## 20. Habilidad: Dashboard "Banco de Imágenes" (Next.js)
+**Descripción:** Panel de monitoreo visual en tiempo real para estadísticas de inventario, imágenes sincronizadas y auditoría de URLs del CDN de Mercado Libre.
+*   **Valor:** Centraliza la gestión visual del inventario sin depender de archivos locales.
+
+## 21. Habilidad: Sincronización Inteligente (Smart Skip)
+**Descripción:** Lógica de optimización que detecta IDs de imagen preexistentes para evitar subidas redundantes.
+*   **Valor:** Ahorro crítico de ancho de banda y tiempo en procesamientos de 10k+ ítems.
+
+## 22. Habilidad: Mapeo Híbrido GOLDEN (IA + Experiencia Histórica)
+**Descripción:** Motor de categorización de ultra-precisión que prioriza el historial de publicaciones exitosas sobre las predicciones genéricas de la API.
+*   **Lógica:** 
+    1. Extrae conocimiento de +18,000 publicaciones reales (`rwc_knowledge_final.json`).
+    2. Cruza con el catálogo maestro para definir la categoría "ganadora" por sublínea.
+    3. Aplica IA con penalizaciones por rama no-automotriz como respaldo.
+*   **Valor:** Elimina errores de categorización (ej: Amortiguadores en Deportes) y garantiza que cada producto use la categoría que ya ha demostrado generar ventas.
+
+
+## 23. Habilidad: Inyección Inteligente de Atributos Técnicos
+**Descripción:** Capacidad para identificar atributos obligatorios de Mercado Libre que requieren unidades específicas (Volumen, Peso) y autocompletarlos con valores válidos ("1 L", "1 kg") para evitar rechazos en categorías de fluidos y autopartes pesadas.
+
+## 24. Habilidad: Exportación Masiva con Integración de Banco de Imágenes
+**Descripción:** Dominio en la generación de archivos Excel (XLSX) compatibles con la herramienta de Publicación Masiva de ML, inyectando dinámicamente URLs externas del Image Bank y columnas de organización interna (Sublíneas) para auditoría humana pre-carga.
 
 ---
 
-*Este inventario de habilidades permite que este ERP sea el cimiento para cualquier otra herramienta de automatización comercial. Las skills 9-19 fueron diseñadas a partir de la documentación oficial del MCP de MercadoLibre Developers.*
+*Este inventario de habilidades permite que este ERP sea el cimiento para cualquier otra herramienta de automatización comercial. Las skills 9-24 fueron diseñadas a partir de la documentación oficial del MCP de MercadoLibre Developers y la experiencia real con 40k+ SKUs.*

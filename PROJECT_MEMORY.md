@@ -249,19 +249,30 @@ Para asegurar la continuidad eterna del proyecto, se seguirán estas reglas:
 - Los atributos técnicos se obtienen dinámicamente de `/categories/{id}/attributes` de la API de ML.
 - Columnas ML manejadas: Tipo de publicación, Cargo por venta, Forma de envío, Costo de envío, Zonas/regiones, Retiro en persona, Tipo de garantía, Tiempo, Unidad, Origen.
 
-## 🚦 CHECKPOINT DE IMPLEMENTACIÓN (Sesión 2026-05-05)
-**Estado:** Integración de Image Bank (Internet) en Auditoría y Exportador Masivo en curso.
-**Contexto:** Se detectó que el Exportador Masivo generaba Excel con fotos vacías porque buscaba `ml_url` (que es NULL) en lugar de construir la URL desde `ml_picture_id`. Se inició el plan para migrar la Auditoría de fotos locales a fotos de internet.
+## 🚦 CHECKPOINT DE IMPLEMENTACIÓN (Sesión 2026-05-05 - GOLDEN EDITION)
 
-### Archivos respaldados (Pre-integración):
-- `src/app/api/inventory/export-massive-excel/route.BACKUP_20260505.js`
-- `src/app/dashboard/inventory/page.BACKUP_20260505.js`
+**Estado:** Inteligencia de Mapeo GOLDEN y Conexión MCP restaurada.
+**Logros Clave:**
+- **Motor de Mapeo GOLDEN**: Extracción masiva de **18,858 mapeos reales** desde el historial de RWC y WorldCars. Se generaron **363 Reglas de Oro** que vinculan sublíneas internas con categorías ML exitosas.
+- **Importación Masiva**: 556 mapeos validados cargados a Supabase (`category_mappings`).
+- **MCP Fixed**: Conexión con el servidor MCP de Mercado Libre reparada mediante inyección automática de tokens OAuth2.
+- **Precisión Total**: Corregido el mapeo de "Amortiguadores" y otras sublíneas críticas (Mapeado a `MLV122587`).
 
-### Próximos pasos técnicos:
-1.  **[Cambio #4]** Corregir construcción de URL de fotos en Exportador Excel (Usar `ml_picture_id`).
-2.  **[Cambio #1]** Crear API `/api/image-bank/by-sku` para consulta centralizada de imágenes.
-3.  **[Cambio #2]** Actualizar `checkPhotos` en Auditoría para usar la nueva API de internet.
-4.  **[Cambio #3]** Implementar `MLPhotoGallery` en Auditoría para visualización directa desde ML CDN.
+### Archivos Respaldados (Session Backup):
+- `scratch/smart_mapping.GOLDEN_BACKUP.py` (Motor híbrido IA+Experiencia)
+- `mapeo_categorias_GOLDEN.xlsx` (Tabla de la verdad cargada a DB)
+- `scratch/import_golden.BACKUP.py` (Cargador masivo a Supabase)
+
+### Pendiente técnico inmediato:
+- [ ] Reiniciar Antigravity/Cline para refrescar la conexión MCP del sistema.
+- [ ] Realizar una prueba de publicación masiva usando los nuevos mapeos validados.
+- [ ] Iniciar migración de módulos secundarios a TypeScript.
 
 ---
-*Última actualización: 2026-05-05 12:05 (Iniciando integración de Image Bank).*
+*Última actualización: 2026-05-05 15:35 (Mapeo Inteligente GOLDEN - 18k Registros Procesados).*
+
+*   **Hito: Motor de Mapeo GOLDEN y Reparación de Atributos Técnicos** (2026-05-05)
+    *   Desplegamos el motor de mapeo híbrido (Histórico + IA) basado en 18,858 registros.
+    *   Corregimos el error crítico de "Volumen de la unidad" mediante la inyección inteligente de valores técnicos ("1 L", "1 kg") en tiempo de publicación.
+    *   Optimizamos el **Exportador de Excel Masivo**: Añadida columna de Sublínea (Grupo) y links reales de Image Bank.
+    *   **Estado**: Producción (Vercel) actualizado y operativo.

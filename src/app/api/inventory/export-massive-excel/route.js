@@ -140,10 +140,11 @@ function optimizeTitle(rawTitle) {
 // ── Helpers Excel ───────────────────────────────────────────────
 function buildBaseRow(item, photoUrls) {
     return {
+        'Grupo Interno (Sublínea)': item.subcategory || 'SIN CATEGORÍA',
         'Título': optimizeTitle(item.title),
         'Cantidad de caracteres': optimizeTitle(item.title).length,
         'Condición': 'Nuevo',
-        'Fotos': photoUrls.join(','),
+        'Fotos': photoUrls.length > 0 ? photoUrls.join(',') : '',
         'SKU': item.sku,
         'Stock': item.stock || 1,
         'Precio [US$]': item.price || 0,
@@ -156,7 +157,7 @@ function buildBaseRow(item, photoUrls) {
         'Tipo de garantía': 'Sin garantía',
         'Tiempo de garantía': '',
         'Unidad de Tiempo de garantía': '',
-        'Marca': item.brand || 'Genérico',
+        'Marca': item.brand && item.brand !== 'Genérico' ? item.brand : 'Genérico',
         'Número de pieza': item.oem || item.sku,
     };
 }
@@ -200,15 +201,14 @@ export async function POST(req) {
             missingItems = missingItems.slice(0, filters.limit);
         }
 
-        // 3. Obtener SubLíneas de Supabase (internal_inventory tiene subcategory)
+        // 3. Obtener SubLíneas de Supabase
         const allSkus = missingItems.map(i => i.sku);
         const skuSubcategoryMap = {};
+        const BATCH_SIZE = 1000;
 
         if (allSkus.length > 0) {
-            // Consultar en lotes de 1000 para evitar límites
-            const BATCH = 1000;
-            for (let i = 0; i < allSkus.length; i += BATCH) {
-                const batchSkus = allSkus.slice(i, i + BATCH);
+            for (let i = 0; i < allSkus.length; i += BATCH_SIZE) {
+                const batchSkus = allSkus.slice(i, i + BATCH_SIZE);
                 const { data: invData, error: invError } = await supabaseAdmin
                     .from('internal_inventory')
                     .select('sku, subcategory')
@@ -243,51 +243,32 @@ export async function POST(req) {
             subcategoryToMlCat[sub] = mapping || { ml_category_id: null, ml_category_name: 'SIN_CATEGORIA' };
         }
 
-        // 5. Filtrar por fotos si se solicita
+        // 5. Mapeo de Fotos
         const skuPhotoMap = {};
+        // Siempre obtenemos las fotos para el Excel, independientemente del filtro
+        if (allSkus.length > 0) {
+            for (let i = 0; i < allSkus.length; i += BATCH_SIZE) {
+                const batchSkus = allSkus.slice(i, i + BATCH_SIZE);
+                const { data: photoData } = await supabaseAdmin
+                    .from('image_bank')
+                    .select('sku, ml_url, ml_picture_id')
+                    .in('sku', batchSkus)
+                    .eq('sync_status', 'synced')
+                    .order('image_index', { ascending: true });
+
+                if (photoData) {
+                    photoData.forEach(p => {
+                        if (!skuPhotoMap[p.sku]) skuPhotoMap[p.sku] = [];
+                        const photoUrl = p.ml_url || (p.ml_picture_id ? `https://http2.mlstatic.com/D_${p.ml_picture_id}-O.jpg` : null);
+                        if (photoUrl) skuPhotoMap[p.sku].push(photoUrl);
+                    });
+                }
+            }
+        }
+
+        // Aplicar filtro de fotos si se solicita
         if (filters.withPhotos) {
-            for (let i = 0; i < allSkus.length; i += BATCH) {
-                const batchSkus = allSkus.slice(i, i + BATCH);
-                const { data: photoData } = await supabaseAdmin
-                    .from('image_bank')
-                    .select('sku, ml_url, ml_picture_id')
-                    .in('sku', batchSkus)
-                    .eq('sync_status', 'synced')
-                    .order('image_index', { ascending: true });
-
-                if (photoData) {
-                    photoData.forEach(p => {
-                        if (!skuPhotoMap[p.sku]) skuPhotoMap[p.sku] = [];
-                        
-                        // Construir URL desde ID si ml_url es null
-                        const photoUrl = p.ml_url || (p.ml_picture_id ? `https://http2.mlstatic.com/D_${p.ml_picture_id}-O.jpg` : null);
-                        if (photoUrl) skuPhotoMap[p.sku].push(photoUrl);
-                    });
-                }
-            }
-
             missingItems = missingItems.filter(i => skuPhotoMap[i.sku] && skuPhotoMap[i.sku].length > 0);
-        } else {
-            // Aunque no filtre, obtengo las fotos para incluirlas en el Excel
-            for (let i = 0; i < allSkus.length; i += BATCH) {
-                const batchSkus = allSkus.slice(i, i + BATCH);
-                const { data: photoData } = await supabaseAdmin
-                    .from('image_bank')
-                    .select('sku, ml_url, ml_picture_id')
-                    .in('sku', batchSkus)
-                    .eq('sync_status', 'synced')
-                    .order('image_index', { ascending: true });
-
-                if (photoData) {
-                    photoData.forEach(p => {
-                        if (!skuPhotoMap[p.sku]) skuPhotoMap[p.sku] = [];
-                        
-                        // Construir URL desde ID si ml_url es null
-                        const photoUrl = p.ml_url || (p.ml_picture_id ? `https://http2.mlstatic.com/D_${p.ml_picture_id}-O.jpg` : null);
-                        if (photoUrl) skuPhotoMap[p.sku].push(photoUrl);
-                    });
-                }
-            }
         }
 
         if (missingItems.length === 0) {
@@ -353,7 +334,7 @@ export async function POST(req) {
 
             // Headers base + atributos de categoría
             const baseHeaders = [
-                'Título', 'Cantidad de caracteres', 'Condición', 'Fotos', 'SKU',
+                'Grupo Interno (Sublínea)', 'Título', 'Cantidad de caracteres', 'Condición', 'Fotos', 'SKU',
                 'Stock', 'Precio [US$]', 'Descripción', 'Tipo de publicación',
                 'Cargo por venta', 'Forma de envío', 'Costo de envío',
                 'Retiro en persona', 'Tipo de garantía', 'Tiempo de garantía',
@@ -386,9 +367,26 @@ export async function POST(req) {
                 const photoUrls = skuPhotoMap[item.sku] || [];
                 const baseRow = buildBaseRow(item, photoUrls);
 
-                // Atributos de categoría vacíos (para completar manualmente)
+                // Atributos de categoría con autocompletado inteligente
                 const attrRow = {};
-                attrs.forEach(a => { attrRow[a.name] = ''; });
+                attrs.forEach(a => { 
+                    let val = '';
+                    const nameLower = (a.name || '').toLowerCase();
+                    
+                    if (nameLower.includes('volumen')) {
+                        val = '1 L';
+                    } else if (nameLower.includes('peso')) {
+                        val = '1 kg';
+                    } else if (nameLower.includes('marca')) {
+                        val = item.brand || 'Genérico';
+                    } else if (a.values && a.values.length > 0) {
+                        val = a.values[0].name;
+                    } else {
+                        val = 'Genérico';
+                    }
+                    
+                    attrRow[a.name] = val;
+                });
 
                 const fullRow = {};
                 allHeaders.forEach(h => {

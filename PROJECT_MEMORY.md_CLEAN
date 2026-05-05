@@ -1,0 +1,28 @@
+### Decisiones de arquitectura tomadas:
+- El Excel se agrupa por **categoría de MercadoLibre** (una pestaña por categoría), no por sublínea interna.
+- Los títulos se optimizan a **máximo 60 caracteres** con abreviaciones automáticas (DEL → Delantero, TRAS → Trasero, etc.).
+- Las fotos se toman de `image_bank` (URLs de ML), no de fotos locales.
+- Los atributos técnicos se obtienen dinámicamente de `/categories/{id}/attributes` de la API de ML.
+- Columnas ML manejadas: Tipo de publicación, Cargo por venta, Forma de envío, Costo de envío, Zonas/regiones, Retiro en persona, Tipo de garantía, Tiempo, Unidad, Origen.
+
+## 🚦 CHECKPOINT DE IMPLEMENTACIÓN (Sesión 2026-05-05)
+
+**Estado:** Integración de Image Bank e Inteligencia de Mapeo completada.
+
+### Logros de la sesión:
+- **Hito Banco de Imágenes**: Migración total a la nube completada. La Auditoría y la Publicación ya no dependen de archivos locales.
+- **Inteligencia de Mapeo**: Implementación de prioridad automotriz (`MLV1747`) en la detección de categorías.
+- **Mapeo Masivo**: Generación de `mapeo_categorias_inteligente.xlsx` para 330 sublíneas con score de confianza y breadcrumbs.
+- **Fixes Críticos**: Corregidos errores de importación y desestructuración en la API de publicación.
+
+### Próximos Pasos (Hoja de Ruta)
+1.  [ ] **Validación de Categorías**: Revisar el Excel de mapeo inteligente y cargar a `category_mappings` en Supabase.
+2.  [ ] **Limpieza de Auditoría**: Realizar una auditoría global "limpia" (solo con stock y fotos en nube) para depurar el catálogo.
+3.  [ ] **Módulo de Ventas**: Iniciar la migración del módulo de ventas a TypeScript siguiendo las nuevas reglas.
+
+### Archivos respaldados:
+- `src/app/api/inventory/export-massive-excel/route.BACKUP_20260505.js`
+- `src/app/dashboard/inventory/page.BACKUP_20260505.js`
+
+---
+*Última actualización: 2026-05-05 13:55 (Mapeo Inteligente con Prioridad Automotriz).*
