@@ -267,6 +267,7 @@ Para asegurar la continuidad eterna del proyecto, se seguirán estas reglas:
 - [ ] Reiniciar Antigravity/Cline para refrescar la conexión MCP del sistema.
 - [ ] Realizar una prueba de publicación masiva usando los nuevos mapeos validados.
 - [ ] Iniciar migración de módulos secundarios a TypeScript.
+- [ ] Consultar `FUTURE_IMPROVEMENTS.md` para planificar la Fase 2 de Inteligencia de Mercado.
 
 ---
 *Última actualización: 2026-05-05 15:35 (Mapeo Inteligente GOLDEN - 18k Registros Procesados).*
