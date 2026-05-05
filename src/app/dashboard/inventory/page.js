@@ -106,6 +106,7 @@ export default function InventoryAuditPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [publishStatus, setPublishStatus] = useState({}); // { SKU: 'idle' | 'loading' | 'success' | 'error' }
   const [publishedLinks, setPublishedLinks] = useState({}); // { SKU: permalink }
+  const [filterStock, setFilterStock] = useState('yes'); // 'all', 'yes', 'no'
 
   // Preview State
   const [previewItem, setPreviewItem] = useState(null); // { item, subline }
@@ -460,6 +461,11 @@ export default function InventoryAuditPage() {
       if (filterPhoto === 'yes' && !photoStatus[item.sku]) return acc;
       if (filterPhoto === 'no' && photoStatus[item.sku]) return acc;
 
+      // Aplicar Filtro de Stock
+      const hasStock = item.stock && item.stock > 0;
+      if (filterStock === 'yes' && !hasStock) return acc;
+      if (filterStock === 'no' && hasStock) return acc;
+
       // Aplicar Filtro de Búsqueda
       if (searchQuery &&
         !item.sku.toLowerCase().includes(searchQuery.toLowerCase()) &&
@@ -790,9 +796,22 @@ export default function InventoryAuditPage() {
                 onChange={(e) => setFilterPhoto(e.target.value)}
                 style={{ width: '100%', padding: '0.8rem', background: 'black', border: '1px solid #333', color: 'white', borderRadius: '8px' }}
               >
-                <option value="all">Todos (Faltantes)</option>
-                <option value="yes">Con Foto Local (Listos) ✅</option>
+                <option value="all">Todas las fotos</option>
+                <option value="yes">Con Foto (Image Bank) ✅</option>
                 <option value="no">Sin Foto ❌</option>
+              </select>
+            </div>
+
+            <div style={{ width: '200px' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', marginBottom: '0.5rem', fontWeight: 'bold' }}>📦 FILTRAR STOCK</label>
+              <select
+                value={filterStock}
+                onChange={(e) => setFilterStock(e.target.value)}
+                style={{ width: '100%', padding: '0.8rem', background: 'black', border: '1px solid #333', color: 'white', borderRadius: '8px' }}
+              >
+                <option value="all">Todos los productos</option>
+                <option value="yes">Solo con Stock ✅</option>
+                <option value="no">Sin Stock (Agotados) ❌</option>
               </select>
             </div>
           </div>

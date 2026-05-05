@@ -6,19 +6,20 @@ export default function ImageBankPage() {
   const [stats, setStats] = useState({ total: 0, synced: 0, pending: 0, error: 0 });
   const [recentImages, setRecentImages] = useState([]);
   const [searchSku, setSearchSku] = useState('');
+  const [stockFilter, setStockFilter] = useState('all');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchData();
-    // Refrescar cada 30 segundos para ver progreso
     const interval = setInterval(() => fetchData(false), 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [stockFilter]);
 
   const fetchData = async (showLoading = true) => {
     if (showLoading) setLoading(true);
     try {
-      const res = await fetch('/api/image-bank/stats' + (searchSku ? `?search=${searchSku}` : ''));
+      const url = `/api/image-bank/stats?stock=${stockFilter}${searchSku ? `&search=${searchSku}` : ''}`;
+      const res = await fetch(url);
       const data = await res.json();
       
       if (data.success) {
@@ -80,17 +81,31 @@ export default function ImageBankPage() {
         ))}
       </div>
 
-      {/* Buscador */}
-      <div style={{ marginBottom: '2rem', display: 'flex', gap: '1rem' }}>
-        <input 
-          type="text" 
-          placeholder="Buscar por SKU..." 
-          value={searchSku}
-          onChange={(e) => setSearchSku(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-          style={{ flex: 1, padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', color: 'white', outline: 'none' }}
-        />
-        <button onClick={handleSearch} style={{ padding: '0 2rem', borderRadius: '12px', background: '#fbbf24', color: 'black', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}>🔍 Buscar</button>
+      {/* Buscador y Filtros */}
+      <div style={{ marginBottom: '2rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+        <div style={{ flex: 2, display: 'flex', gap: '1rem' }}>
+          <input 
+            type="text" 
+            placeholder="Buscar por SKU..." 
+            value={searchSku}
+            onChange={(e) => setSearchSku(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+            style={{ flex: 1, padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', color: 'white', outline: 'none' }}
+          />
+          <button onClick={handleSearch} style={{ padding: '0 2rem', borderRadius: '12px', background: '#fbbf24', color: 'black', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}>🔍 Buscar</button>
+        </div>
+        
+        <div style={{ flex: 1, display: 'flex', gap: '0.5rem' }}>
+          <select 
+            value={stockFilter}
+            onChange={(e) => setStockFilter(e.target.value)}
+            style={{ flex: 1, padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', color: 'white', outline: 'none', cursor: 'pointer' }}
+          >
+            <option value="all">📦 Todos los productos</option>
+            <option value="inStock">✅ Con Stock Disponible</option>
+            <option value="noStock">❌ Sin Stock (Agotados)</option>
+          </select>
+        </div>
       </div>
 
       {/* Galería */}
@@ -106,9 +121,20 @@ export default function ImageBankPage() {
                 src={getImageUrl(img)} 
                 style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }} 
                 alt={img.sku}
+                loading="lazy"
               />
               <div style={{ position: 'absolute', top: '10px', right: '10px', background: img.sync_status === 'synced' ? '#10b981' : '#fbbf24', color: 'black', padding: '2px 8px', borderRadius: '4px', fontSize: '0.6rem', fontWeight: 'bold' }}>
                 {img.sync_status.toUpperCase()}
+              </div>
+              
+              {/* Badge de Stock */}
+              <div style={{ 
+                position: 'absolute', bottom: '10px', left: '10px', 
+                background: img.stock > 0 ? 'rgba(16, 185, 129, 0.9)' : 'rgba(239, 68, 68, 0.9)', 
+                color: 'white', padding: '4px 10px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 'bold',
+                backdropFilter: 'blur(4px)'
+              }}>
+                Stock: {img.stock}
               </div>
             </div>
             <div style={{ padding: '1rem' }}>
