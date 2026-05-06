@@ -35,14 +35,30 @@ export async function POST(request) {
         let accessToken = null;
 
         // Si no hay accountId, buscar la primera cuenta disponible
+        let clientId = null;
         if (!resolvedAccountId) {
             try {
                 const { data: firstAccount } = await supabaseAdmin
                     .from("meli_accounts")
-                    .select("id")
+                    .select("id, client_id")
                     .limit(1)
                     .single();
-                if (firstAccount) resolvedAccountId = firstAccount.id;
+                if (firstAccount) {
+                    resolvedAccountId = firstAccount.id;
+                    clientId = firstAccount.client_id;
+                }
+            } catch {
+                // Silencioso
+            }
+        } else {
+            // Obtener client_id de la cuenta proporcionada
+            try {
+                const { data: acc } = await supabaseAdmin
+                    .from("meli_accounts")
+                    .select("client_id")
+                    .eq("id", resolvedAccountId)
+                    .single();
+                if (acc) clientId = acc.client_id;
             } catch {
                 // Silencioso
             }
@@ -62,7 +78,8 @@ export async function POST(request) {
         // ------------------------------------------------------------------
         // 1. BÚSQUEDA POR RELEVANCIA (con token si está disponible)
         // ------------------------------------------------------------------
-        const searchUrl = `${MELI_BASE_URL}/sites/${MLV_SITE_ID}/search?q=${encodeURIComponent(normalizedQuery)}&limit=20${categoryId ? `&category=${categoryId}` : ""}`;
+        const clientIdParam = clientId ? `&client_id=${clientId}` : "";
+        const searchUrl = `${MELI_BASE_URL}/sites/${MLV_SITE_ID}/search?q=${encodeURIComponent(normalizedQuery)}&limit=20${categoryId ? `&category=${categoryId}` : ""}${clientIdParam}`;
 
         const searchHeaders = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
