@@ -19,7 +19,7 @@ const MLV_SITE_ID = "MLV";
 
 export async function POST(request) {
     try {
-        const { query, sku, ourItemId, accountId, categoryId } = await request.json();
+        const { query, sku, ourItemId, accountId, categoryId, rawSearchResults } = await request.json();
 
         if (!query || query.trim().length === 0) {
             return NextResponse.json({ error: "Query requerida" }, { status: 400 });
@@ -76,26 +76,35 @@ export async function POST(request) {
         }
 
         // ------------------------------------------------------------------
-        // 1. BÚSQUEDA POR RELEVANCIA (con token si está disponible)
+        // 1. BÚSQUEDA POR RELEVANCIA
         // ------------------------------------------------------------------
-        const clientIdParam = clientId ? `&client_id=${clientId}` : "";
-        const searchUrl = `${MELI_BASE_URL}/sites/${MLV_SITE_ID}/search?q=${encodeURIComponent(normalizedQuery)}&limit=20${categoryId ? `&category=${categoryId}` : ""}${clientIdParam}`;
+        let rawResults = [];
 
-        const searchHeaders = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept": "application/json",
-            "Accept-Language": "es-VE,es;q=0.9",
-        };
-        if (accessToken) {
-            searchHeaders["Authorization"] = `Bearer ${accessToken}`;
-        }
+        if (rawSearchResults && Array.isArray(rawSearchResults) && rawSearchResults.length > 0) {
+            // Usar resultados enviados desde el frontend (navegador del usuario)
+            console.log(`📦 Usando ${rawSearchResults.length} resultados enviados desde el navegador`);
+            rawResults = rawSearchResults;
+        } else {
+            // Fallback: búsqueda desde el servidor (puede fallar por IP de datacenter)
+            const clientIdParam = clientId ? `&client_id=${clientId}` : "";
+            const searchUrl = `${MELI_BASE_URL}/sites/${MLV_SITE_ID}/search?q=${encodeURIComponent(normalizedQuery)}&limit=20${categoryId ? `&category=${categoryId}` : ""}${clientIdParam}`;
 
-        const searchRes = await fetch(searchUrl, { headers: searchHeaders });
-        if (!searchRes.ok) {
-            throw new Error(`ML Search failed: ${searchRes.status}`);
+            const searchHeaders = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept": "application/json",
+                "Accept-Language": "es-VE,es;q=0.9",
+            };
+            if (accessToken) {
+                searchHeaders["Authorization"] = `Bearer ${accessToken}`;
+            }
+
+            const searchRes = await fetch(searchUrl, { headers: searchHeaders });
+            if (!searchRes.ok) {
+                throw new Error(`ML Search failed: ${searchRes.status}`);
+            }
+            const searchData = await searchRes.json();
+            rawResults = searchData.results || [];
         }
-        const searchData = await searchRes.json();
-        const rawResults = searchData.results || [];
 
         if (rawResults.length === 0) {
             return NextResponse.json({

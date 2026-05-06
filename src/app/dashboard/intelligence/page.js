@@ -38,6 +38,17 @@ export default function IntelligencePage() {
         setCompareResult(null);
 
         try {
+            // PASO 1: Búsqueda directa desde el navegador (evita bloqueo de IP de Vercel)
+            const mlSearchRes = await fetch(
+                `https://api.mercadolibre.com/sites/MLV/search?q=${encodeURIComponent(query.trim())}&limit=20`,
+                { headers: { Accept: "application/json" } }
+            );
+            if (!mlSearchRes.ok) {
+                throw new Error(`ML Search failed: ${mlSearchRes.status}`);
+            }
+            const mlSearchData = await mlSearchRes.json();
+
+            // PASO 2: Enviar resultados raw a nuestra API para procesamiento
             const res = await fetch("/api/tools/sniper/analyze", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -46,6 +57,7 @@ export default function IntelligencePage() {
                     sku: sku.trim() || undefined,
                     ourItemId: ourItemId.trim() || undefined,
                     accountId: accountId || undefined,
+                    rawSearchResults: mlSearchData.results || [],
                 }),
             });
 
