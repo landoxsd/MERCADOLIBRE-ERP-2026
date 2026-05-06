@@ -31,13 +31,32 @@ export async function POST(request) {
         // ------------------------------------------------------------------
         // 0. OBTENER TOKEN (la búsqueda desde servidores cloud requiere auth)
         // ------------------------------------------------------------------
+        let resolvedAccountId = accountId;
         let accessToken = null;
-        if (accountId) {
+
+        // Si no hay accountId, buscar la primera cuenta disponible
+        if (!resolvedAccountId) {
             try {
-                accessToken = await getValidAccessToken(accountId);
+                const { data: firstAccount } = await supabaseAdmin
+                    .from("meli_accounts")
+                    .select("id")
+                    .limit(1)
+                    .single();
+                if (firstAccount) resolvedAccountId = firstAccount.id;
             } catch {
-                console.warn("No se pudo obtener token. Continuando sin autenticación.");
+                // Silencioso
             }
+        }
+
+        if (resolvedAccountId) {
+            try {
+                accessToken = await getValidAccessToken(resolvedAccountId);
+                console.log(`✅ Token obtenido para cuenta ${resolvedAccountId}`);
+            } catch (err) {
+                console.warn("❌ No se pudo obtener token:", err.message);
+            }
+        } else {
+            console.warn("⚠️ No hay accountId ni cuentas en DB. Búsqueda sin autenticación.");
         }
 
         // ------------------------------------------------------------------
@@ -86,11 +105,13 @@ export async function POST(request) {
 
         for (const chunk of chunks) {
             const idsParam = chunk.join(",");
+            const detailHeaders = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept": "application/json",
+            };
+            if (accessToken) detailHeaders["Authorization"] = `Bearer ${accessToken}`;
             const detailRes = await fetch(`${MELI_BASE_URL}/items?ids=${idsParam}`, {
-                headers: {
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                    "Accept": "application/json",
-                },
+                headers: detailHeaders,
             });
             if (detailRes.ok) {
                 const details = await detailRes.json();
