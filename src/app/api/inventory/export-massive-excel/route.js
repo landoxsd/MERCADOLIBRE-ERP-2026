@@ -151,12 +151,12 @@ function buildBaseRow(item, photoUrls) {
         'Descripción': `Producto Original. SKU: ${item.sku}. Código OEM: ${item.oem || 'N/A'}.`,
         'Tipo de publicación': 'Premium',
         'Cargo por venta': '-',
-        'Forma de envío': 'No realizas envíos',
-        'Costo de envío': 'Acuerda con el comprador',
+        'Forma de envío': 'Mercado Envíos',
+        'Costo de envío': 'Envío gratis',
         'Retiro en persona': 'Acepto',
-        'Tipo de garantía': 'Sin garantía',
-        'Tiempo de garantía': '',
-        'Unidad de Tiempo de garantía': '',
+        'Tipo de garantía': 'Garantía del vendedor',
+        'Tiempo de garantía': '30',
+        'Unidad de Tiempo de garantía': 'días',
         'Marca': item.brand && item.brand !== 'Genérico' ? item.brand : 'Genérico',
         'Número de pieza': item.oem || item.sku,
     };
@@ -336,6 +336,12 @@ export async function POST(req) {
             'Ruta Categoría (Breadcrumb)', 
             'Precio [US$]', 
             'Stock', 
+            'Fotos',
+            'Forma de envío',
+            'Costo de envío',
+            'Tipo de garantía',
+            'Tiempo de garantía',
+            'Unidad de Tiempo de garantía',
             'Marca', 
             'Número de pieza',
             'Grupo Interno (Sublínea)'
@@ -344,6 +350,7 @@ export async function POST(req) {
 
         for (const item of missingItems) {
             const mlCat = subcategoryToMlCat[item.subcategory];
+            const photoUrls = skuPhotoMap[item.sku] || [];
             flatData.push([
                 item.sku,
                 optimizeTitle(item.title),
@@ -351,6 +358,12 @@ export async function POST(req) {
                 mlCat?.ml_category_name || 'SIN CATEGORÍA',
                 item.price || 0,
                 item.stock || 0,
+                photoUrls.join(','),
+                'Mercado Envíos',
+                'Envío gratis',
+                'Garantía del vendedor',
+                '30',
+                'días',
                 item.brand || 'Genérico',
                 item.oem || item.sku,
                 item.subcategory || 'SIN CATEGORÍA'
@@ -366,6 +379,12 @@ export async function POST(req) {
             { wch: 80 }, // Ruta Cat
             { wch: 12 }, // Precio
             { wch: 10 }, // Stock
+            { wch: 80 }, // Fotos
+            { wch: 20 }, // Forma envío
+            { wch: 20 }, // Costo envío
+            { wch: 20 }, // Tipo garantía
+            { wch: 15 }, // Tiempo
+            { wch: 15 }, // Unidad
             { wch: 20 }, // Marca
             { wch: 20 }, // Pieza
             { wch: 25 }  // Sublínea

@@ -295,6 +295,10 @@ Para asegurar la continuidad eterna del proyecto, se seguirán estas reglas:
      *   Optimizamos el **Exportador de Excel Masivo**: Añadida columna de Sublínea (Grupo) y links reales de Image Bank.
      *   **Estado**: Producción (Vercel) actualizado y operativo.
 
+*   **Mejora: Excel Masivo con Defaults de Negocio** (2026-05-06)
+    *   Configuración automática de **"Envío Gratis"** y **"30 días de garantía"** en todas las pestañas de exportación.
+    *   Expansión de la pestaña **`Resumen_General`** con 15 columnas críticas (incluyendo links de fotos y logística completa).
+
 ## 🚦 CHECKPOINT DE IMPLEMENTACIÓN (Sesión 2026-05-06 — LISTING SNIPER V3)
 
 **Estado:** Módulo de Inteligencia de Mercado completamente implementado y listo para deploy.
