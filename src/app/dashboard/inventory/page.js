@@ -237,31 +237,119 @@ export default function InventoryAuditPage() {
     }
   };
 
+  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
+
   const handleUpload = async () => {
     if (!currentFile || !activeAccount) return;
     setLoading(true);
     setElapsedTime(0);
-    const formData = new FormData();
-    formData.append('file', currentFile);
-    formData.append('accountId', activeAccount);
-    formData.append('mode', auditMode);
+    setUploadProgress({ current: 0, total: 0 });
 
     try {
-      const res = await fetch('/api/inventory/upload', {
-        method: 'POST',
-        body: formData,
+      // 1. Leer el archivo en el Navegador
+      const reader = new FileReader();
+      const data = await new Promise((resolve, reject) => {
+        reader.onload = (e) => resolve(new Uint8Array(e.target.result));
+        reader.onerror = reject;
+        reader.readAsArrayBuffer(currentFile);
       });
-      const data = await res.json();
-      if (data.success) {
-        if (auditMode === 'master') setResultsMaster(data);
-        else setResultsInbound(data);
-      } else {
-        alert('Error: ' + data.error);
+
+      const workbook = XLSX.read(data, { type: 'array' });
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+      // 2. Detectar Cabeceras (Igual que en el servidor)
+      let headerRowIndex = -1;
+      for (let i = 0; i < Math.min(rawRows.length, 50); i++) {
+        const row = rawRows[i];
+        if (row && row.some(cell => {
+          const val = String(cell).toUpperCase();
+          return val.includes("CODIGO") || val.includes("CÓDIGO") || val.includes("ARTICULO");
+        })) {
+          headerRowIndex = i;
+          break;
+        }
       }
+
+      if (headerRowIndex === -1) {
+        alert("No se encontró la columna 'CODIGO' en el archivo.");
+        setLoading(false);
+        return;
+      }
+
+      const headers = rawRows[headerRowIndex].map(h => String(h || "").trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
+      const idxSku = headers.findIndex(h => h === "CODIGO" || h === "ARTICULO");
+      const idxTitle = headers.findIndex(h => h === "DESCRIPCION" || h === "DESCRIPCION1");
+      const idxBrand = headers.findIndex(h => h === "MARCA");
+      const idxOem = headers.findIndex(h => h === "CAMPO7" || h === "CODIGO ALTERNO" || h === "OEM");
+      const idxStock = headers.findIndex(h => h === "STOCK" || h === "CANTIDAD" || h === "EXISTENCIA");
+      const idxCost = headers.findIndex(h => h === "COSTO" || h === "PRECIO" || h === "COSTO ACTUAL");
+      const idxSubcategory = headers.findIndex(h => h.includes("SUB") && (h.includes("LINEA") || h.includes("CATEG")));
+
+      const finalIdxSku = idxSku >= 0 ? idxSku : 0;
+      const finalIdxTitle = idxTitle >= 0 ? idxTitle : 1;
+      const finalIdxBrand = idxBrand >= 0 ? idxBrand : 3;
+      const finalIdxOem = idxOem >= 0 ? idxOem : 18;
+      const finalIdxStock = idxStock >= 0 ? idxStock : 19;
+      const finalIdxCost = idxCost >= 0 ? idxCost : 25;
+      const finalIdxSubcategory = idxSubcategory >= 0 ? idxSubcategory : 4;
+
+      const normalize = (s) => String(s || "").trim().toUpperCase();
+
+      const internalItems = rawRows.slice(headerRowIndex + 1)
+        .filter(row => row[finalIdxSku])
+        .map(row => ({
+          sku: normalize(row[finalIdxSku]),
+          title: String(row[finalIdxTitle] || "").trim(),
+          price: parseFloat(row[finalIdxCost] || 0),
+          cost: parseFloat(row[finalIdxCost] || 0),
+          stock: parseFloat(row[finalIdxStock] || 0),
+          brand: String(row[finalIdxBrand] || "").trim(),
+          oem: String(row[finalIdxOem] || "").trim(),
+          subcategory: finalIdxSubcategory >= 0 ? String(row[finalIdxSubcategory] || "").trim().toUpperCase() : null
+        }))
+        .filter(item => item.sku && item.sku !== "CODIGO");
+
+      setUploadProgress({ current: 0, total: internalItems.length });
+
+      // 3. Enviar en LOTES al servidor
+      const BATCH_SIZE = 2000;
+      for (let i = 0; i < internalItems.length; i += BATCH_SIZE) {
+        const batch = internalItems.slice(i, i + BATCH_SIZE);
+        const res = await fetch('/api/inventory/upload-chunk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items: batch })
+        });
+        if (!res.ok) throw new Error("Error al subir lote " + i);
+        setUploadProgress(prev => ({ ...prev, current: Math.min(i + BATCH_SIZE, internalItems.length) }));
+      }
+
+      // 4. Finalizar Auditoría (Cruce de datos)
+      const resAudit = await fetch('/api/inventory/upload-finalize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          accountId: activeAccount, 
+          mode: auditMode,
+          totalExcelCount: internalItems.length 
+        })
+      });
+      const dataAudit = await resAudit.json();
+      
+      if (dataAudit.success) {
+        if (auditMode === 'master') setResultsMaster(dataAudit);
+        else setResultsInbound(dataAudit);
+      } else {
+        alert('Error en auditoría: ' + dataAudit.error);
+      }
+
     } catch (err) {
-      alert('Error al procesar archivo');
+      console.error(err);
+      alert('Error: ' + err.message);
     } finally {
       setLoading(false);
+      setUploadProgress({ current: 0, total: 0 });
     }
   };
 
@@ -615,7 +703,11 @@ export default function InventoryAuditPage() {
           <button className={styles.primaryBtn}
             style={{ background: auditMode === 'inbound' ? '#fbbf24' : '#3b82f6', color: auditMode === 'inbound' ? 'black' : 'white' }}
             onClick={handleUpload} disabled={loading || !currentFile}>
-            {loading ? `🔍 Procesando... (${elapsedTime}s)` : (auditMode === 'master' ? '🔍 Iniciar Auditoría' : '📦 Procesar Entrada')}
+            {loading 
+              ? (uploadProgress.total > 0 
+                  ? `📤 Subiendo ${uploadProgress.current} / ${uploadProgress.total}...` 
+                  : `🔍 Procesando... (${elapsedTime}s)`)
+              : (auditMode === 'master' ? '🔍 Iniciar Auditoría' : '📦 Procesar Entrada')}
           </button>
         </div>
       </section>

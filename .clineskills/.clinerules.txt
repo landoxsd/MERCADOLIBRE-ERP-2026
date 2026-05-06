@@ -1,0 +1,48 @@
+# 📜 REGLAS DE ORO DEL PROYECTO (MERCADOLIBRE ERP 2026)
+
+Este archivo define el comportamiento, flujos y ganchos (hooks) que CUALQUIER IA debe seguir en este repositorio.
+
+---
+
+## 🏗️ 1. ESTÁNDARES TÉCNICOS (The Stack)
+- **Framework**: Next.js 14+ (App Router).
+- **Backend**: API Routes en `src/app/api/`.
+- **Base de Datos**: Supabase (PostgreSQL). Use `@/lib/supabase-admin` para servidor.
+- **Meli Auth**: NUNCA hardcodear tokens. Use SIEMPRE `getValidAccessToken()` de `@/lib/meli-auth-helper`.
+
+---
+
+## 🪝 2. GANCHOS DE FLUJO (Hooks)
+
+### Pre-Edición de API Routes:
+- Antes de crear una nueva ruta de API, verifica si requiere acceso a Mercado Libre. Si es así, importa automáticamente el helper de autenticación.
+
+### Post-Creación de Componentes UI:
+- Cada componente nuevo en `src/components/` debe ser responsivo y usar Tailwind CSS con la paleta de colores del Dashboard (Dark Mode).
+- Si el componente usa iconos, use `lucide-react`.
+
+### Validación de Datos:
+- Antes de insertar en tablas de "Snapshots", asegúrese de que el `price_usd` sea numérico y que el `ml_item_id` sea único para ese batch.
+
+---
+
+## 🎯 3. WORKFLOW: "LISTING SNIPER"
+Cuando se trabaje en el módulo de Inteligencia de Mercado, siga este flujo:
+1. **Analizar**: Ejecutar búsqueda en MLV, capturar Top 10, y enriquecer con multiget de `/items`.
+2. **Comparar**: Ejecutar `calculateScores` basándose en el líder de ventas detectado en memoria.
+3. **Persistir**: Guardar en `mlv_market_snapshots` usando un `snapshot_batch_id` único.
+4. **Visualizar**: Renderizar `WinnerCard` y `ActionPlan` con prioridad en Acciones Críticas.
+
+---
+
+## 🇻🇪 4. CONTEXTO VENEZUELA (MLV)
+- **Precios**: Asuma precios en USD. La tasa BCV es gestionada internamente por Mercado Libre.
+- **Logística**: Priorice "Pickup" y empresas de encomienda (MRW, Zoom, Tealca) detectadas en la descripción.
+- **SEO**: Títulos de 55-60 caracteres. Evite MAYÚSCULAS totales.
+
+---
+
+## 🧠 5. USO DE SKILLS
+La IA tiene acceso a habilidades modulares en `.clineskills/`. Cargue la habilidad correspondiente según la tarea:
+- `meli_expert.md`: Para lógica profunda de la API de Meli.
+- `supabase_expert.md`: Para consultas complejas y migraciones.

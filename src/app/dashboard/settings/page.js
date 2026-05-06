@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState({
@@ -210,6 +211,46 @@ export default function SettingsPage() {
     }
   };
 
+  const handleExportMapping = async () => {
+    const data = getAllSublines().map(([profit, ml]) => ({
+      "Sublinea Profit": profit,
+      "ML Category ID": ml,
+      "Nombre Categoria": "" // Se puede llenar manualmente o mediante API después
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Mapeo Categorias");
+    XLSX.writeFile(workbook, "Mapeo_Sublineas_ML.xlsx");
+  };
+
+  const handleImportMapping = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const bstr = evt.target.result;
+      const wb = XLSX.read(bstr, { type: 'binary' });
+      const wsname = wb.SheetNames[0];
+      const ws = wb.Sheets[wsname];
+      const data = XLSX.utils.sheet_to_json(ws);
+
+      const newMap = { ...settings.categoryMap };
+      data.forEach(row => {
+        const profit = row["Sublinea Profit"] || row["SUBLINEA"] || row["Sublínea Profit"];
+        const mlId = row["ML Category ID"] || row["ML_ID"] || row["CATEGORIA_ML"];
+        if (profit && mlId) {
+          newMap[String(profit).trim().toUpperCase()] = String(mlId).trim();
+        }
+      });
+
+      setSettings({ ...settings, categoryMap: newMap });
+      alert(`✅ Se han cargado e integrado los mapeos del Excel.`);
+    };
+    reader.readAsBinaryString(file);
+  };
+
   const applySearchResult = (categoryId) => {
     if (!searchModal.profitKey) return;
     const newMap = { ...settings.categoryMap };
@@ -275,23 +316,44 @@ export default function SettingsPage() {
             <h2 style={{ color: '#10b981' }}>🏷️ Mapeo de Sublíneas (Profit → Mercado Libre)</h2>
             <p style={{ opacity: 0.7, marginTop: '0.5rem' }}>Define qué ID de categoría en ML corresponde a cada sublínea de tu sistema.</p>
           </div>
-          <button
-            onClick={handleBatchDetect}
-            disabled={detecting}
-            title="Detectar automáticamente todas las categorías usando la API de ML"
-            style={{
-              padding: '0.8rem 1.5rem',
-              background: detecting ? '#555' : '#8b5cf6',
-              border: 'none',
-              color: 'white',
-              borderRadius: '8px',
-              cursor: detecting ? 'not-allowed' : 'pointer',
-              fontWeight: 'bold',
-              fontSize: '0.95rem'
-            }}
-          >
-            {detecting ? '⏳ Detectando...' : '🤖 Detectar Todas'}
-          </button>
+          <div style={{ display: 'flex', gap: '0.8rem' }}>
+            <button
+              onClick={handleExportMapping}
+              style={{
+                padding: '0.8rem 1.2rem', background: 'rgba(255,255,255,0.05)',
+                border: '1px solid rgba(255,255,255,0.2)', color: 'white',
+                borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold'
+              }}
+            >
+              📥 Descargar Mapeo
+            </button>
+            <label style={{
+              padding: '0.8rem 1.2rem', background: 'rgba(255,255,255,0.05)',
+              border: '1px solid rgba(255,255,255,0.2)', color: 'white',
+              borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold',
+              display: 'flex', alignItems: 'center'
+            }}>
+              📤 Subir Mapeo
+              <input type="file" hidden accept=".xlsx, .xls" onChange={handleImportMapping} />
+            </label>
+            <button
+              onClick={handleBatchDetect}
+              disabled={detecting}
+              title="Detectar automáticamente todas las categorías usando la API de ML"
+              style={{
+                padding: '0.8rem 1.5rem',
+                background: detecting ? '#555' : '#8b5cf6',
+                border: 'none',
+                color: 'white',
+                borderRadius: '8px',
+                cursor: detecting ? 'not-allowed' : 'pointer',
+                fontWeight: 'bold',
+                fontSize: '0.95rem'
+              }}
+            >
+              {detecting ? '⏳ Detectando...' : '🤖 Detectar Todas'}
+            </button>
+          </div>
         </div>
 
         {/* Resumen de detección */}

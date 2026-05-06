@@ -5,6 +5,8 @@
 import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import fs from "fs";
+import path from "path";
 
 export const maxDuration = 300; // 5 minutos para procesar 27k+ registros
 export const dynamic = 'force-dynamic';
@@ -61,6 +63,7 @@ export async function POST(req) {
     const finalIdxOem = idxOem >= 0 ? idxOem : 18;
     const finalIdxStock = idxStock >= 0 ? idxStock : 19;
     const finalIdxCost = idxCost >= 0 ? idxCost : 25;
+    const finalIdxSubcategory = idxSubcategory >= 0 ? idxSubcategory : 4; // Columna 4 en Profit Maestro
 
     // Helper para normalizar SKUs (Mayúsculas y sin espacios)
     const normalize = (s) => String(s || "").trim().toUpperCase();
@@ -75,7 +78,7 @@ export async function POST(req) {
         stock: parseFloat(row[finalIdxStock] || 0),
         brand: String(row[finalIdxBrand] || "").trim(),
         oem: String(row[finalIdxOem] || "").trim(),
-        subcategory: idxSubcategory >= 0 ? String(row[idxSubcategory] || "").trim().toUpperCase() : null
+        subcategory: finalIdxSubcategory >= 0 ? String(row[finalIdxSubcategory] || "").trim().toUpperCase() : null
       }))
       .filter(item => item.sku && item.sku !== "CODIGO");
 
@@ -163,8 +166,6 @@ export async function POST(req) {
 
     // Guardar una "fotografía" separada por modo para no sobreescribir
     try {
-      const fs = require('fs');
-      const path = require('path');
       const cachePath = path.join(process.cwd(), `.audit_cache_${mode}_${accountId}.json`);
       fs.writeFileSync(cachePath, JSON.stringify(outputPayload));
     } catch (e) {

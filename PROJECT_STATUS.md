@@ -35,5 +35,19 @@ Desarrollar un ERP/CRM web en Next.js (escalable a la nube) para la gestión mul
   - Endpoint `api/account/overview` con reputación, billing (deuda) y ventas.
   - Componente `AccountOverview` con visualización premium de métricas.
 
+### Fase Inteligencia de Mercado - Listing Sniper
+- **Estado:** 🚧 En Desarrollo (Infraestructura Lista)
+- **Hitos:**
+  - Plan Maestro Investigado (`docs/LISTING_SNIPER_PLAN_V2_INVESTIGADO.md`)
+  - Algoritmo de Scoring Definido (Precio, SEO, Fotos, Atributos)
+  - Exportación Masiva con Vista Plana (Breadcrumbs + IDs)
+
+### Fase Automatización - Ecosistema de Agentes
+- **Estado:** ✅ Completado
+- **Acciones:**
+  - Implementación de `.clinerules` (Reglas de Oro del Repositorio)
+  - Despliegue de Habilidades Modulares (`.agents/skills/`)
+  - Configuración de Workflows para ejecución delegada (Kimi/Cline)
+
 ---
-*Última actualización: Conexión cloud establecida y base de datos operativa.*
+*Última actualización: 2026-05-06 - Infraestructura de Inteligencia de Mercado y Agentes Operativa.*

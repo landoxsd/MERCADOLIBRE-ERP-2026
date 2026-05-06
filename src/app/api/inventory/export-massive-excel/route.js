@@ -327,7 +327,52 @@ export async function POST(req) {
         const ayudaSheet = XLSX.utils.aoa_to_sheet(ayudaData);
         XLSX.utils.book_append_sheet(workbook, ayudaSheet, 'Ayuda');
 
-        // 9. Una pestaña por categoría
+        // 9. Pestaña de Resumen General (Vista Plana)
+        const flatData = [];
+        const flatHeaders = [
+            'SKU', 
+            'Título', 
+            'ID Categoría', 
+            'Ruta Categoría (Breadcrumb)', 
+            'Precio [US$]', 
+            'Stock', 
+            'Marca', 
+            'Número de pieza',
+            'Grupo Interno (Sublínea)'
+        ];
+        flatData.push(flatHeaders);
+
+        for (const item of missingItems) {
+            const mlCat = subcategoryToMlCat[item.subcategory];
+            flatData.push([
+                item.sku,
+                optimizeTitle(item.title),
+                mlCat?.ml_category_id || 'N/A',
+                mlCat?.ml_category_name || 'SIN CATEGORÍA',
+                item.price || 0,
+                item.stock || 0,
+                item.brand || 'Genérico',
+                item.oem || item.sku,
+                item.subcategory || 'SIN CATEGORÍA'
+            ]);
+        }
+
+        const flatSheet = XLSX.utils.aoa_to_sheet(flatData);
+        // Ajustar anchos
+        flatSheet['!cols'] = [
+            { wch: 15 }, // SKU
+            { wch: 50 }, // Título
+            { wch: 15 }, // ID Cat
+            { wch: 80 }, // Ruta Cat
+            { wch: 12 }, // Precio
+            { wch: 10 }, // Stock
+            { wch: 20 }, // Marca
+            { wch: 20 }, // Pieza
+            { wch: 25 }  // Sublínea
+        ];
+        XLSX.utils.book_append_sheet(workbook, flatSheet, 'Resumen_General');
+
+        // 10. Una pestaña por categoría
         for (const [catKey, group] of Object.entries(groups)) {
             const sheetRows = [];
             const attrs = categoryAttributes[catKey] || [];
@@ -403,7 +448,18 @@ export async function POST(req) {
                 wch: h === 'Título' ? 50 : h === 'Descripción' ? 60 : h === 'Fotos' ? 80 : 20
             }));
 
-            const safeSheetName = sheetNameFromCategory(group.name);
+            let safeSheetName = sheetNameFromCategory(group.name);
+            
+            // Asegurar que el nombre sea único en el libro (Workbook)
+            let counter = 1;
+            const originalName = safeSheetName;
+            while (workbook.SheetNames.includes(safeSheetName)) {
+                counter++;
+                // Los nombres de pestañas en Excel tienen un límite de 31 caracteres
+                const suffix = ` (${counter})`;
+                safeSheetName = originalName.substring(0, 31 - suffix.length) + suffix;
+            }
+
             XLSX.utils.book_append_sheet(workbook, worksheet, safeSheetName);
         }
 

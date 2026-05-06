@@ -173,6 +173,31 @@ Este documento recopila las "Habilidades Especiales" desarrolladas en este proye
 ## 24. Habilidad: Exportación Masiva con Integración de Banco de Imágenes
 **Descripción:** Dominio en la generación de archivos Excel (XLSX) compatibles con la herramienta de Publicación Masiva de ML, inyectando dinámicamente URLs externas del Image Bank y columnas de organización interna (Sublíneas) para auditoría humana pre-carga.
 
+## 25. Habilidad: Subida de Inventario por Lotes (Chunked Upload)
+**Descripción:** Procesa archivos Excel gigantes (>7MB / 27k+ filas) superando los límites de payload de Vercel (4.5MB).
+*   **Lógica:** El frontend (Navegador) lee el Excel localmente usando `FileReader` y envía la data en paquetes controlados de 2,000 registros a un endpoint ligero.
+*   **Valor:** Escalabilidad infinita. Permite cargar inventarios de cualquier tamaño sin errores de red o timeouts.
+
+## 26. Habilidad: Motor de Auditoría de Alto Rendimiento
+**Descripción:** Cruza mallas de datos masivas (27k locales vs 18k ML) sin saturar la memoria del servidor.
+*   **Lógica:** Uso de `Set` para búsquedas O(1) y fetching paginado de Supabase para evitar "heap out of memory". Implementa caché local por cuenta para persistencia de resultados.
+*   **Valor:** Entrega resultados de auditoría global en segundos, permitiendo al usuario tomar decisiones rápidas sobre miles de publicaciones.
+
+## 27. Habilidad: Interoperabilidad de Mapeos vía Excel
+**Descripción:** Permite la gestión masiva de la lógica de categorización fuera del ERP para sincronización con SQL externo (Profit Plus).
+*   **Lógica:** Exportación/Importación dinámica con resolución de conflictos de nombres de pestañas y mapeo inteligente de columnas (`Sublínea Profit` ↔ `ML Category ID`).
+*   **Valor:** Puente de datos crítico. Permite que el conocimiento generado en el ERP (mapeos) se inyecte de vuelta en el core del negocio (Profit Plus).
+
+## 28. Habilidad: Exportación Masiva con Vista Plana y Auditoría
+**Descripción:** Genera una hoja maestra consolidada en el Excel masivo que incluye IDs de categoría y Breadcrumbs completos.
+*   **Lógica:** Inyección de una pestaña "Resumen_General" previa a las pestañas por categoría. Mapeo de `ml_category_id` y `ml_category_name` desde la tabla de `category_mappings`.
+*   **Valor:** Permite auditoría humana ultrarrápida de miles de productos y sus destinos de categoría en un solo vistazo.
+
+## 29. Habilidad: Ingeniería Inversa de Competencia (Sniper Logic)
+**Descripción:** Motor de análisis comparativo que identifica brechas entre publicaciones propias y líderes de ventas en MLV.
+*   **Lógica:** Algoritmo de scoring ponderado (Precio 30%, SEO 25%, Fotos 20%, Atributos 15%, Logística 10%). Utiliza multiget de ítems y scraping de descripción para detectar zonas de pickup.
+*   **Valor:** Transforma datos de competidores en un Plan de Acción concreto ("Baja $2", "Mueve Marca al inicio") para capturar el ranking de búsqueda.
+
 ---
 
-*Este inventario de habilidades permite que este ERP sea el cimiento para cualquier otra herramienta de automatización comercial. Las skills 9-24 fueron diseñadas a partir de la documentación oficial del MCP de MercadoLibre Developers y la experiencia real con 40k+ SKUs.*
+*Este inventario de habilidades permite que este ERP sea el cimiento para cualquier otra herramienta de automatización comercial. Las skills 9-27 fueron diseñadas a partir de la documentación oficial del MCP de MercadoLibre Developers y la experiencia real con 40k+ SKUs.*

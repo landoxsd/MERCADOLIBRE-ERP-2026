@@ -223,6 +223,23 @@ Para asegurar la continuidad eterna del proyecto, se seguirán estas reglas:
 **URL de Producción:** https://mercadolibre-erp.vercel.app
 **Contexto:** Se implementó un sistema completo para generar archivos Excel compatibles con la plataforma de publicación masiva de MercadoLibre Venezuela (https://www.mercadolibre.com.ve/publicar-masivamente/), diseñado específicamente para la cuenta CORPORACIONRWC que tiene limitaciones de API por tienda oficial.
 
+### 25. Subida de Inventario por Lotes (Chunked Upload)
+- **Capacidad**: Dividir archivos Excel grandes en el frontend para evadir límites de payload de servidor.
+- **Uso**: `/api/inventory/upload-chunk` recibe paquetes de 2000 registros para upsert veloz.
+
+### 26. Auditoría de Inventario de Alto Rendimiento
+- **Capacidad**: Comparar bases de datos masivas (27k locales vs 18k ML) sin bloqueos de memoria.
+- **Uso**: Implementado en `/api/inventory/upload-finalize` con fetching paginado.
+
+### 27. Gestión Masiva de Mapeos vía Excel
+- **Capacidad**: Exportar e Importar la tabla de `category_mappings` en formato .xlsx.
+- **Uso**: Permite edición externa y preparación de datos para inyección en SQL de Profit Plus.
+
+| Fecha | Hito | Descripción |
+|---|---|---|
+| 05/05/2026 | Escalabilidad Masiva | Implementada subida por lotes (chunks) para 27k+ productos y gestión de mapeos via Excel. |
+| 05/05/2026 | Auditoría GOLDEN | Consolidado motor híbrido (IA + 18k registros) y exportación masiva con imágenes. |
+
 ### Archivos creados/modificados en esta sesión:
 | Archivo | Estado |
 |---|---|
@@ -277,3 +294,9 @@ Para asegurar la continuidad eterna del proyecto, se seguirán estas reglas:
     *   Corregimos el error crítico de "Volumen de la unidad" mediante la inyección inteligente de valores técnicos ("1 L", "1 kg") en tiempo de publicación.
     *   Optimizamos el **Exportador de Excel Masivo**: Añadida columna de Sublínea (Grupo) y links reales de Image Bank.
     *   **Estado**: Producción (Vercel) actualizado y operativo.
+
+*   **Hito: Inteligencia Competitiva (Listing Sniper) y Configuración de Agentes** (2026-05-06)
+    *   **Listing Sniper v2**: Plan de ejecución detallado en `docs/LISTING_SNIPER_PLAN_V2_INVESTIGADO.md`. Investigación profunda de Performance API y multiget de ítems para MLV.
+    *   **Ecosistema de Agentes**: Implementación de `.clinerules` y habilidades modulares en `.agents/skills/` (Meli Expert, Sniper Logic, UI Premium).
+    *   **Excel Power-Up**: Nueva pestaña "Resumen_General" en la exportación masiva para auditoría rápida de IDs y Breadcrumbs de categorías.
+    *   **Estado**: Infraestructura de inteligencia lista para ejecución por IA.
