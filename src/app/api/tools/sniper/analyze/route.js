@@ -33,7 +33,13 @@ export async function POST(request) {
         // ------------------------------------------------------------------
         const searchUrl = `${MELI_BASE_URL}/sites/${MLV_SITE_ID}/search?q=${encodeURIComponent(normalizedQuery)}&limit=20${categoryId ? `&category=${categoryId}` : ""}`;
 
-        const searchRes = await fetch(searchUrl);
+        const searchRes = await fetch(searchUrl, {
+            headers: {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept": "application/json",
+                "Accept-Language": "es-VE,es;q=0.9",
+            },
+        });
         if (!searchRes.ok) {
             throw new Error(`ML Search failed: ${searchRes.status}`);
         }
@@ -65,7 +71,12 @@ export async function POST(request) {
 
         for (const chunk of chunks) {
             const idsParam = chunk.join(",");
-            const detailRes = await fetch(`${MELI_BASE_URL}/items?ids=${idsParam}`);
+            const detailRes = await fetch(`${MELI_BASE_URL}/items?ids=${idsParam}`, {
+                headers: {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    "Accept": "application/json",
+                },
+            });
             if (detailRes.ok) {
                 const details = await detailRes.json();
                 itemDetails.push(...details.filter((d) => d.code === 200).map((d) => d.body));
