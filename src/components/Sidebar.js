@@ -15,7 +15,7 @@ const NAV_ITEMS = [
   { href: '/dashboard/customers', label: 'Clientes CRM', icon: '👥' },
   { href: '/dashboard/whatsapp', label: 'WhatsApp', icon: '📱' },
   { href: '/dashboard/analytics', label: 'Analíticas', icon: '📈' },
-  { href: '/dashboard/competition', label: 'Competencia', icon: '🎯' },
+  { href: '/dashboard/intelligence', label: 'Inteligencia de Mercado', icon: '🎯' },
 ];
 
 export default function Sidebar({ accounts = [], activeAccountId }) {

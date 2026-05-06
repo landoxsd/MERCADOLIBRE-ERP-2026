@@ -193,11 +193,37 @@ Este documento recopila las "Habilidades Especiales" desarrolladas en este proye
 *   **Lógica:** Inyección de una pestaña "Resumen_General" previa a las pestañas por categoría. Mapeo de `ml_category_id` y `ml_category_name` desde la tabla de `category_mappings`.
 *   **Valor:** Permite auditoría humana ultrarrápida de miles de productos y sus destinos de categoría en un solo vistazo.
 
-## 29. Habilidad: Ingeniería Inversa de Competencia (Sniper Logic)
-**Descripción:** Motor de análisis comparativo que identifica brechas entre publicaciones propias y líderes de ventas en MLV.
-*   **Lógica:** Algoritmo de scoring ponderado (Precio 30%, SEO 25%, Fotos 20%, Atributos 15%, Logística 10%). Utiliza multiget de ítems y scraping de descripción para detectar zonas de pickup.
-*   **Valor:** Transforma datos de competidores en un Plan de Acción concreto ("Baja $2", "Mueve Marca al inicio") para capturar el ranking de búsqueda.
+## 29. Habilidad: Ingeniería Inversa de Competencia (Listing Sniper V3)
+**Descripción:** Motor de inteligencia competitiva con análisis contextual (Fitment vs Price) para MercadoLibre Venezuela. Identifica brechas entre publicaciones propias y líderes de ventas con precisión quirúrgica.
+*   **Lógica:** 
+    - Búsqueda pública `/sites/MLV/search` + ordenamiento por `sold_quantity` en memoria (no existe `sort=sold_quantity_desc`).
+    - Multiget `/items?ids=` para enriquecer fotos y atributos completos.
+    - API de Performance `/item/{id}/performance` (post-feb 2025) con fallback a `/items/{id}/health`.
+    - Scraping de descripción para detectar zonas de pickup (Chacao, Sabana Grande, Valencia) y métodos de envío tradicionales (Zoom, Tealca, MRW).
+    - Algoritmo de scoring con dos modos automáticos: **Fitment** (BRAND/MODEL/PART_NUMBER al 35%) y **Price** (Precio al 30%).
+    - Penalizaciones MLV: MAYÚSCULAS (-40 pts), palabras spam (-20 pts).
+*   **Valor:** Transforma datos de competidores en un Plan de Acción enriquecido con `current_value`, `target_value` e `impact_estimate` para capturar el ranking de búsqueda.
+*   **Ubicación:** `src/lib/sniper-scoring.js`, `src/lib/sniper-helpers.js`, `src/app/api/tools/sniper/`.
+
+## 30. Habilidad: Dashboard de Inteligencia de Mercado (Dark Mode Premium)
+**Descripción:** Panel visual de alta gama para analizar competidores en tiempo real con gráficos circulares, comparativas cara a cara y alertas contextuales.
+*   **Lógica:** 
+    - Componentes modulares en `src/components/intelligence/` (ScoreChart SVG, WinnerCard, ActionPlan, CompetitorGrid, SpamAlert, LogisticsCard, AnalysisModeBadge).
+    - Página principal en `/dashboard/intelligence` integrada con el Sidebar del ERP.
+    - Dark Mode premium con paleta `slate-950` + acentos `cyan-500` / `emerald-500` / `rose-500`.
+    - Gráficos radiales SVG sin librerías externas.
+*   **Valor:** Experiencia de usuario premium que permite tomar decisiones de optimización en segundos, visualizando scores por dimensión y un plan de acción priorizado.
+*   **Ubicación:** `src/app/dashboard/intelligence/page.js`, `src/components/intelligence/`.
+
+## 31. Habilidad: Snapshots de Mercado con Batch Tracking
+**Descripción:** Persistencia temporal de análisis competitivos agrupados por `snapshot_batch_id` para análisis histórico y tracking de posiciones.
+*   **Lógica:** 
+    - Tablas `mlv_market_snapshots`, `mlv_competitive_analysis`, `mlv_position_history`, `competitor_image_refs`.
+    - Cada análisis genera un `batch_id` único que agrupa los 10 competidores analizados.
+    - El historial de posiciones permite registrar `position_previous` vs `position_current` para medir el impacto de optimizaciones aplicadas.
+*   **Valor:** Capacidad de medir el ROI de las optimizaciones realizadas al comparar posiciones antes y después de aplicar cambios.
+*   **Ubicación:** `supabase/migration_sniper_2026-05-06.sql`, `src/app/api/tools/sniper/history/route.js`.
 
 ---
 
-*Este inventario de habilidades permite que este ERP sea el cimiento para cualquier otra herramienta de automatización comercial. Las skills 9-27 fueron diseñadas a partir de la documentación oficial del MCP de MercadoLibre Developers y la experiencia real con 40k+ SKUs.*
+*Este inventario de habilidades permite que este ERP sea el cimiento para cualquier otra herramienta de automatización comercial. Las skills 9-31 fueron diseñadas a partir de la documentación oficial del MCP de MercadoLibre Developers y la experiencia real con 40k+ SKUs.*

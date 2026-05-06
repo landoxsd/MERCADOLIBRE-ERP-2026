@@ -1,0 +1,218 @@
+// ================================================================
+// POST /api/tools/sniper/analyze
+// Búsqueda de competidores + enriquecimiento multiget + scraping MLV
+// ================================================================
+import { NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabase-admin";
+import { getValidAccessToken } from "@/lib/meli-auth-helper";
+import {
+    processSnapshot,
+    fetchItemDescription,
+    fetchItemPerformance,
+    sortBySoldQuantity,
+    chunkArray,
+    detectAnalysisMode,
+} from "@/lib/sniper-helpers";
+
+const MELI_BASE_URL = "https://api.mercadolibre.com";
+const MLV_SITE_ID = "MLV";
+
+export async function POST(request) {
+    try {
+        const { query, sku, ourItemId, accountId, categoryId } = await request.json();
+
+        if (!query || query.trim().length === 0) {
+            return NextResponse.json({ error: "Query requerida" }, { status: 400 });
+        }
+
+        const batchId = crypto.randomUUID();
+        const normalizedQuery = query.trim();
+
+        // ------------------------------------------------------------------
+        // 1. BÚSQUEDA PÚBLICA POR RELEVANCIA (no requiere token)
+        // ------------------------------------------------------------------
+        const searchUrl = `${MELI_BASE_URL}/sites/${MLV_SITE_ID}/search?q=${encodeURIComponent(normalizedQuery)}&limit=20${categoryId ? `&category=${categoryId}` : ""}`;
+
+        const searchRes = await fetch(searchUrl);
+        if (!searchRes.ok) {
+            throw new Error(`ML Search failed: ${searchRes.status}`);
+        }
+        const searchData = await searchRes.json();
+        const rawResults = searchData.results || [];
+
+        if (rawResults.length === 0) {
+            return NextResponse.json({
+                success: true,
+                batch_id: batchId,
+                query: normalizedQuery,
+                totalResults: 0,
+                message: "No se encontraron resultados para esta búsqueda.",
+            });
+        }
+
+        // ------------------------------------------------------------------
+        // 2. ORDENAR POR VENTAS EN MEMORIA (simula sold_quantity_desc)
+        // ------------------------------------------------------------------
+        const sortedResults = sortBySoldQuantity(rawResults);
+        const topCompetitors = sortedResults.slice(0, 10);
+
+        // ------------------------------------------------------------------
+        // 3. MULTIGET PARA DETALLES ENRIQUECIDOS (fotos, atributos)
+        // ------------------------------------------------------------------
+        const itemIds = topCompetitors.map((r) => r.id);
+        const chunks = chunkArray(itemIds, 20);
+        const itemDetails = [];
+
+        for (const chunk of chunks) {
+            const idsParam = chunk.join(",");
+            const detailRes = await fetch(`${MELI_BASE_URL}/items?ids=${idsParam}`);
+            if (detailRes.ok) {
+                const details = await detailRes.json();
+                itemDetails.push(...details.filter((d) => d.code === 200).map((d) => d.body));
+            }
+        }
+
+        const detailsMap = new Map(itemDetails.map((d) => [d.id, d]));
+
+        // ------------------------------------------------------------------
+        // 4. TOKEN PARA APIs QUE REQUIEREN AUTH (performance, nuestro ítem)
+        // ------------------------------------------------------------------
+        let accessToken = null;
+        if (accountId) {
+            try {
+                accessToken = await getValidAccessToken(accountId);
+            } catch {
+                console.warn("No se pudo obtener token. Continuando sin performance/ourItem.");
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // 5. OBTENER NUESTRO ÍTEM (si se proporcionó ourItemId)
+        // ------------------------------------------------------------------
+        let ourItem = null;
+        if (ourItemId) {
+            try {
+                const ourRes = await fetch(`${MELI_BASE_URL}/items/${ourItemId}`, {
+                    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+                });
+                if (ourRes.ok) ourItem = await ourRes.json();
+            } catch {
+                console.warn("No se pudo obtener nuestro ítem.", ourItemId);
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // 6. PROCESAR Y ENRIQUECER CADA COMPETIDOR
+        // ------------------------------------------------------------------
+        const snapshots = await Promise.all(
+            topCompetitors.map(async (item, index) => {
+                const detail = detailsMap.get(item.id) || {};
+
+                // Scraping de descripción para logística MLV
+                const descText = await fetchItemDescription(item.id);
+
+                // Performance/Health (requiere token)
+                let healthData = { score: null, level: null };
+                if (accessToken) {
+                    healthData = await fetchItemPerformance(item.id, accessToken);
+                }
+
+                const snapshot = processSnapshot(item, detail, descText, {
+                    batchId,
+                    query: normalizedQuery,
+                    sku,
+                    ourItemId,
+                    position: index + 1,
+                });
+
+                // Inyectar health
+                snapshot.health_score = healthData.score;
+                snapshot.health_level = healthData.level;
+
+                return snapshot;
+            })
+        );
+
+        // ------------------------------------------------------------------
+        // 7. PERSISTIR SNAPSHOTS EN SUPABASE
+        // ------------------------------------------------------------------
+        const { data: insertedSnapshots, error: snapError } = await supabaseAdmin
+            .from("mlv_market_snapshots")
+            .insert(snapshots)
+            .select();
+
+        if (snapError) {
+            console.error("Error guardando snapshots:", snapError);
+        }
+
+        // ------------------------------------------------------------------
+        // 8. IDENTIFICAR LÍDER (más vendido)
+        // ------------------------------------------------------------------
+        const leader = snapshots[0]; // Ya están ordenados por sold_quantity
+
+        // ------------------------------------------------------------------
+        // 9. GUARDAR IMÁGENES DE REFERENCIA DEL LÍDER
+        // ------------------------------------------------------------------
+        if (leader && leader.raw_api_response?.pictures?.length > 0) {
+            const imageRefs = leader.raw_api_response.pictures.map((pic, idx) => ({
+                ml_item_id: leader.ml_item_id,
+                image_url: pic.url || pic.secure_url,
+                image_order: idx,
+                is_primary: idx === 0,
+                analysis_metadata: { size: pic.size || null, max_size: pic.max_size || null },
+            }));
+
+            await supabaseAdmin.from("competitor_image_refs").insert(imageRefs);
+        }
+
+        // ------------------------------------------------------------------
+        // 10. RESPUESTA
+        // ------------------------------------------------------------------
+        return NextResponse.json({
+            success: true,
+            batch_id: batchId,
+            query: normalizedQuery,
+            analysis_mode: detectAnalysisMode(normalizedQuery),
+            totalResults: rawResults.length,
+            analyzed: snapshots.length,
+            leader: {
+                ml_item_id: leader.ml_item_id,
+                title: leader.title,
+                price_usd: leader.price_usd,
+                sold_quantity: leader.sold_quantity,
+                seller_nickname: leader.seller_nickname,
+                pictures_count: leader.pictures_count,
+                attributes_count: leader.attributes_count,
+                logistics_data: leader.logistics_data,
+            },
+            competitors: snapshots.map((s) => ({
+                ml_item_id: s.ml_item_id,
+                title: s.title,
+                price_usd: s.price_usd,
+                sold_quantity: s.sold_quantity,
+                seller_nickname: s.seller_nickname,
+                pictures_count: s.pictures_count,
+                search_position: s.search_position,
+            })),
+            ourItem: ourItem
+                ? {
+                    id: ourItem.id,
+                    title: ourItem.title,
+                    price: ourItem.price,
+                    pictures: ourItem.pictures?.length || 0,
+                    sold_quantity: ourItem.sold_quantity,
+                    attributes: ourItem.attributes || [],
+                }
+                : null,
+            stats: {
+                avg_price: parseFloat((snapshots.reduce((a, b) => a + (b.price_usd || 0), 0) / snapshots.length).toFixed(2)),
+                max_sales: Math.max(...snapshots.map((s) => s.sold_quantity)),
+                min_price: Math.min(...snapshots.map((s) => s.price_usd || Infinity)),
+                max_price: Math.max(...snapshots.map((s) => s.price_usd || 0)),
+            },
+        });
+    } catch (err) {
+        console.error("Error en /api/tools/sniper/analyze:", err);
+        return NextResponse.json({ error: err.message }, { status: 500 });
+    }
+}

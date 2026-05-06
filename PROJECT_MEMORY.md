@@ -287,13 +287,45 @@ Para asegurar la continuidad eterna del proyecto, se seguirán estas reglas:
 - [ ] Consultar `FUTURE_IMPROVEMENTS.md` para planificar la Fase 2 de Inteligencia de Mercado.
 
 ---
-*Última actualización: 2026-05-05 15:35 (Mapeo Inteligente GOLDEN - 18k Registros Procesados).*
+*Última actualización: 2026-05-06 01:47 (Listing Sniper V3 - Inteligencia Competitiva MLV).*
 
 *   **Hito: Motor de Mapeo GOLDEN y Reparación de Atributos Técnicos** (2026-05-05)
-    *   Desplegamos el motor de mapeo híbrido (Histórico + IA) basado en 18,858 registros.
-    *   Corregimos el error crítico de "Volumen de la unidad" mediante la inyección inteligente de valores técnicos ("1 L", "1 kg") en tiempo de publicación.
-    *   Optimizamos el **Exportador de Excel Masivo**: Añadida columna de Sublínea (Grupo) y links reales de Image Bank.
-    *   **Estado**: Producción (Vercel) actualizado y operativo.
+     *   Desplegamos el motor de mapeo híbrido (Histórico + IA) basado en 18,858 registros.
+     *   Corregimos el error crítico de "Volumen de la unidad" mediante la inyección inteligente de valores técnicos ("1 L", "1 kg") en tiempo de publicación.
+     *   Optimizamos el **Exportador de Excel Masivo**: Añadida columna de Sublínea (Grupo) y links reales de Image Bank.
+     *   **Estado**: Producción (Vercel) actualizado y operativo.
+
+## 🚦 CHECKPOINT DE IMPLEMENTACIÓN (Sesión 2026-05-06 — LISTING SNIPER V3)
+
+**Estado:** Módulo de Inteligencia de Mercado completamente implementado y listo para deploy.
+**Logros Clave:**
+- **Listing Sniper V3**: Sistema de inteligencia competitiva con análisis contextual (Fitment vs Price) para MercadoLibre Venezuela.
+- **Correcciones API Investigadas**: Usa `/sites/MLV/search` + ordenamiento por `sold_quantity` en memoria (no existe `sort=sold_quantity_desc`). Usa `/item/{id}/performance` (nueva API post-feb 2025) con fallback a `/items/{id}/health`.
+- **Scraping Lógico MLV**: Detecta zonas de pickup (Chacao, Sabana Grande, Valencia), métodos de envío tradicionales (Zoom, Tealca, MRW) y palabras spam penalizadas en títulos.
+- **Algoritmo de Scoring Contextual**: Dos modos automáticos — **Fitment** (prioriza BRAND/MODEL/PART_NUMBER al 35%) y **Price** (prioriza precio al 30%). Penaliza MAYÚSCULAS (-40 pts) y spam (-20 pts).
+- **Tablas SQL**: 4 tablas nuevas (`mlv_market_snapshots`, `mlv_competitive_analysis`, `mlv_position_history`, `competitor_image_refs`) con `snapshot_batch_id` para análisis histórico.
+- **Backend**: 3 API Routes — `/api/tools/sniper/analyze`, `/compare`, `/history`.
+- **Frontend**: Dashboard `/dashboard/intelligence` con 8 componentes UI (ScoreChart, WinnerCard, ActionPlan, CompetitorGrid, SpamAlert, LogisticsCard, AnalysisModeBadge).
+- **Sidebar**: Ruta renombrada de `/dashboard/competition` a `/dashboard/intelligence`.
+
+### Archivos creados/modificados en esta sesión:
+| Archivo | Estado |
+|---|---|
+| `supabase/migration_sniper_2026-05-06.sql` | ✅ Nuevo. SQL de 4 tablas del Sniper. |
+| `src/lib/sniper-helpers.js` | ✅ Nuevo. Scraping lógico MLV, performance fetch, procesamiento de snapshots. |
+| `src/lib/sniper-scoring.js` | ✅ Nuevo. Algoritmo de scoring contextual Fitment vs Price. |
+| `src/app/api/tools/sniper/analyze/route.js` | ✅ Nuevo. Búsqueda + multiget + scraping + persistencia. |
+| `src/app/api/tools/sniper/compare/route.js` | ✅ Nuevo. Comparativa con scoring y plan de acción. |
+| `src/app/api/tools/sniper/history/route.js` | ✅ Nuevo. Tracking de posiciones temporal. |
+| `src/components/intelligence/*.js` | ✅ 7 componentes nuevos (ScoreChart, WinnerCard, ActionPlan, etc.). |
+| `src/app/dashboard/intelligence/page.js` | ✅ Nuevo. Dashboard principal del Sniper. |
+| `src/components/Sidebar.js` | ✅ Modificado. Ruta `/dashboard/intelligence`. |
+
+### Pendiente técnico inmediato:
+- [ ] Ejecutar SQL `supabase/migration_sniper_2026-05-06.sql` en Supabase Dashboard.
+- [ ] Hacer `git push` y deployar a Vercel.
+- [ ] Probar análisis con productos reales de autopartes en MLV.
+- [ ] Validar que el scoring detecta correctamente modo Fitment vs Price.
 
 *   **Hito: Inteligencia Competitiva (Listing Sniper) y Configuración de Agentes** (2026-05-06)
     *   **Listing Sniper v2**: Plan de ejecución detallado en `docs/LISTING_SNIPER_PLAN_V2_INVESTIGADO.md`. Investigación profunda de Performance API y multiget de ítems para MLV.
