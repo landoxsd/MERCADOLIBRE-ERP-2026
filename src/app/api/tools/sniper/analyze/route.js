@@ -29,17 +29,32 @@ export async function POST(request) {
         const normalizedQuery = query.trim();
 
         // ------------------------------------------------------------------
-        // 1. BÚSQUEDA PÚBLICA POR RELEVANCIA (no requiere token)
+        // 0. OBTENER TOKEN (la búsqueda desde servidores cloud requiere auth)
+        // ------------------------------------------------------------------
+        let accessToken = null;
+        if (accountId) {
+            try {
+                accessToken = await getValidAccessToken(accountId);
+            } catch {
+                console.warn("No se pudo obtener token. Continuando sin autenticación.");
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // 1. BÚSQUEDA POR RELEVANCIA (con token si está disponible)
         // ------------------------------------------------------------------
         const searchUrl = `${MELI_BASE_URL}/sites/${MLV_SITE_ID}/search?q=${encodeURIComponent(normalizedQuery)}&limit=20${categoryId ? `&category=${categoryId}` : ""}`;
 
-        const searchRes = await fetch(searchUrl, {
-            headers: {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "Accept": "application/json",
-                "Accept-Language": "es-VE,es;q=0.9",
-            },
-        });
+        const searchHeaders = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "application/json",
+            "Accept-Language": "es-VE,es;q=0.9",
+        };
+        if (accessToken) {
+            searchHeaders["Authorization"] = `Bearer ${accessToken}`;
+        }
+
+        const searchRes = await fetch(searchUrl, { headers: searchHeaders });
         if (!searchRes.ok) {
             throw new Error(`ML Search failed: ${searchRes.status}`);
         }
@@ -86,16 +101,9 @@ export async function POST(request) {
         const detailsMap = new Map(itemDetails.map((d) => [d.id, d]));
 
         // ------------------------------------------------------------------
-        // 4. TOKEN PARA APIs QUE REQUIEREN AUTH (performance, nuestro ítem)
+        // 4. TOKEN YA ESTÁ DISPONIBLE DESDE EL PASO 0
         // ------------------------------------------------------------------
-        let accessToken = null;
-        if (accountId) {
-            try {
-                accessToken = await getValidAccessToken(accountId);
-            } catch {
-                console.warn("No se pudo obtener token. Continuando sin performance/ourItem.");
-            }
-        }
+        // accessToken se obtuvo antes de la búsqueda para evitar 403 en Vercel
 
         // ------------------------------------------------------------------
         // 5. OBTENER NUESTRO ÍTEM (si se proporcionó ourItemId)
