@@ -71,23 +71,19 @@ Realice todas sus preguntas, estamos para servirle.
 function optimizeSEO(title) {
     if (!title) return '';
     let seoTitle = String(title).toUpperCase();
-    
-    // 1. Expandir abreviaturas
     const sortedKeys = Object.keys(ABBREVIATIONS).sort((a, b) => b.length - a.length);
     const escapedKeys = sortedKeys.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
     const regex = new RegExp(`\\b(${escapedKeys.join('|')})(?=\\.|\\s|$)`, 'gi');
     
     seoTitle = seoTitle.replace(regex, (matched) => {
         const upperMatched = matched.toUpperCase();
-        const expansion = ABBREVIATIONS[upperMatched] || ABBREVIATIONS[upperMatched + '.'];
-        return expansion ? expansion : matched;
+        return ABBREVIATIONS[upperMatched] || ABBREVIATIONS[upperMatched + '.'] || matched;
     });
 
-    // 2. Limpieza de puntuación y conectores
     seoTitle = seoTitle
-        .replace(/[,()]/g, " ") // Cambiar comas y paréntesis por espacios
-        .replace(/\.([A-Z])/g, " $1") // Punto seguido de letra -> espacio
-        .replace(/\./g, " ") // Eliminar puntos restantes
+        .replace(/[,()]/g, " ")
+        .replace(/\.([A-Z])/g, " $1")
+        .replace(/\./g, " ")
         .replace(/\b(DE|LA|EL|LOS|LAS|CON|PARA|DEL)\b/gi, "")
         .replace(/NUEVO|OFERTA|PROMO|BARATO|ENVIO GRATIS|EXCELENTE/gi, "")
         .replace(/\s+/g, " ")
@@ -99,40 +95,28 @@ function optimizeSEO(title) {
 function getSplitTitles(rawTitle) {
     if (!rawTitle) return [];
     const cleanTitle = String(rawTitle).toUpperCase().replace(/[,()]/g, " ").replace(/\s+/g, " ").trim();
-    
-    // Identificar modelos presentes
     let findings = [];
     VEHICLE_MODELS.forEach(model => {
         let pos = cleanTitle.indexOf(model);
         while (pos !== -1) {
-            // Verificar límite de palabra
             const isStart = pos === 0 || cleanTitle[pos-1] === ' ';
             const isEnd = pos + model.length === cleanTitle.length || cleanTitle[pos + model.length] === ' ';
-            
-            if (isStart && isEnd) {
-                findings.push({ model, pos });
-            }
+            if (isStart && isEnd) findings.push({ model, pos });
             pos = cleanTitle.indexOf(model, pos + 1);
         }
     });
 
-    // Eliminar modelos que están contenidos dentro de otros hallazgos más largos (ej: CHEROKEE dentro de GRAND CHEROKEE)
     findings = findings.filter(f => !findings.some(other => other !== f && other.pos <= f.pos && (other.pos + other.model.length) >= (f.pos + f.model.length) && other.model.length > f.model.length));
-
     findings.sort((a, b) => a.pos - b.pos);
-
     if (findings.length <= 1) return [rawTitle];
 
-    const firstModelPos = findings[0].pos;
-    const prefix = cleanTitle.substring(0, firstModelPos).trim();
-    
+    const prefix = cleanTitle.substring(0, findings[0].pos).trim();
     let segments = [];
     for (let i = 0; i < findings.length; i++) {
         const start = findings[i].pos;
         const end = (i + 1 < findings.length) ? findings[i+1].pos : cleanTitle.length;
         segments.push(cleanTitle.substring(start, end).trim());
     }
-
     return segments.map(seg => `${prefix} ${seg}`.trim());
 }
 
@@ -142,9 +126,7 @@ export async function POST(req) {
         const file = formData.get("file");
         const accountId = formData.get("accountId");
 
-        if (!file || !accountId) {
-            return NextResponse.json({ error: "Faltan datos" }, { status: 400 });
-        }
+        if (!file || !accountId) return NextResponse.json({ error: "Faltan datos" }, { status: 400 });
 
         const bytes = await file.arrayBuffer();
         const workbook = XLSX.read(bytes, { type: "buffer" });
@@ -154,51 +136,48 @@ export async function POST(req) {
         const worksheet = workbook.Sheets[dataSheetName];
         const rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
-        // Identificar categoría ML
         let mlCategoryName = rawRows[1] && rawRows[1][0] ? String(rawRows[1][0]).trim() : null;
         if (!mlCategoryName && rawRows[0] && rawRows[0][1]) {
             const parts = String(rawRows[0][1]).split(' > ');
             mlCategoryName = parts[parts.length - 1].trim();
         }
-
         if (!mlCategoryName) return NextResponse.json({ error: "Categoría no detectada" }, { status: 400 });
 
-        // Mapeos - BUSQUEDA EXACTA PRIMERO para evitar mezclar categorías (Amortiguadores vs Bases)
-        let { data: mappings } = await supabaseAdmin
-            .from('category_mappings')
-            .select('internal_name')
-            .eq('ml_category_name', mlCategoryName);
-        
-        // Si no hay exacta, intentar una más restrictiva
-        if (!mappings || mappings.length === 0) {
-            const { data: fallback } = await supabaseAdmin
-                .from('category_mappings')
-                .select('internal_name')
-                .ilike('ml_category_name', mlCategoryName);
-            mappings = fallback;
-        }
-
-        if (!mappings || mappings.length === 0) {
-            return NextResponse.json({ error: `No hay mapeos para ${mlCategoryName}` }, { status: 400 });
-        }
+        const { data: mappings } = await supabaseAdmin.from('category_mappings').select('internal_name').eq('ml_category_name', mlCategoryName);
+        if (!mappings || mappings.length === 0) return NextResponse.json({ error: `No hay mapeos para ${mlCategoryName}` }, { status: 400 });
 
         const sublineNames = mappings.map(m => m.internal_name.toUpperCase());
 
-        // SKUs publicados
-        const { data: publishedItems } = await supabaseAdmin.from('publications').select('sku').eq('account_id', accountId);
-        const publishedSkus = new Set(publishedItems?.map(p => p.sku) || []);
+        // --- NUEVA LÓGICA DE DETECCIÓN DE PUBLICADOS (MÁS PRECISA) ---
+        // Consultar productos reales de ML sincronizados en la tabla 'products'
+        const { data: mlProducts } = await supabaseAdmin
+            .from('products')
+            .select('sku')
+            .eq('meli_account_id', accountId);
+        
+        const publishedSkusSet = new Set();
+        mlProducts?.forEach(p => {
+            // Soportar SKUs múltiples separados por coma, espacio o barra (igual que en la auditoría)
+            String(p.sku || "").split(/[, /]+/).forEach(s => {
+                const clean = s.trim().toUpperCase();
+                if (clean) publishedSkusSet.add(clean);
+            });
+        });
 
-        // Productos de Profit - FILTRAR POR SUBLÍNEA EXACTA
         const { data: items } = await supabaseAdmin
             .from('internal_inventory')
             .select('*')
             .in('subcategory', sublineNames)
             .gt('stock', 0);
 
-        const missingItems = (items || []).filter(item => !publishedSkus.has(item.sku));
-        if (missingItems.length === 0) return NextResponse.json({ error: "Sin productos nuevos" }, { status: 400 });
+        // Filtrar missingItems usando el Set de SKUs publicados normalizados
+        const missingItems = (items || []).filter(item => {
+            const sku = String(item.sku || "").trim().toUpperCase();
+            return !publishedSkusSet.has(sku);
+        });
 
-        // Fotos
+        if (missingItems.length === 0) return NextResponse.json({ error: "Sin productos nuevos para publicar." }, { status: 400 });
+
         const allSkus = missingItems.map(i => i.sku);
         const { data: photoData } = await supabaseAdmin.from('image_bank').select('sku, ml_url, ml_picture_id').in('sku', allSkus).eq('sync_status', 'synced');
         const skuPhotoMap = {};

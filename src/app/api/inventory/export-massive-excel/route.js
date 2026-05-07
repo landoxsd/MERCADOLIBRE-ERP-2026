@@ -43,15 +43,13 @@ const ABBREVIATIONS = {
 function optimizeTitle(rawTitle) {
     if (!rawTitle) return '';
     let seoTitle = String(rawTitle).toUpperCase();
-    
     const sortedKeys = Object.keys(ABBREVIATIONS).sort((a, b) => b.length - a.length);
     const escapedKeys = sortedKeys.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
     const regex = new RegExp(`\\b(${escapedKeys.join('|')})(?=\\.|\\s|$)`, 'gi');
     
     seoTitle = seoTitle.replace(regex, (matched) => {
         const upperMatched = matched.toUpperCase();
-        const expansion = ABBREVIATIONS[upperMatched] || ABBREVIATIONS[upperMatched + '.'];
-        return expansion ? expansion : matched;
+        return ABBREVIATIONS[upperMatched] || ABBREVIATIONS[upperMatched + '.'] || matched;
     });
 
     seoTitle = seoTitle
@@ -63,10 +61,7 @@ function optimizeTitle(rawTitle) {
         .replace(/\s+/g, " ")
         .trim();
     
-    // Capitalize first letter of each word (optional, but looks better)
-    seoTitle = seoTitle.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
-
-    return seoTitle.substring(0, 60).trim();
+    return seoTitle.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
 }
 
 function buildBaseRow(item, photoUrls) {
@@ -171,7 +166,6 @@ export async function POST(req) {
         }
 
         const workbook = XLSX.utils.book_new();
-        // (省略: Ayuda and Resumen_General similar logic)
         
         for (const [catKey, group] of Object.entries(groups)) {
             const sheetRows = [];
