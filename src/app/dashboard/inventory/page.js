@@ -110,6 +110,14 @@ export default function InventoryAuditPage() {
 
   // Preview State
   const [previewItem, setPreviewItem] = useState(null); // { item, subline }
+  const [suggestedAttrs, setSuggestedAttrs] = useState([]);
+  const [suggesting, setSuggesting] = useState(false);
+  const [exportingMassive, setExportingMassive] = useState(false);
+  const [massiveFilters, setMassiveFilters] = useState({ withStock: true, withPhotos: false, limit: 1000, singleSheet: false });
+  const [profitListFile, setProfitListFile] = useState(null);
+  const [mlTemplateFile, setMlTemplateFile] = useState(null);
+  const [processingList, setProcessingList] = useState(false);
+  const [dragging, setDragging] = useState(false);
 
 
   useEffect(() => {
@@ -200,18 +208,6 @@ export default function InventoryAuditPage() {
   // Alias dinámico para los resultados actuales
   const results = auditMode === 'master' ? resultsMaster : resultsInbound;
   const currentFile = auditMode === 'master' ? fileMaster : fileInbound;
-
-  const [suggestedAttrs, setSuggestedAttrs] = useState([]);
-  const [suggesting, setSuggesting] = useState(false);
-
-  // Estados para Exportación Masiva ML
-  const [exportingMassive, setExportingMassive] = useState(false);
-  const [massiveFilters, setMassiveFilters] = useState({
-    withStock: true,
-    withPhotos: false,
-    singleSheet: true,
-    limit: 5000
-  });
 
   const handleSuggestAttributes = async () => {
     if (!previewItem || !activeAccount) return;
@@ -361,6 +357,53 @@ export default function InventoryAuditPage() {
     } finally {
       setLoading(false);
       setUploadProgress({ current: 0, total: 0 });
+    }
+  };
+
+  const handleFillTemplateFromList = async () => {
+    if (!activeAccount || !profitListFile || !mlTemplateFile) {
+      alert("Por favor selecciona ambos archivos (Profit y Plantilla ML)");
+      return;
+    }
+    setProcessingList(true);
+    try {
+      const formData = new FormData();
+      formData.append('profitFile', profitListFile);
+      formData.append('templateFile', mlTemplateFile);
+      formData.append('accountId', activeAccount);
+
+      const res = await fetch('/api/inventory/fill-template-from-list', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err.error || 'Error al procesar el listado');
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Plantilla_Rellena_${profitListFile.name}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      
+      // Reset files
+      setProfitListFile(null);
+      setMlTemplateFile(null);
+      // Limpiar inputs visualmente
+      document.getElementById('profit-list-input').value = "";
+      document.getElementById('ml-template-input').value = "";
+
+    } catch (err) {
+      alert('Error de red al procesar el listado');
+    } finally {
+      setProcessingList(false);
     }
   };
 
@@ -700,53 +743,67 @@ export default function InventoryAuditPage() {
         </p>
       </header>
 
-      <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem' }}>
-        <button
-          onClick={() => setAuditMode('master')}
-          style={{
-            padding: '1rem 2rem', borderRadius: '12px', cursor: 'pointer', border: 'none', fontWeight: 'bold',
-            background: auditMode === 'master' ? '#3b82f6' : 'rgba(255,255,255,0.05)',
-            color: auditMode === 'master' ? 'white' : 'rgba(255,255,255,0.5)',
-            transition: 'all 0.3s'
-          }}
-        >
-          🏢 Auditoría Maestro (Global)
-        </button>
-        <button
-          onClick={() => setAuditMode('inbound')}
-          style={{
-            padding: '1rem 2rem', borderRadius: '12px', cursor: 'pointer', border: 'none', fontWeight: 'bold',
-            background: auditMode === 'inbound' ? '#fbbf24' : 'rgba(255,255,255,0.05)',
-            color: auditMode === 'inbound' ? 'black' : 'rgba(255,255,255,0.5)',
-            transition: 'all 0.3s'
-          }}
-        >
-          📦 Recepción de Mercancía (Novedades)
-        </button>
-      </div>
+      <div className={styles.uploadOptions}>
+          <div className={styles.modeSelector}>
+            <button className={auditMode === 'master' ? styles.activeMode : ''} onClick={() => setAuditMode('master')}>
+              📋 Auditoría Maestra (Profit Completo)
+            </button>
+            <button className={auditMode === 'inbound' ? styles.activeMode : ''} onClick={() => setAuditMode('inbound')}>
+              📦 Entrada de Mercancía (Factura/Nota)
+            </button>
+            <button className={auditMode === 'list' ? styles.activeMode : ''} onClick={() => setAuditMode('list')}>
+              🎯 Publicar por Listado Específico
+            </button>
+          </div>
+          
+          {auditMode === 'list' ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%', background: 'rgba(255,255,255,0.03)', padding: '1.5rem', borderRadius: '12px', border: '1px dashed rgba(255,255,255,0.1)' }}>
+               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div className={styles.fileDropZone} style={{ padding: '1rem' }}>
+                    <p style={{ fontSize: '0.8rem', marginBottom: '0.5rem', opacity: 0.7 }}>1. Listado de Profit (SKUs/Stock)</p>
+                    <input type="file" id="profit-list-input" accept=".xlsx" onChange={(e) => setProfitListFile(e.target.files[0])} />
+                  </div>
+                  <div className={styles.fileDropZone} style={{ padding: '1rem' }}>
+                    <p style={{ fontSize: '0.8rem', marginBottom: '0.5rem', opacity: 0.7 }}>2. Plantilla ML (Categoría)</p>
+                    <input type="file" id="ml-template-input" accept=".xlsx" onChange={(e) => setMlTemplateFile(e.target.files[0])} />
+                  </div>
+               </div>
+               <button 
+                className={styles.primaryBtn} 
+                onClick={handleFillTemplateFromList}
+                disabled={processingList || !profitListFile || !mlTemplateFile}
+                style={{ background: '#10b981', alignSelf: 'center', minWidth: '300px' }}
+               >
+                {processingList ? '⏳ Procesando y Cruzando...' : '📄 Generar Plantilla para Publicar'}
+               </button>
+               <p style={{ textAlign: 'center', fontSize: '0.75rem', opacity: 0.5 }}>
+                Este proceso filtra los ya publicados y rellena la plantilla con fotos, SEO y aplicaciones automáticas.
+               </p>
+            </div>
+          ) : (
+            <div 
+              className={`${styles.fileDropZone} ${dragging ? styles.dragging : ''}`}
+              onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={handleDrop}
+            >
+              <input type="file" id="inventory-file" hidden onChange={handleFileSelect} accept=".xlsx" />
+              <label htmlFor="inventory-file">
+                {currentFile ? (
+                  <div className={styles.fileInfo}>
+                    <span className={styles.fileName}>📄 {currentFile.name}</span>
+                    <span className={styles.fileSize}>({(currentFile.size / 1024).toFixed(1)} KB)</span>
+                  </div>
+                ) : (
+                  <>
+                    <span className={styles.uploadIcon}>📊</span>
+                    <p>Arrastra el Excel de Profit o haz clic para buscar</p>
+                  </>
+                )}
+              </label>
+            </div>
+          )}
 
-      <div style={{ background: auditMode === 'master' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(251, 191, 36, 0.1)', borderLeft: `4px solid ${auditMode === 'master' ? '#3b82f6' : '#fbbf24'}`, padding: '1.5rem', borderRadius: '8px', marginBottom: '2rem' }}>
-        <h3 style={{ color: auditMode === 'master' ? '#60a5fa' : '#fbbf24', marginBottom: '0.8rem', fontSize: '1.1rem' }}>
-          💡 Modo: {auditMode === 'master' ? 'AUDITORÍA MAESTRA' : 'ENTRADA DE MERCANCÍA'}
-        </h3>
-        <p style={{ margin: 0, color: 'rgba(255,255,255,0.8)' }}>
-          {auditMode === 'master'
-            ? 'Usa este modo para comparar todo tu almacén. Detecta qué publicaciones sobran (Huérfanos) para pausarlas.'
-            : 'Usa este modo al recibir mercancía nueva. El sistema ignorará los huérfanos y se enfocará solo en lo que falta publicar.'}
-        </p>
-      </div>
-
-      <section className={styles.uploadCard}>
-        <h2>Subir archivo de {auditMode === 'master' ? 'Inventario Completo' : 'Nota de Recepción'}</h2>
-        <div className={styles.dropzone}>
-          <input
-            type="file"
-            onChange={(e) => {
-              if (auditMode === 'master') setFileMaster(e.target.files[0]);
-              else setFileInbound(e.target.files[0]);
-            }}
-            accept=".xlsx, .xls, .csv"
-          />
           <button className={styles.primaryBtn}
             style={{ background: auditMode === 'inbound' ? '#fbbf24' : '#3b82f6', color: auditMode === 'inbound' ? 'black' : 'white' }}
             onClick={handleUpload} disabled={loading || !currentFile}>
@@ -756,8 +813,7 @@ export default function InventoryAuditPage() {
                   : `🔍 Procesando... (${elapsedTime}s)`)
               : (auditMode === 'master' ? '🔍 Iniciar Auditoría' : '📦 Procesar Entrada')}
           </button>
-        </div>
-      </section>
+      </div>
 
       {results && (
         <div className={styles.resultsGrid}>
