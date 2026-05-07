@@ -2,20 +2,17 @@
 import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { getCategoryInfo } from "@/lib/meli-categories";
 
 export const maxDuration = 300;
 
 const ABBREVIATIONS = {
     'AMORT.': 'AMORTIGUADOR', 'AMORT': 'AMORTIGUADOR',
-    'DEL.': 'DELANTERO', 'DEL': 'DELANTERO',
-    'TRAS.': 'TRASERO', 'TRAS': 'TRASERO',
+    'DEL.': 'DELANTERO', 'DEL': 'DELANTERO', 'DELT.': 'DELANTERO', 'DELT': 'DELANTERO',
+    'TRAS.': 'TRASERO', 'TRAS': 'TRASERO', 'TRST.': 'TRASERO', 'TRST': 'TRASERO',
     'IZQ.': 'IZQUIERDO', 'IZQ': 'IZQUIERDO',
     'DER.': 'DERECHO', 'DER': 'DERECHO',
     'SUP.': 'SUPERIOR', 'SUP': 'SUPERIOR',
     'INF.': 'INFERIOR', 'INF': 'INFERIOR',
-    'ART.': 'ARTICULO', 'ART': 'ARTICULO',
-    'DESC.': 'DESCRIPCION', 'DESC': 'DESCRIPCION',
     'PAST.': 'PASTILLAS', 'PAST': 'PASTILLAS',
     'BOMB.': 'BOMBA', 'BOMB': 'BOMBA',
     'BUJ.': 'BUJE', 'BUJ': 'BUJE',
@@ -25,20 +22,36 @@ const ABBREVIATIONS = {
     'EMP.': 'EMPACADURA', 'EMP': 'EMPACADURA',
     'ESTOP.': 'ESTOPERA', 'ESTOP': 'ESTOPERA',
     'ROD.': 'RODAMIENTO', 'ROD': 'RODAMIENTO',
-    'CHEV.': 'CHEVROLET', 'CHEV': 'CHEVROLET',
+    'FILT.': 'FILTRO', 'FILT': 'FILTRO',
+    'VALV.': 'VALVULA', 'VALV': 'VALVULA',
+    'CHEV.': 'CHEVROLET', 'CHEV': 'CHEVROLET', 'CHEVY': 'CHEVROLET',
     'TOY.': 'TOYOTA', 'TOY': 'TOYOTA',
     'MIT.': 'MITSUBISHI', 'MIT': 'MITSUBISHI',
     'HYU.': 'HYUNDAI', 'HYU': 'HYUNDAI',
     'FOR.': 'FORD', 'FOR': 'FORD',
     'MAZ.': 'MAZDA', 'MAZ': 'MAZDA',
-    'REN.': 'RENAULT', 'REN': 'RENAULT'
+    'REN.': 'RENAULT', 'REN': 'RENAULT',
+    'CIL.': 'CILINDRO', 'CIL': 'CILINDRO',
+    'MULT.': 'MULTIPLE', 'MULT': 'MULTIPLE',
+    'CREM.': 'CREMALLERA', 'CREM': 'CREMALLERA'
 };
 
 const VEHICLE_MODELS = [
     'FIESTA', 'ECOSPORT', 'AVEO', 'CORSA', 'VITARA', 'OPTRA', 'SPARK', 'CRUZE', 'ORLANDO', 
     'LUV DMAX', 'D-MAX', 'KADETT', 'MONZA', 'SILVERADO', 'TAHOE', 'GRAND VITARA', 'SWIFT', 
     'ESTEEM', 'JIMNY', 'SAMURAI', 'EXPLORER', 'FOCUS', 'FUSION', 'RANGER', 'TRITON', 'HILUX',
-    'COROLLA', 'YARIS', 'FORTUNER', 'CELICA', 'CAMRY', 'TERIOS', 'MERU', 'PRADO', 'BORA', 'GOL'
+    'COROLLA', 'YARIS', 'FORTUNER', 'CELICA', 'CAMRY', 'TERIOS', 'MERU', 'PRADO', 'BORA', 'GOL',
+    'JETTA', 'PASSAT', 'TIGUAN', 'POLO', 'AMAROK', 'SENTRA', 'TIIDA', 'ALMERA', 'FRONTIER', 
+    'PATHFINDER', 'PATROL', 'XTERRA', 'CIVIC', 'ACCORD', 'FIT', 'CRV', 'ODYSSEY', 'PILOT',
+    'TUCSON', 'SANTA FE', 'ELANTRA', 'GETZ', 'ACCENT', 'SPORTAGE', 'RIO', 'PICANTO', 'SORENTO',
+    'CERATO', 'K2700', 'CANTER', 'L300', 'L200', 'MONTERO', 'DAKAR', 'SIGNUM', 'LANCER',
+    'LOGAN', 'SYMBOL', 'MEGANE', 'KANGOO', 'TWINGO', 'CLIO', 'DUSTER', 'SANDERO', 'CAPTUR',
+    'GRAN CHEROKEE', 'CHEROKEE', 'LIBERTY', 'WRANGLER', 'WAGONEER', 'COMPASS', 'RENEGADE',
+    'GRAND WAGONEER', 'COMMANDER', 'CALIBER', 'JOURNEY', 'RAM', 'DAKOTA', 'NEON', 'STRATUS',
+    'BLAZER', 'S10', 'TRAILBLAZER', 'ASTRA', 'MERIVA', 'MONTANA', 'ZAFIRA', 'IMPALA', 'MALIBU',
+    'COLORADO', 'CAPRICE', 'CELEBRITY', 'CAVALIER', 'CHEVETTE', 'KODIAK', 'NHR', 'NPR', 'NKR',
+    'FVR', 'EXPRESS', 'VENTURE', 'LUMINA', 'MONTE CARLO', 'LEBARON', 'ASPEN', 'ENCAVA', 'IVECO',
+    'MACK', 'SCANIA', 'VOLVO', 'FREIGHTLINER', 'INTERNATIONAL'
 ];
 
 const DESCRIPTION_FOOTER = `
@@ -56,7 +69,10 @@ Realice todas sus preguntas, estamos para servirle.
 `;
 
 function optimizeSEO(title) {
+    if (!title) return '';
     let seoTitle = String(title).toUpperCase();
+    
+    // 1. Expandir abreviaturas
     const sortedKeys = Object.keys(ABBREVIATIONS).sort((a, b) => b.length - a.length);
     const escapedKeys = sortedKeys.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
     const regex = new RegExp(`\\b(${escapedKeys.join('|')})(?=\\.|\\s|$)`, 'gi');
@@ -67,8 +83,11 @@ function optimizeSEO(title) {
         return expansion ? expansion : matched;
     });
 
+    // 2. Limpieza de puntuación y conectores
     seoTitle = seoTitle
-        .replace(/[,()]/g, "")
+        .replace(/[,()]/g, " ") // Cambiar comas y paréntesis por espacios
+        .replace(/\.([A-Z])/g, " $1") // Punto seguido de letra -> espacio
+        .replace(/\./g, " ") // Eliminar puntos restantes
         .replace(/\b(DE|LA|EL|LOS|LAS|CON|PARA|DEL)\b/gi, "")
         .replace(/NUEVO|OFERTA|PROMO|BARATO|ENVIO GRATIS|EXCELENTE/gi, "")
         .replace(/\s+/g, " ")
@@ -78,13 +97,18 @@ function optimizeSEO(title) {
 }
 
 function getSplitTitles(rawTitle) {
+    if (!rawTitle) return [];
     const cleanTitle = String(rawTitle).toUpperCase().replace(/[,()]/g, " ").replace(/\s+/g, " ").trim();
+    
+    // Identificar modelos presentes
     let findings = [];
     VEHICLE_MODELS.forEach(model => {
         let pos = cleanTitle.indexOf(model);
         while (pos !== -1) {
+            // Verificar límite de palabra
             const isStart = pos === 0 || cleanTitle[pos-1] === ' ';
             const isEnd = pos + model.length === cleanTitle.length || cleanTitle[pos + model.length] === ' ';
+            
             if (isStart && isEnd) {
                 findings.push({ model, pos });
             }
@@ -92,7 +116,11 @@ function getSplitTitles(rawTitle) {
         }
     });
 
+    // Eliminar modelos que están contenidos dentro de otros hallazgos más largos (ej: CHEROKEE dentro de GRAND CHEROKEE)
+    findings = findings.filter(f => !findings.some(other => other !== f && other.pos <= f.pos && (other.pos + other.model.length) >= (f.pos + f.model.length) && other.model.length > f.model.length));
+
     findings.sort((a, b) => a.pos - b.pos);
+
     if (findings.length <= 1) return [rawTitle];
 
     const firstModelPos = findings[0].pos;
@@ -115,54 +143,62 @@ export async function POST(req) {
         const accountId = formData.get("accountId");
 
         if (!file || !accountId) {
-            return NextResponse.json({ error: "Faltan datos (archivo o accountId)" }, { status: 400 });
+            return NextResponse.json({ error: "Faltan datos" }, { status: 400 });
         }
 
         const bytes = await file.arrayBuffer();
         const workbook = XLSX.read(bytes, { type: "buffer" });
         const dataSheetName = workbook.SheetNames.find(name => name !== 'Ayuda' && name !== 'extra info');
-        if (!dataSheetName) {
-            return NextResponse.json({ error: "No se encontró una hoja de datos válida en la plantilla" }, { status: 400 });
-        }
+        if (!dataSheetName) return NextResponse.json({ error: "Plantilla inválida" }, { status: 400 });
 
         const worksheet = workbook.Sheets[dataSheetName];
         const rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
+        // Identificar categoría ML
         let mlCategoryName = rawRows[1] && rawRows[1][0] ? String(rawRows[1][0]).trim() : null;
         if (!mlCategoryName && rawRows[0] && rawRows[0][1]) {
             const parts = String(rawRows[0][1]).split(' > ');
             mlCategoryName = parts[parts.length - 1].trim();
         }
 
-        if (!mlCategoryName) {
-            return NextResponse.json({ error: "No se pudo identificar la categoría en la plantilla" }, { status: 400 });
-        }
+        if (!mlCategoryName) return NextResponse.json({ error: "Categoría no detectada" }, { status: 400 });
 
-        const { data: mappings } = await supabaseAdmin
+        // Mapeos - BUSQUEDA EXACTA PRIMERO para evitar mezclar categorías (Amortiguadores vs Bases)
+        let { data: mappings } = await supabaseAdmin
             .from('category_mappings')
             .select('internal_name')
-            .or(`ml_category_name.ilike.%${mlCategoryName}%,internal_name.ilike.%${mlCategoryName}%`);
+            .eq('ml_category_name', mlCategoryName);
+        
+        // Si no hay exacta, intentar una más restrictiva
+        if (!mappings || mappings.length === 0) {
+            const { data: fallback } = await supabaseAdmin
+                .from('category_mappings')
+                .select('internal_name')
+                .ilike('ml_category_name', mlCategoryName);
+            mappings = fallback;
+        }
 
         if (!mappings || mappings.length === 0) {
-            return NextResponse.json({ error: `No hay mapeos para la categoría: ${mlCategoryName}` }, { status: 400 });
+            return NextResponse.json({ error: `No hay mapeos para ${mlCategoryName}` }, { status: 400 });
         }
 
         const sublineNames = mappings.map(m => m.internal_name.toUpperCase());
 
+        // SKUs publicados
         const { data: publishedItems } = await supabaseAdmin.from('publications').select('sku').eq('account_id', accountId);
         const publishedSkus = new Set(publishedItems?.map(p => p.sku) || []);
 
+        // Productos de Profit - FILTRAR POR SUBLÍNEA EXACTA
         const { data: items } = await supabaseAdmin
             .from('internal_inventory')
             .select('*')
-            .or(`subcategory.in.(${sublineNames.map(s => `"${s}"`).join(',')})`)
+            .in('subcategory', sublineNames)
             .gt('stock', 0);
 
         const missingItems = (items || []).filter(item => !publishedSkus.has(item.sku));
-        if (missingItems.length === 0) {
-            return NextResponse.json({ error: "Todos los productos ya están publicados." }, { status: 400 });
-        }
+        if (missingItems.length === 0) return NextResponse.json({ error: "Sin productos nuevos" }, { status: 400 });
 
+        // Fotos
         const allSkus = missingItems.map(i => i.sku);
         const { data: photoData } = await supabaseAdmin.from('image_bank').select('sku, ml_url, ml_picture_id').in('sku', allSkus).eq('sync_status', 'synced');
         const skuPhotoMap = {};
@@ -178,9 +214,10 @@ export async function POST(req) {
         for (const item of missingItems) {
             const variantTitles = getSplitTitles(item.title);
             for (const vTitle of variantTitles) {
+                const optimizedTitle = optimizeSEO(vTitle);
                 const row = headers.map(h => {
                     const header = String(h || "").toLowerCase();
-                    if (header.includes('título')) return optimizeSEO(vTitle);
+                    if (header.includes('título')) return optimizedTitle;
                     if (header.includes('sku')) return item.sku;
                     if (header.includes('stock')) return item.stock;
                     if (header.includes('precio')) return item.price;
