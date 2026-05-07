@@ -14,102 +14,56 @@ export const dynamic = 'force-dynamic';
 
 // ── Diccionario de expansión de abreviaciones ───────────────────
 const ABBREVIATIONS = {
-    // Delimitadores exactos con punto o sin punto
     'AMORT.': 'Amortiguador', 'AMORT': 'Amortiguador',
     'DEL.': 'Delantero', 'DEL': 'Delantero',
     'TRAS.': 'Trasero', 'TRAS': 'Trasero',
     'IZQ.': 'Izquierdo', 'IZQ': 'Izquierdo',
     'DER.': 'Derecho', 'DER': 'Derecho',
-    'INF.': 'Inferior', 'INF': 'Inferior',
     'SUP.': 'Superior', 'SUP': 'Superior',
-    'EXT.': 'Exterior', 'EXT': 'Exterior',
-    'INT.': 'Interior', 'INT': 'Interior',
-    'SUSP.': 'Suspension', 'SUSP': 'Suspension',
-    'T/VALV.': 'Tapa Valvula', 'T/VALV': 'Tapa Valvula',
-    'TAPA VALV.': 'Tapa Valvula', 'TAPA VALV': 'Tapa Valvula',
+    'INF.': 'Inferior', 'INF': 'Inferior',
+    'PAST.': 'Pastillas', 'PAST': 'Pastillas',
+    'BOMB.': 'Bomba', 'BOMB': 'Bomba',
+    'BUJ.': 'Buje', 'BUJ': 'Buje',
+    'ROT.': 'Rotula', 'ROT': 'Rotula',
+    'TERM.': 'Terminal', 'TERM': 'Terminal',
+    'KIT.': 'Kit', 'KIT': 'Kit',
+    'EMP.': 'Empacadura', 'EMP': 'Empacadura',
+    'ESTOP.': 'Estopera', 'ESTOP': 'Estopera',
+    'ROD.': 'Rodamiento', 'ROD': 'Rodamiento',
+    'FILT.': 'Filtro', 'FILT': 'Filtro',
     'VALV.': 'Valvula', 'VALV': 'Valvula',
-    'TRANSM.': 'Transmision', 'TRANSM': 'Transmision',
-    'MOTOR.': 'Motor', 'MOTOR': 'Motor',
-    'ELECT.': 'Electrico', 'ELECT': 'Electrico',
-    'ELEC.': 'Electrico', 'ELEC': 'Electrico',
     'CHEV.': 'Chevrolet', 'CHEV': 'Chevrolet',
-    'MITS.': 'Mitsubishi', 'MITS': 'Mitsubishi',
-    'HYUN.': 'Hyundai', 'HYUN': 'Hyundai',
-    'KIA.': 'Kia', 'KIA': 'Kia',
     'TOY.': 'Toyota', 'TOY': 'Toyota',
-    'FORD.': 'Ford', 'FORD': 'Ford',
-    'HONDA.': 'Honda', 'HONDA': 'Honda',
-    'NISS.': 'Nissan', 'NISS': 'Nissan',
-    'MAZDA.': 'Mazda', 'MAZDA': 'Mazda',
-    'SUZUKI.': 'Suzuki', 'SUZUKI': 'Suzuki',
-    'VW.': 'Volkswagen', 'VW': 'Volkswagen',
-    'VOLKS.': 'Volkswagen', 'VOLKS': 'Volkswagen',
-    'BOMBA.': 'Bomba', 'BOMBA': 'Bomba',
-    'AGUA.': 'Agua', 'AGUA': 'Agua',
-    'ACEITE.': 'Aceite', 'ACEITE': 'Aceite',
-    'FRENO.': 'Freno', 'FRENO': 'Freno',
-    'DISCO.': 'Disco', 'DISCO': 'Disco',
-    'PASTILLA.': 'Pastilla', 'PASTILLA': 'Pastilla',
-    'TAMBOR.': 'Tambor', 'TAMBOR': 'Tambor',
-    'COJIN.': 'Cojinete', 'COJIN': 'Cojinete',
-    'BUJE.': 'Buje', 'BUJE': 'Buje',
-    'RODAM.': 'Rodamiento', 'RODAM': 'Rodamiento',
-    'JUNTA.': 'Junta', 'JUNTA': 'Junta',
-    'ESTOP.': 'Estoperol', 'ESTOP': 'Estoperol',
-    'RETEN.': 'Reten', 'RETEN': 'Reten',
-    'FILTRO.': 'Filtro', 'FILTRO': 'Filtro',
-    'AIRE.': 'Aire', 'AIRE': 'Aire',
-    'COMBUS.': 'Combustible', 'COMBUS': 'Combustible',
-    'DIREC.': 'Direccion', 'DIREC': 'Direccion',
-    'CAJA.': 'Caja', 'CAJA': 'Caja',
-    'DIFER.': 'Diferencial', 'DIFER': 'Diferencial',
-    'CARDAN.': 'Cardan', 'CARDAN': 'Cardan',
-    'PIÑON.': 'Pinon', 'PIÑON': 'Pinon',
-    'CORONA.': 'Corona', 'CORONA': 'Corona',
-    'EJE.': 'Eje', 'EJE': 'Eje',
-    'PALIER.': 'Palier', 'PALIER': 'Palier',
-    'TRIPODE.': 'Tripode', 'TRIPODE': 'Tripode',
-    'HOMOC.': 'Homocinetica', 'HOMOC': 'Homocinetica',
-    'ROTULA.': 'Rotula', 'ROTULA': 'Rotula',
-    'TERMIN.': 'Terminal', 'TERMIN': 'Terminal',
-    'BARRA.': 'Barra', 'BARRA': 'Barra',
-    'ESTAB.': 'Estabilizadora', 'ESTAB': 'Estabilizadora',
-    'BASE.': 'Base', 'BASE': 'Base',
-    'SOPORTE.': 'Soporte', 'SOPORTE': 'Soporte',
-    'GUARDA.': 'Guardapolvo', 'GUARDA': 'Guardapolvo',
-    'POLVO.': 'Polvo', 'POLVO': 'Polvo',
-    'FUELLE.': 'Fuelle', 'FUELLE': 'Fuelle',
-    'CREMALL.': 'Cremallera', 'CREMALL': 'Cremallera',
-    'BOMBIN.': 'Bomba', 'BOMBIN': 'Bomba',
-    'CILIND.': 'Cilindro', 'CILIND': 'Cilindro',
-    'MAESTRO.': 'Maestro', 'MAESTRO': 'Maestro',
-    'ESCLAVO.': 'Esclavo', 'ESCLAVO': 'Esclavo',
-    'PEDAL.': 'Pedal', 'PEDAL': 'Pedal',
-    'EMBRA.': 'Embrague', 'EMBRA': 'Embrague',
-    'CROCHET.': 'Crochet', 'CROCHET': 'Crochet',
-    'PLATO.': 'Plato', 'PLATO': 'Plato',
-    'DISCO EMB.': 'Disco Embrague', 'DISCO EMB': 'Disco Embrague',
-    'PRENSA.': 'Prensa', 'PRENSA': 'Prensa',
-    'RULEMAN.': 'Ruleman', 'RULEMAN': 'Ruleman',
-    'TENSOR.': 'Tensor', 'TENSOR': 'Tensor',
-    'CORREA.': 'Correa', 'CORREA': 'Correa',
-    'TIEMP.': 'Tiempo', 'TIEMP': 'Tiempo',
-    'MULTI.': 'Multiple', 'MULTI': 'Multiple',
-    'V.': '',  // evitar reemplazar V. suelto
-    'V': '',
+    'MIT.': 'Mitsubishi', 'MIT': 'Mitsubishi',
+    'HYU.': 'Hyundai', 'HYU': 'Hyundai',
+    'FOR.': 'Ford', 'FOR': 'Ford',
+    'MAZ.': 'Mazda', 'MAZ': 'Mazda',
+    'REN.': 'Renault', 'REN': 'Renault',
+    'CIL.': 'Cilindro', 'CIL': 'Cilindro',
+    'MULT.': 'Multiple', 'MULT': 'Multiple',
+    'CREM.': 'Cremallera', 'CREM': 'Cremallera'
 };
 
 function expandAbbreviations(text) {
     if (!text) return '';
     let result = String(text);
-    // Ordenar por longitud descendente para evitar reemplazos parciales
     const sortedKeys = Object.keys(ABBREVIATIONS).sort((a, b) => b.length - a.length);
-    for (const key of sortedKeys) {
-        const regex = new RegExp(`\\b${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
-        result = result.replace(regex, ABBREVIATIONS[key]);
-    }
-    // Limpiar espacios dobles
-    result = result.replace(/\s+/g, ' ').trim();
+    const escapedKeys = sortedKeys.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    const regex = new RegExp(`\\b(${escapedKeys.join('|')})(?=\\.|\\s|$)`, 'gi');
+
+    result = result.replace(regex, (matched) => {
+        const upperMatched = matched.toUpperCase();
+        const expansion = ABBREVIATIONS[upperMatched] || ABBREVIATIONS[upperMatched + '.'];
+        return expansion ? expansion : matched;
+    });
+
+    // Limpieza de puntuación, conectores y palabras irrelevantes
+    result = result
+        .replace(/[,()]/g, "") // Remueve comas y paréntesis
+        .replace(/\b(DE|LA|EL|LOS|LAS|CON|PARA|DEL)\b/gi, "") // Remueve conectores comunes
+        .replace(/\s+/g, " ")
+        .trim();
+    
     return result;
 }
 
@@ -140,7 +94,9 @@ function optimizeTitle(rawTitle) {
 // ── Helpers Excel ───────────────────────────────────────────────
 function buildBaseRow(item, photoUrls) {
     return {
-        'Grupo Interno (Sublínea)': item.subcategory || 'SIN CATEGORÍA',
+        'Línea Profit': item.category || 'SIN LÍNEA',
+        'Sublínea Profit': item.subcategory || 'SIN CATEGORÍA',
+        'Breadcrumb Profit': item.profit_breadcrumb || (item.category && item.subcategory ? `${item.category} > ${item.subcategory}` : item.category || item.subcategory || 'S/C'),
         'Título': optimizeTitle(item.title),
         'Cantidad de caracteres': optimizeTitle(item.title).length,
         'Condición': 'Nuevo',
@@ -148,7 +104,7 @@ function buildBaseRow(item, photoUrls) {
         'SKU': item.sku,
         'Stock': item.stock || 1,
         'Precio [US$]': item.price || 0,
-        'Descripción': `Producto Original. SKU: ${item.sku}. Código OEM: ${item.oem || 'N/A'}.`,
+        'Descripción': `Producto 100% Original. \nSKU: ${item.sku}. \nCódigo OEM: ${item.oem || 'N/A'}. \nMarca: ${item.brand || 'Genérico'}. \n\n¡Calidad Garantizada!`,
         'Tipo de publicación': 'Premium',
         'Cargo por venta': '-',
         'Forma de envío': 'Mercado Envíos',
@@ -211,21 +167,25 @@ export async function POST(req) {
                 const batchSkus = allSkus.slice(i, i + BATCH_SIZE);
                 const { data: invData, error: invError } = await supabaseAdmin
                     .from('internal_inventory')
-                    .select('sku, subcategory')
+                    .select('sku, subcategory, category, profit_breadcrumb')
                     .in('sku', batchSkus);
 
                 if (!invError && invData) {
                     invData.forEach(row => {
-                        skuSubcategoryMap[row.sku] = row.subcategory || 'SIN CATEGORÍA';
+                        skuSubcategoryMap[row.sku] = {
+                            subcategory: row.subcategory || 'SIN CATEGORÍA',
+                            category: row.category || 'SIN LÍNEA',
+                            profit_breadcrumb: row.profit_breadcrumb || ''
+                        };
                     });
                 }
             }
         }
 
-        // Asignar subcategory a cada item
+        // Asignar subcategory y category a cada item
         missingItems = missingItems.map(item => ({
             ...item,
-            subcategory: skuSubcategoryMap[item.sku] || 'SIN CATEGORÍA',
+            ...(skuSubcategoryMap[item.sku] || { subcategory: 'SIN CATEGORÍA', category: 'SIN LÍNEA', profit_breadcrumb: '' }),
         }));
 
         // 4. Obtener mapeos de categorías
@@ -235,12 +195,16 @@ export async function POST(req) {
         for (const sub of uniqueSubcategories) {
             const { data: mapping } = await supabaseAdmin
                 .from('category_mappings')
-                .select('ml_category_id, ml_category_name')
+                .select('ml_category_id, ml_category_name, internal_subline_code')
                 .ilike('internal_name', sub)
                 .limit(1)
                 .single();
 
-            subcategoryToMlCat[sub] = mapping || { ml_category_id: null, ml_category_name: 'SIN_CATEGORIA' };
+            subcategoryToMlCat[sub] = mapping || { 
+                ml_category_id: null, 
+                ml_category_name: 'SIN_CATEGORIA',
+                internal_subline_code: 'S/C'
+            };
         }
 
         // 5. Mapeo de Fotos
@@ -295,6 +259,12 @@ export async function POST(req) {
                 try {
                     const attrs = await getCategoryRequiredAttributes(group.categoryId);
                     categoryAttributes[catKey] = attrs;
+                    
+                    // También obtener el breadcrumb de ML
+                    const catInfo = await getCategoryInfo(group.categoryId);
+                    if (catInfo && catInfo.path_from_root) {
+                        group.mlBreadcrumb = catInfo.path_from_root.map(p => p.name).join(' > ');
+                    }
                 } catch (e) {
                     categoryAttributes[catKey] = [];
                 }
@@ -344,7 +314,8 @@ export async function POST(req) {
             'Unidad de Tiempo de garantía',
             'Marca', 
             'Número de pieza',
-            'Grupo Interno (Sublínea)'
+            'Código Sublínea',
+            'Nombre Sublínea'
         ];
         flatData.push(flatHeaders);
 
@@ -366,6 +337,7 @@ export async function POST(req) {
                 'días',
                 item.brand || 'Genérico',
                 item.oem || item.sku,
+                mlCat?.internal_subline_code || 'S/C',
                 item.subcategory || 'SIN CATEGORÍA'
             ]);
         }
@@ -387,23 +359,60 @@ export async function POST(req) {
             { wch: 15 }, // Unidad
             { wch: 20 }, // Marca
             { wch: 20 }, // Pieza
-            { wch: 25 }  // Sublínea
+            { wch: 15 }, // Código Sublínea
+            { wch: 30 }  // Nombre Sublínea
         ];
         XLSX.utils.book_append_sheet(workbook, flatSheet, 'Resumen_General');
 
-        // 10. Una pestaña por categoría
-        for (const [catKey, group] of Object.entries(groups)) {
-            const sheetRows = [];
-            const attrs = categoryAttributes[catKey] || [];
-
-            // Headers base + atributos de categoría
+        // 10. Una pestaña por categoría (O una sola hoja si se solicita)
+        if (filters.singleSheet) {
+            const allItemsRows = [];
             const baseHeaders = [
-                'Grupo Interno (Sublínea)', 'Título', 'Cantidad de caracteres', 'Condición', 'Fotos', 'SKU',
+                'Línea Profit', 'Sublínea Profit', 'Breadcrumb Profit', 'Título', 'Cantidad de caracteres', 'Condición', 'Fotos', 'SKU',
                 'Stock', 'Precio [US$]', 'Descripción', 'Tipo de publicación',
                 'Cargo por venta', 'Forma de envío', 'Costo de envío',
                 'Retiro en persona', 'Tipo de garantía', 'Tiempo de garantía',
-                'Unidad de Tiempo de garantía', 'Marca', 'Número de pieza'
+                'Unidad de Tiempo de garantía', 'Marca', 'Número de pieza',
+                'ID Categoría ML', 'Nombre Categoría ML', 'Breadcrumb ML'
             ];
+
+            allItemsRows.push(baseHeaders);
+
+            for (const item of missingItems) {
+                const mlCat = subcategoryToMlCat[item.subcategory];
+                const catKey = mlCat?.ml_category_id || 'SIN_CATEGORIA';
+                const group = groups[catKey];
+                const photoUrls = skuPhotoMap[item.sku] || [];
+                const baseRowData = buildBaseRow(item, photoUrls);
+                
+                const row = baseHeaders.map(h => {
+                    if (h === 'ID Categoría ML') return mlCat?.ml_category_id || 'N/A';
+                    if (h === 'Nombre Categoría ML') return mlCat?.ml_category_name || 'SIN CATEGORÍA';
+                    if (h === 'Breadcrumb ML') return group?.mlBreadcrumb || 'N/A';
+                    return baseRowData[h] || '';
+                });
+                allItemsRows.push(row);
+            }
+
+            const masterSheet = XLSX.utils.aoa_to_sheet(allItemsRows);
+            masterSheet['!cols'] = baseHeaders.map(h => ({
+                wch: h === 'Título' ? 50 : h.includes('Breadcrumb') ? 40 : h === 'Descripción' ? 60 : h === 'Fotos' ? 80 : 20
+            }));
+            XLSX.utils.book_append_sheet(workbook, masterSheet, 'Publicacion_Unificada');
+        } else {
+            for (const [catKey, group] of Object.entries(groups)) {
+                const sheetRows = [];
+                const attrs = categoryAttributes[catKey] || [];
+    
+                // Headers base + atributos de categoría
+                const baseHeaders = [
+                    'Línea Profit', 'Sublínea Profit', 'Breadcrumb Profit', 'Título', 'Cantidad de caracteres', 'Condición', 'Fotos', 'SKU',
+                    'Stock', 'Precio [US$]', 'Descripción', 'Tipo de publicación',
+                    'Cargo por venta', 'Forma de envío', 'Costo de envío',
+                    'Retiro en persona', 'Tipo de garantía', 'Tiempo de garantía',
+                    'Unidad de Tiempo de garantía', 'Marca', 'Número de pieza',
+                    'Breadcrumb ML'
+                ];
 
             const attrHeaders = attrs.map(a => a.name);
             const allHeaders = [...baseHeaders, ...attrHeaders];
@@ -454,7 +463,11 @@ export async function POST(req) {
 
                 const fullRow = {};
                 allHeaders.forEach(h => {
-                    fullRow[h] = baseRow[h] !== undefined ? baseRow[h] : attrRow[h] || '';
+                    if (h === 'Breadcrumb ML') {
+                        fullRow[h] = group.mlBreadcrumb || '';
+                    } else {
+                        fullRow[h] = baseRow[h] !== undefined ? baseRow[h] : attrRow[h] || '';
+                    }
                 });
 
                 sheetRows.push(allHeaders.map(h => fullRow[h]));

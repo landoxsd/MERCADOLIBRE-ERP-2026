@@ -209,6 +209,7 @@ export default function InventoryAuditPage() {
   const [massiveFilters, setMassiveFilters] = useState({
     withStock: true,
     withPhotos: false,
+    singleSheet: true,
     limit: 5000
   });
 
@@ -284,7 +285,8 @@ export default function InventoryAuditPage() {
       const idxOem = headers.findIndex(h => h === "CAMPO7" || h === "CODIGO ALTERNO" || h === "OEM");
       const idxStock = headers.findIndex(h => h === "STOCK" || h === "CANTIDAD" || h === "EXISTENCIA");
       const idxCost = headers.findIndex(h => h === "COSTO" || h === "PRECIO" || h === "COSTO ACTUAL");
-      const idxSubcategory = headers.findIndex(h => h.includes("SUB") && (h.includes("LINEA") || h.includes("CATEG")));
+      const idxSubcategory = headers.findIndex(h => h.includes("SUB") && (h.includes("LINEA") || h.includes("LÍNEA") || h.includes("CATEG")));
+      const idxCategory = headers.findIndex(h => !h.includes("SUB") && (h.includes("LINEA") || h.includes("LÍNEA") || h.includes("CATEG")));
 
       const finalIdxSku = idxSku >= 0 ? idxSku : 0;
       const finalIdxTitle = idxTitle >= 0 ? idxTitle : 1;
@@ -293,21 +295,30 @@ export default function InventoryAuditPage() {
       const finalIdxStock = idxStock >= 0 ? idxStock : 19;
       const finalIdxCost = idxCost >= 0 ? idxCost : 25;
       const finalIdxSubcategory = idxSubcategory >= 0 ? idxSubcategory : 4;
+      const finalIdxCategory = idxCategory >= 0 ? idxCategory : -1;
 
       const normalize = (s) => String(s || "").trim().toUpperCase();
 
       const internalItems = rawRows.slice(headerRowIndex + 1)
         .filter(row => row[finalIdxSku])
-        .map(row => ({
-          sku: normalize(row[finalIdxSku]),
-          title: String(row[finalIdxTitle] || "").trim(),
-          price: parseFloat(row[finalIdxCost] || 0),
-          cost: parseFloat(row[finalIdxCost] || 0),
-          stock: parseFloat(row[finalIdxStock] || 0),
-          brand: String(row[finalIdxBrand] || "").trim(),
-          oem: String(row[finalIdxOem] || "").trim(),
-          subcategory: finalIdxSubcategory >= 0 ? String(row[finalIdxSubcategory] || "").trim().toUpperCase() : null
-        }))
+        .map(row => {
+          const sku = normalize(row[finalIdxSku]);
+          const line = finalIdxCategory >= 0 ? String(row[finalIdxCategory] || "").trim().toUpperCase() : "";
+          const sub = finalIdxSubcategory >= 0 ? String(row[finalIdxSubcategory] || "").trim().toUpperCase() : "";
+          
+          return {
+            sku,
+            title: String(row[finalIdxTitle] || "").trim(),
+            price: parseFloat(row[finalIdxCost] || 0),
+            cost: parseFloat(row[finalIdxCost] || 0),
+            stock: parseFloat(row[finalIdxStock] || 0),
+            brand: String(row[finalIdxBrand] || "").trim(),
+            oem: String(row[finalIdxOem] || "").trim(),
+            category: line,
+            subcategory: sub,
+            profit_breadcrumb: line && sub ? `${line} > ${sub}` : (line || sub || "")
+          };
+        })
         .filter(item => item.sku && item.sku !== "CODIGO");
 
       setUploadProgress({ current: 0, total: internalItems.length });
@@ -416,12 +427,12 @@ export default function InventoryAuditPage() {
 
   const handleDownloadMassiveExcel = (items, subline) => {
     const massiveData = items.map(i => {
-      // Intentar obtener la primera foto si está marcada como disponible
-      // Nota: Si photoStatus[sku] es true, significa que hay al menos una foto en el Image Bank
-      // Como no tenemos la URL aquí, usaremos el endpoint de redirección o simplemente indicaremos que requiere el exportador masivo oficial
       const photoUrl = photoStatus[i.sku] ? "URL en Image Bank (Usar Exportador Masivo ML para obtener links)" : "";
 
       return {
+        "Línea Profit": i.category || "",
+        "Sublínea Profit": i.subcategory || subline,
+        "Breadcrumb Profit": i.profit_breadcrumb || (i.category ? `${i.category} > ${i.subcategory || subline}` : i.subcategory || subline),
         "Título": i.title,
         "Precio (USD)": i.price,
         "Condición": "Nuevo",
@@ -437,12 +448,13 @@ export default function InventoryAuditPage() {
 
     const worksheet = XLSX.utils.json_to_sheet(massiveData);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, subline.substring(0, 30));
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Publicacion_Masiva");
 
     // Auto-ajustar columnas
     worksheet['!cols'] = [
-      { wch: 50 }, { wch: 15 }, { wch: 15 }, { wch: 10 },
-      { wch: 60 }, { wch: 60 }, { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 20 }
+      { wch: 20 }, { wch: 25 }, { wch: 40 }, { wch: 50 }, { wch: 15 }, 
+      { wch: 15 }, { wch: 10 }, { wch: 60 }, { wch: 60 }, { wch: 20 }, 
+      { wch: 20 }, { wch: 20 }, { wch: 20 }
     ];
 
     XLSX.writeFile(workbook, `Masivo_ML_${subline.replace(/\s+/g, '_')}.xlsx`);
@@ -478,6 +490,41 @@ export default function InventoryAuditPage() {
       window.URL.revokeObjectURL(url);
     } catch (err) {
       alert('Error de red al generar el Excel masivo');
+    } finally {
+      setExportingMassive(false);
+    }
+  };
+
+  const handleFillTemplate = async (file) => {
+    if (!activeAccount || !file) return;
+    setExportingMassive(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('accountId', activeAccount);
+
+      const res = await fetch('/api/inventory/fill-template', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err.error || 'Error al rellenar la plantilla');
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = file.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('Error de red al procesar la plantilla');
     } finally {
       setExportingMassive(false);
     }
@@ -759,17 +806,40 @@ export default function InventoryAuditPage() {
               <h3 style={{ margin: 0, color: '#60a5fa', fontSize: '1.2rem' }}>📥 Exportar Excel para Publicación Masiva (ML)</h3>
               <p style={{ margin: '0.3rem 0 0 0', opacity: 0.6, fontSize: '0.85rem' }}>Genera un Excel compatible con https://www.mercadolibre.com.ve/publicar-masivamente/</p>
             </div>
-            <button
-              onClick={handleExportMassiveML}
-              disabled={exportingMassive}
-              style={{
-                background: exportingMassive ? '#1e3a5f' : '#3b82f6', color: 'white', padding: '1rem 2rem',
-                borderRadius: '10px', border: 'none', fontWeight: 'bold', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: '0.5rem'
-              }}
-            >
-              {exportingMassive ? '⏳ Generando...' : '📥 Descargar Excel Masivo ML'}
-            </button>
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button
+                onClick={handleExportMassiveML}
+                disabled={exportingMassive}
+                style={{
+                  background: exportingMassive ? '#1e3a5f' : '#3b82f6', color: 'white', padding: '1rem 2rem',
+                  borderRadius: '10px', border: 'none', fontWeight: 'bold', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: '0.5rem'
+                }}
+              >
+                {exportingMassive ? '⏳ Generando...' : '📥 Descargar Excel Masivo ML'}
+              </button>
+
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="file"
+                  id="template-upload"
+                  hidden
+                  onChange={(e) => handleFillTemplate(e.target.files[0])}
+                  accept=".xlsx"
+                />
+                <button
+                  onClick={() => document.getElementById('template-upload').click()}
+                  disabled={exportingMassive}
+                  style={{
+                    background: exportingMassive ? '#1e3a5f' : '#10b981', color: 'white', padding: '1rem 2rem',
+                    borderRadius: '10px', border: 'none', fontWeight: 'bold', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: '0.5rem'
+                  }}
+                >
+                  {exportingMassive ? '⏳ Procesando...' : '📄 Rellenar Plantilla ML'}
+                </button>
+              </div>
+            </div>
           </div>
 
           <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
@@ -788,6 +858,14 @@ export default function InventoryAuditPage() {
                 onChange={(e) => setMassiveFilters(prev => ({ ...prev, withPhotos: e.target.checked }))}
               />
               Solo con fotos subidas al banco de imágenes
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.9rem', color: '#fbbf24', fontWeight: 'bold' }}>
+              <input
+                type="checkbox"
+                checked={massiveFilters.singleSheet}
+                onChange={(e) => setMassiveFilters(prev => ({ ...prev, singleSheet: e.target.checked }))}
+              />
+              Pestaña Única (Auditoría Profit)
             </label>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <label style={{ fontSize: '0.9rem' }}>Máximo:</label>
