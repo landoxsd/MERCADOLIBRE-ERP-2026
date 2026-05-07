@@ -158,6 +158,8 @@ Realice todas sus preguntas, estamos para servirle.
 ✅ FACTURA FISCAL DISPONIBLE
 ✅ ENVIOS GRATIS A TODO EL PAIS (MRW, ZOOM, TEALCA)
 ✅ RETIRO EN PERSONA (VALENCIA / CARACAS)
+`;
+
         const optimizeSEO = (title) => {
             let seoTitle = String(title).toUpperCase();
             const sortedKeys = Object.keys(ABBREVIATIONS).sort((a, b) => b.length - a.length);

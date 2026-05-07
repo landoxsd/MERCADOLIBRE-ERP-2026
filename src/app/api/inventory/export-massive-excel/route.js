@@ -494,6 +494,7 @@ export async function POST(req) {
 
             XLSX.utils.book_append_sheet(workbook, worksheet, safeSheetName);
         }
+    }
 
         // 10. Generar buffer y responder
         const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
