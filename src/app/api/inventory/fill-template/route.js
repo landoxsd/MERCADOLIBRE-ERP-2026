@@ -51,7 +51,8 @@ const VEHICLE_MODELS = [
     'BLAZER', 'S10', 'TRAILBLAZER', 'ASTRA', 'MERIVA', 'MONTANA', 'ZAFIRA', 'IMPALA', 'MALIBU',
     'COLORADO', 'CAPRICE', 'CELEBRITY', 'CAVALIER', 'CHEVETTE', 'KODIAK', 'NHR', 'NPR', 'NKR',
     'FVR', 'EXPRESS', 'VENTURE', 'LUMINA', 'MONTE CARLO', 'LEBARON', 'ASPEN', 'ENCAVA', 'IVECO',
-    'MACK', 'SCANIA', 'VOLVO', 'FREIGHTLINER', 'INTERNATIONAL'
+    'MACK', 'SCANIA', 'VOLVO', 'FREIGHTLINER', 'INTERNATIONAL', 'PATRIOT', 'KA', 'WAGON R', 
+    'TICO', 'NUBIRA', 'STARLET', 'TERCEL', 'BALITA', 'LASER', 'ALLEGRO', 'ACCORD', 'CIVIC'
 ];
 
 const DESCRIPTION_FOOTER = `
@@ -81,9 +82,8 @@ function optimizeSEO(title) {
     });
 
     seoTitle = seoTitle
-        .replace(/[,()]/g, " ")
-        .replace(/\.([A-Z])/g, " $1")
-        .replace(/\./g, " ")
+        .replace(/[,().]/g, " ")
+        .replace(/\s+/g, " ")
         .replace(/\b(DE|LA|EL|LOS|LAS|CON|PARA|DEL)\b/gi, "")
         .replace(/NUEVO|OFERTA|PROMO|BARATO|ENVIO GRATIS|EXCELENTE/gi, "")
         .replace(/\s+/g, " ")
@@ -94,7 +94,7 @@ function optimizeSEO(title) {
 
 function getSplitTitles(rawTitle) {
     if (!rawTitle) return [];
-    const cleanTitle = String(rawTitle).toUpperCase().replace(/[,()]/g, " ").replace(/\s+/g, " ").trim();
+    const cleanTitle = String(rawTitle).toUpperCase().replace(/[,().]/g, " ").replace(/\s+/g, " ").trim();
     let findings = [];
     VEHICLE_MODELS.forEach(model => {
         let pos = cleanTitle.indexOf(model);
@@ -182,43 +182,43 @@ export async function POST(req) {
 
         // Cabeceras (Fila 3)
         const headerRow = worksheet.getRow(3);
-        const headers = [];
+        const columns = [];
         headerRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-            headers[colNumber] = String(cell.value || "").toLowerCase();
+            columns.push({ name: String(cell.value || "").toLowerCase(), index: colNumber });
         });
 
         let currentRow = 5; // Empezar a escribir en la fila 5 (ML Data start)
 
         for (const item of missingItems) {
-            const variantTitles = getSplitTitles(item.title);
-            for (const vTitle of variantTitles) {
-                const optTitle = optimizeSEO(vTitle);
-                const row = worksheet.getRow(currentRow);
-                
-                headers.forEach((header, colIdx) => {
-                    if (!header) return;
-                    if (header.includes('título')) row.getCell(colIdx).value = optTitle;
-                    else if (header.includes('sku')) row.getCell(colIdx).value = item.sku;
-                    else if (header.includes('stock')) row.getCell(colIdx).value = item.stock;
-                    else if (header.includes('precio')) row.getCell(colIdx).value = item.price;
-                    else if (header.includes('fotos')) row.getCell(colIdx).value = (photoMap[item.sku] || []).join(',');
-                    else if (header.includes('descripción')) {
-                        row.getCell(colIdx).value = `Producto Original. \nSKU: ${item.sku}. \nOEM: ${item.oem || 'N/A'}. \nMarca: ${item.brand || 'Genérico'}.\n\nAplicación: ${vTitle}` + DESCRIPTION_FOOTER;
-                    }
-                    else if (header.includes('condición')) row.getCell(colIdx).value = 'Nuevo';
-                    else if (header.includes('marca')) row.getCell(colIdx).value = item.brand || 'Genérico';
-                    else if (header.includes('número de pieza')) row.getCell(colIdx).value = item.oem || item.sku;
-                    else if (header.includes('tipo de publicación')) row.getCell(colIdx).value = 'Premium';
-                    else if (header.includes('forma de envío')) row.getCell(colIdx).value = 'Mercado Envíos';
-                    else if (header.includes('costo de envío')) row.getCell(colIdx).value = 'Envío gratis';
-                    else if (header.includes('retiro en persona')) row.getCell(colIdx).value = 'Acepto';
-                    else if (header.includes('tipo de garantía')) row.getCell(colIdx).value = 'Garantía del vendedor';
-                    else if (header.includes('tiempo de garantía')) row.getCell(colIdx).value = 30;
-                    else if (header.includes('unidad de tiempo de garantía')) row.getCell(colIdx).value = 'días';
-                });
-                row.commit();
-                currentRow++;
-            }
+            const optTitle = optimizeSEO(item.title);
+            const row = worksheet.getRow(currentRow);
+            
+            columns.forEach(col => {
+                const header = col.name;
+                const colIdx = col.index;
+                if (!header) return;
+
+                if (header === 'título' || header.includes('título: incluye')) row.getCell(colIdx).value = optTitle;
+                else if (header === 'sku' || header.includes('sku / código')) row.getCell(colIdx).value = item.sku;
+                else if (header === 'stock' || header.includes('cantidad')) row.getCell(colIdx).value = item.stock;
+                else if (header === 'precio' || header.includes('precio [us$]')) row.getCell(colIdx).value = item.price;
+                else if (header === 'fotos' || header.includes('fotos (url)')) row.getCell(colIdx).value = (photoMap[item.sku] || []).join(',');
+                else if (header === 'descripción') {
+                    row.getCell(colIdx).value = `Producto Original. \nSKU: ${item.sku}. \nOEM: ${item.oem || 'N/A'}. \nMarca: ${item.brand || 'Genérico'}.\n\nAplicación: ${item.title}` + DESCRIPTION_FOOTER;
+                }
+                else if (header === 'condición') row.getCell(colIdx).value = 'Nuevo';
+                else if (header === 'marca') row.getCell(colIdx).value = item.brand || 'Genérico';
+                else if (header === 'número de pieza') row.getCell(colIdx).value = item.oem || item.sku;
+                else if (header.includes('tipo de publicación')) row.getCell(colIdx).value = 'Premium';
+                else if (header.includes('forma de envío')) row.getCell(colIdx).value = 'Mercado Envíos';
+                else if (header.includes('costo de envío')) row.getCell(colIdx).value = 'Envío gratis';
+                else if (header.includes('retiro en persona')) row.getCell(colIdx).value = 'Acepto';
+                else if (header.includes('tipo de garantía')) row.getCell(colIdx).value = 'Garantía del vendedor';
+                else if (header.includes('tiempo de garantía')) row.getCell(colIdx).value = 30;
+                else if (header.includes('unidad de tiempo de garantía')) row.getCell(colIdx).value = 'días';
+            });
+            row.commit();
+            currentRow++;
         }
 
         const buffer = await workbook.xlsx.writeBuffer();
