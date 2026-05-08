@@ -129,31 +129,59 @@ export async function POST(req) {
 
         if (!profitFile || !templateFile || !accountId) return NextResponse.json({ error: "Faltan archivos o cuenta" }, { status: 400 });
 
-        // 1. Leer Listado de Profit (para obtener SKUs, Stock y Precios Reales)
+        // 1. Leer Listado de Profit (Búsqueda robusta de cabeceras)
         const profitBytes = await profitFile.arrayBuffer();
         const profitWb = XLSX.read(profitBytes, { type: "buffer" });
         const profitSheet = profitWb.Sheets[profitWb.SheetNames[0]];
-        const profitRows = XLSX.utils.sheet_to_json(profitSheet);
+        const rawProfitRows = XLSX.utils.sheet_to_json(profitSheet, { header: 1 });
 
-        // Identificar columnas en Profit
-        const firstRow = profitRows[0] || {};
-        const skuCol = Object.keys(firstRow).find(k => k.toLowerCase().includes('sku') || k.toLowerCase().includes('código') || k.toLowerCase().includes('codigo'));
-        const stockCol = Object.keys(firstRow).find(k => k.toLowerCase().includes('stock') || k.toLowerCase().includes('cant') || k.toLowerCase().includes('existencia'));
-        const priceCol = Object.keys(firstRow).find(k => k.toLowerCase().includes('precio') || k.toLowerCase().includes('venta') || k.toLowerCase().includes('vta'));
+        let headerRowIndex = -1;
+        let skuIdx = -1, stockIdx = -1, priceIdx = -1;
 
-        if (!skuCol) return NextResponse.json({ error: "No se encontró columna de SKU en el archivo de Profit" }, { status: 400 });
+        // Buscar la fila de cabecera en las primeras 30 filas
+        for (let i = 0; i < Math.min(rawProfitRows.length, 30); i++) {
+            const row = rawProfitRows[i];
+            if (!row || !Array.isArray(row)) continue;
+            
+            const sIdx = row.findIndex(c => {
+                const val = String(c || "").toUpperCase();
+                return val === "CODIGO" || val === "CÓDIGO" || val === "SKU" || val.includes("COD_ART");
+            });
+
+            if (sIdx !== -1) {
+                headerRowIndex = i;
+                skuIdx = sIdx;
+                // Buscar stock y precio en la misma fila
+                stockIdx = row.findIndex(c => {
+                    const val = String(c || "").toUpperCase();
+                    return val.includes("STOCK") || val.includes("EXISTENCIA") || val.includes("CANT");
+                });
+                priceIdx = row.findIndex(c => {
+                    const val = String(c || "").toUpperCase();
+                    return val.includes("PRECIO") || val.includes("VENTA") || val.includes("COSTO") || val.includes("P.VENTA");
+                });
+                break;
+            }
+        }
+
+        if (headerRowIndex === -1 || skuIdx === -1) {
+            return NextResponse.json({ error: "No se encontró columna de SKU/CODIGO en el archivo de Profit. Asegúrate de que el listado tenga una fila con estos títulos." }, { status: 400 });
+        }
 
         const profitDataMap = {};
-        profitRows.forEach(row => {
-            const sku = String(row[skuCol] || "").trim().toUpperCase();
-            if (sku) {
+        for (let i = headerRowIndex + 1; i < rawProfitRows.length; i++) {
+            const row = rawProfitRows[i];
+            if (!row || row.length === 0) continue;
+            
+            const sku = String(row[skuIdx] || "").trim().toUpperCase();
+            if (sku && sku !== "NULL") {
                 profitDataMap[sku] = {
                     sku,
-                    stock: parseFloat(row[stockCol] || 0),
-                    price: parseFloat(row[priceCol] || 0)
+                    stock: stockIdx !== -1 ? parseFloat(row[stockIdx] || 0) : 0,
+                    price: priceIdx !== -1 ? parseFloat(row[priceIdx] || 0) : 0
                 };
             }
-        });
+        }
 
         const profitSkus = Object.keys(profitDataMap);
 
