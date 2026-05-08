@@ -130,14 +130,21 @@ export async function POST(req) {
         const bytes = await file.arrayBuffer();
         const workbook = new ExcelJS.Workbook();
         await workbook.xlsx.load(Buffer.from(bytes));
-
-        const worksheet = workbook.worksheets.find(ws => ws.name !== 'Ayuda' && ws.name !== 'extra info');
-        if (!worksheet) return NextResponse.json({ error: "Plantilla inválida" }, { status: 400 });
+        const finalWorksheet = workbook.worksheets[0];
+        
+        // WORKAROUND CRÍTICO: exceljs falla al guardar plantillas con "Shared Formulas"
+        finalWorksheet.eachRow((row) => {
+            row.eachCell((cell) => {
+                if (cell.type === 6 && cell.sharedFormula) {
+                    delete cell.sharedFormula;
+                }
+            });
+        });
 
         // Identificar categoría ML
         let mlCategoryName = "";
-        const cellA1 = worksheet.getCell('A1').value;
-        const cellB1 = worksheet.getCell('B1').value;
+        const cellA1 = finalWorksheet.getCell('A1').value;
+        const cellB1 = finalWorksheet.getCell('B1').value;
 
         if (cellA1 && typeof cellA1 === 'string') {
              mlCategoryName = cellA1.trim();
@@ -208,7 +215,7 @@ export async function POST(req) {
 
         for (const item of missingItems) {
             const optTitle = optimizeSEO(item.title);
-            const row = worksheet.getRow(currentRow);
+            const row = finalWorksheet.getRow(currentRow);
             
             columns.forEach(col => {
                 const header = col.name;

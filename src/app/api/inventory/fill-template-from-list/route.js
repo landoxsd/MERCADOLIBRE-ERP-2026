@@ -234,6 +234,15 @@ export async function POST(req) {
         const worksheet = workbook.worksheets.find(ws => ws.name !== 'Ayuda' && ws.name !== 'extra info');
         if (!worksheet) return NextResponse.json({ error: "Plantilla de ML inválida" }, { status: 400 });
 
+        // WORKAROUND CRÍTICO: exceljs falla al guardar plantillas con "Shared Formulas"
+        worksheet.eachRow((row) => {
+            row.eachCell((cell) => {
+                if (cell.type === 6 && cell.sharedFormula) {
+                    delete cell.sharedFormula;
+                }
+            });
+        });
+
         // Detectar Cabeceras (Fila 3)
         const headerRow = worksheet.getRow(3);
         const columns = [];
