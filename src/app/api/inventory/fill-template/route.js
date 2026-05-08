@@ -131,15 +131,7 @@ export async function POST(req) {
         const workbook = new ExcelJS.Workbook();
         await workbook.xlsx.load(Buffer.from(bytes));
         const finalWorksheet = workbook.worksheets[0];
-        
-        // WORKAROUND CRÍTICO: exceljs falla al guardar plantillas con "Shared Formulas"
-        finalWorksheet.eachRow({ includeEmpty: true }, (row) => {
-            row.eachCell({ includeEmpty: true }, (cell) => {
-                if (cell.type === 6 && cell.sharedFormula) {
-                    delete cell.sharedFormula;
-                }
-            });
-        });
+
 
         // Identificar categoría ML
         let mlCategoryName = "";
@@ -243,6 +235,14 @@ export async function POST(req) {
             });
             row.commit();
             currentRow++;
+        }
+
+        // WORKAROUND DEFINITIVO: Eliminar todas las filas no utilizadas de la plantilla.
+        // Esto elimina las miles de fórmulas compartidas residuales (como la B631) 
+        // que causan el colapso de exceljs al guardar, y reduce drásticamente el peso del archivo.
+        const totalRows = finalWorksheet.rowCount;
+        if (totalRows >= currentRow) {
+            finalWorksheet.spliceRows(currentRow, totalRows - currentRow + 1);
         }
 
         const buffer = await workbook.xlsx.writeBuffer();
