@@ -133,8 +133,8 @@ export async function POST(req) {
         const finalWorksheet = workbook.worksheets[0];
         
         // WORKAROUND CRÍTICO: exceljs falla al guardar plantillas con "Shared Formulas"
-        finalWorksheet.eachRow((row) => {
-            row.eachCell((cell) => {
+        finalWorksheet.eachRow({ includeEmpty: true }, (row) => {
+            row.eachCell({ includeEmpty: true }, (cell) => {
                 if (cell.type === 6 && cell.sharedFormula) {
                     delete cell.sharedFormula;
                 }

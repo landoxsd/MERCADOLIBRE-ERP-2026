@@ -235,8 +235,8 @@ export async function POST(req) {
         if (!worksheet) return NextResponse.json({ error: "Plantilla de ML inválida" }, { status: 400 });
 
         // WORKAROUND CRÍTICO: exceljs falla al guardar plantillas con "Shared Formulas"
-        worksheet.eachRow((row) => {
-            row.eachCell((cell) => {
+        worksheet.eachRow({ includeEmpty: true }, (row) => {
+            row.eachCell({ includeEmpty: true }, (cell) => {
                 if (cell.type === 6 && cell.sharedFormula) {
                     delete cell.sharedFormula;
                 }
