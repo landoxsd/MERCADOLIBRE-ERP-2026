@@ -1,6 +1,7 @@
 
 import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export const maxDuration = 300;
@@ -54,20 +55,6 @@ const VEHICLE_MODELS = [
     'MACK', 'SCANIA', 'VOLVO', 'FREIGHTLINER', 'INTERNATIONAL'
 ];
 
-const DESCRIPTION_FOOTER = `
---------------------------------------------------
-🏢 TIENDA OFICIAL - CALIDAD GARANTIZADA
---------------------------------------------------
-✅ PRODUCTO 100% ORIGINAL Y NUEVO
-✅ FACTURA FISCAL DISPONIBLE
-✅ ENVIOS GRATIS A TODO EL PAIS (MRW, ZOOM, TEALCA)
-✅ RETIRO EN PERSONA (VALENCIA / CARACAS)
-
-⚠️ IMPORTANTE: 
-Por favor verifique la compatibilidad con su vehículo antes de ofertar. 
-Realice todas sus preguntas, estamos para servirle.
-`;
-
 function optimizeSEO(title) {
     if (!title) return '';
     let seoTitle = String(title).toUpperCase();
@@ -108,6 +95,7 @@ function getSplitTitles(rawTitle) {
     findings = findings.filter(f => !findings.some(other => other !== f && other.pos <= f.pos && (other.pos + other.model.length) >= (f.pos + f.model.length) && other.model.length > f.model.length));
     findings.sort((a, b) => a.pos - b.pos);
     if (findings.length <= 1) return [rawTitle];
+
     const prefix = cleanTitle.substring(0, findings[0].pos).trim();
     let segments = [];
     for (let i = 0; i < findings.length; i++) {
@@ -118,6 +106,20 @@ function getSplitTitles(rawTitle) {
     return segments.map(seg => `${prefix} ${seg}`.trim());
 }
 
+const DESCRIPTION_FOOTER = `
+--------------------------------------------------
+🏢 TIENDA OFICIAL - CALIDAD GARANTIZADA
+--------------------------------------------------
+✅ PRODUCTO 100% ORIGINAL Y NUEVO
+✅ FACTURA FISCAL DISPONIBLE
+✅ ENVIOS GRATIS A TODO EL PAIS (MRW, ZOOM, TEALCA)
+✅ RETIRO EN PERSONA (VALENCIA / CARACAS)
+
+⚠️ IMPORTANTE: 
+Por favor verifique la compatibilidad con su vehículo antes de ofertar. 
+Realice todas sus preguntas, estamos para servirle.
+`;
+
 export async function POST(req) {
     try {
         const formData = await req.formData();
@@ -125,42 +127,37 @@ export async function POST(req) {
         const templateFile = formData.get("templateFile");
         const accountId = formData.get("accountId");
 
-        if (!profitFile || !templateFile || !accountId) {
-            return NextResponse.json({ error: "Faltan archivos (Profit, Plantilla o Cuenta)" }, { status: 400 });
-        }
+        if (!profitFile || !templateFile || !accountId) return NextResponse.json({ error: "Faltan archivos o cuenta" }, { status: 400 });
 
-        // 1. Leer listado de Profit
+        // 1. Leer Listado de Profit (para obtener SKUs, Stock y Precios Reales)
         const profitBytes = await profitFile.arrayBuffer();
         const profitWb = XLSX.read(profitBytes, { type: "buffer" });
-        const profitWs = profitWb.Sheets[profitWb.SheetNames[0]];
-        const profitRows = XLSX.utils.sheet_to_json(profitWs, { header: 1 });
+        const profitSheet = profitWb.Sheets[profitWb.SheetNames[0]];
+        const profitRows = XLSX.utils.sheet_to_json(profitSheet);
 
-        // Identificar cabeceras de Profit
-        let headerIdx = -1;
-        for (let i = 0; i < Math.min(profitRows.length, 50); i++) {
-            if (profitRows[i]?.some(c => String(c).toUpperCase().includes("CODIGO"))) {
-                headerIdx = i;
-                break;
+        // Identificar columnas en Profit
+        const firstRow = profitRows[0] || {};
+        const skuCol = Object.keys(firstRow).find(k => k.toLowerCase().includes('sku') || k.toLowerCase().includes('código') || k.toLowerCase().includes('codigo'));
+        const stockCol = Object.keys(firstRow).find(k => k.toLowerCase().includes('stock') || k.toLowerCase().includes('cant') || k.toLowerCase().includes('existencia'));
+        const priceCol = Object.keys(firstRow).find(k => k.toLowerCase().includes('precio') || k.toLowerCase().includes('venta') || k.toLowerCase().includes('vta'));
+
+        if (!skuCol) return NextResponse.json({ error: "No se encontró columna de SKU en el archivo de Profit" }, { status: 400 });
+
+        const profitDataMap = {};
+        profitRows.forEach(row => {
+            const sku = String(row[skuCol] || "").trim().toUpperCase();
+            if (sku) {
+                profitDataMap[sku] = {
+                    sku,
+                    stock: parseFloat(row[stockCol] || 0),
+                    price: parseFloat(row[priceCol] || 0)
+                };
             }
-        }
-        if (headerIdx === -1) return NextResponse.json({ error: "No se encontró cabecera 'CODIGO' en el Excel de Profit" }, { status: 400 });
+        });
 
-        const pHeaders = profitRows[headerIdx].map(h => String(h || "").trim().toUpperCase());
-        const idxSku = pHeaders.findIndex(h => h.includes("CODIGO") || h === "ARTICULO");
-        const idxStock = pHeaders.findIndex(h => h === "STOCK" || h === "CANTIDAD" || h === "EXISTENCIA");
-        const idxPrice = pHeaders.findIndex(h => h === "PRECIO" || h.includes("VTA1") || h.includes("COSTO"));
+        const profitSkus = Object.keys(profitDataMap);
 
-        const profitItems = profitRows.slice(headerIdx + 1)
-            .filter(r => r[idxSku])
-            .map(r => ({
-                sku: String(r[idxSku] || "").trim().toUpperCase(),
-                stock: parseFloat(r[idxStock] || 0),
-                price: parseFloat(r[idxPrice] || 0)
-            }));
-
-        if (profitItems.length === 0) return NextResponse.json({ error: "No se encontraron SKUs en el archivo de Profit" }, { status: 400 });
-
-        // 2. Obtener publicados para excluir
+        // 2. Filtrar SKUs ya publicados en ML
         const { data: mlProducts } = await supabaseAdmin.from('products').select('sku').eq('meli_account_id', accountId);
         const publishedSet = new Set();
         mlProducts?.forEach(p => {
@@ -170,16 +167,13 @@ export async function POST(req) {
             });
         });
 
-        const missingProfitItems = profitItems.filter(i => !publishedSet.has(i.sku));
-        if (missingProfitItems.length === 0) return NextResponse.json({ error: "Todos los productos del listado ya están publicados." }, { status: 400 });
+        const skusToPublish = profitSkus.filter(s => !publishedSet.has(s));
+        if (skusToPublish.length === 0) return NextResponse.json({ error: "Todos los productos del listado ya están publicados" }, { status: 400 });
 
-        // 3. Enriquecer con data técnica de Supabase (Fotos, OEM, Marca)
-        const skusToProcess = missingProfitItems.map(i => i.sku);
-        const { data: techData } = await supabaseAdmin.from('internal_inventory').select('sku, title, brand, oem').in('sku', skusToProcess);
-        const { data: photoData } = await supabaseAdmin.from('image_bank').select('sku, ml_url, ml_picture_id').in('sku', skusToProcess).eq('sync_status', 'synced');
+        // 3. Obtener Data Técnica (Fotos, OEM, Títulos Originales) de la DB Interna
+        const { data: internalItems } = await supabaseAdmin.from('internal_inventory').select('*').in('sku', skusToPublish);
+        const { data: photoData } = await supabaseAdmin.from('image_bank').select('sku, ml_url, ml_picture_id').in('sku', skusToPublish).eq('sync_status', 'synced');
 
-        const techMap = {};
-        techData?.forEach(t => { techMap[t.sku] = t; });
         const photoMap = {};
         photoData?.forEach(p => {
             if (!photoMap[p.sku]) photoMap[p.sku] = [];
@@ -187,62 +181,70 @@ export async function POST(req) {
             if (url) photoMap[p.sku].push(url);
         });
 
-        // 4. Rellenar Plantilla ML
+        // 4. Rellenar Plantilla ML con ExcelJS para preservar formato/fórmulas
         const templateBytes = await templateFile.arrayBuffer();
-        const templateWb = XLSX.read(templateBytes, { type: "buffer" });
-        const dataSheetName = templateWb.SheetNames.find(n => n !== 'Ayuda' && n !== 'extra info');
-        const templateWs = templateWb.Sheets[dataSheetName];
-        const templateRows = XLSX.utils.sheet_to_json(templateWs, { header: 1 });
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(Buffer.from(templateBytes));
 
-        const headers = templateRows[2]; 
-        const filledRows = [...templateRows.slice(0, 4)]; 
+        const worksheet = workbook.worksheets.find(ws => ws.name !== 'Ayuda' && ws.name !== 'extra info');
+        if (!worksheet) return NextResponse.json({ error: "Plantilla de ML inválida" }, { status: 400 });
 
-        for (const pItem of missingProfitItems) {
-            const tech = techMap[pItem.sku] || { title: pItem.sku, brand: 'Genérico', oem: pItem.sku };
-            const variantTitles = getSplitTitles(tech.title || pItem.sku);
+        // Detectar Cabeceras (Fila 3)
+        const headerRow = worksheet.getRow(3);
+        const headers = [];
+        headerRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+            headers[colNumber] = String(cell.value || "").toLowerCase();
+        });
 
+        let currentRow = 5; // ML Data start
+
+        for (const item of internalItems) {
+            const profitInfo = profitDataMap[item.sku.toUpperCase()];
+            if (!profitInfo) continue;
+
+            const variantTitles = getSplitTitles(item.title);
             for (const vTitle of variantTitles) {
                 const optTitle = optimizeSEO(vTitle);
-                const row = headers.map(h => {
-                    const header = String(h || "").toLowerCase();
-                    if (header.includes('título')) return optTitle;
-                    if (header.includes('sku')) return pItem.sku;
-                    if (header.includes('stock')) return pItem.stock;
-                    if (header.includes('precio')) return pItem.price;
-                    if (header.includes('fotos')) return (photoMap[pItem.sku] || []).join(',');
-                    if (header.includes('descripción')) {
-                        return `Producto Original. \nSKU: ${pItem.sku}. \nOEM: ${tech.oem || 'N/A'}. \nMarca: ${tech.brand || 'Genérico'}.\n\nAplicación: ${vTitle}` + DESCRIPTION_FOOTER;
+                const row = worksheet.getRow(currentRow);
+
+                headers.forEach((header, colIdx) => {
+                    if (!header) return;
+                    if (header.includes('título')) row.getCell(colIdx).value = optTitle;
+                    else if (header.includes('sku')) row.getCell(colIdx).value = item.sku;
+                    else if (header.includes('stock')) row.getCell(colIdx).value = profitInfo.stock;
+                    else if (header.includes('precio')) row.getCell(colIdx).value = profitInfo.price;
+                    else if (header.includes('fotos')) row.getCell(colIdx).value = (photoMap[item.sku] || []).join(',');
+                    else if (header.includes('descripción')) {
+                        row.getCell(colIdx).value = `Producto Original. \nSKU: ${item.sku}. \nOEM: ${item.oem || 'N/A'}. \nMarca: ${item.brand || 'Genérico'}.\n\nAplicación: ${vTitle}` + DESCRIPTION_FOOTER;
                     }
-                    if (header.includes('condición')) return 'Nuevo';
-                    if (header.includes('marca')) return tech.brand || 'Genérico';
-                    if (header.includes('número de pieza')) return tech.oem || pItem.sku;
-                    if (header.includes('tipo de publicación')) return 'Premium';
-                    if (header.includes('forma de envío')) return 'Mercado Envíos';
-                    if (header.includes('costo de envío')) return 'Envío gratis';
-                    if (header.includes('retiro en persona')) return 'Acepto';
-                    if (header.includes('tipo de garantía')) return 'Garantía del vendedor';
-                    if (header.includes('tiempo de garantía')) return '30';
-                    if (header.includes('unidad de tiempo de garantía')) return 'días';
-                    return "";
+                    else if (header.includes('condición')) row.getCell(colIdx).value = 'Nuevo';
+                    else if (header.includes('marca')) row.getCell(colIdx).value = item.brand || 'Genérico';
+                    else if (header.includes('número de pieza')) row.getCell(colIdx).value = item.oem || item.sku;
+                    else if (header.includes('tipo de publicación')) row.getCell(colIdx).value = 'Premium';
+                    else if (header.includes('forma de envío')) row.getCell(colIdx).value = 'Mercado Envíos';
+                    else if (header.includes('costo de envío')) row.getCell(colIdx).value = 'Envío gratis';
+                    else if (header.includes('retiro en persona')) row.getCell(colIdx).value = 'Acepto';
+                    else if (header.includes('tipo de garantía')) row.getCell(colIdx).value = 'Garantía del vendedor';
+                    else if (header.includes('tiempo de garantía')) row.getCell(colIdx).value = 30;
+                    else if (header.includes('unidad de tiempo de garantía')) row.getCell(colIdx).value = 'días';
                 });
-                filledRows.push(row);
+                row.commit();
+                currentRow++;
             }
         }
 
-        const newWs = XLSX.utils.aoa_to_sheet(filledRows);
-        templateWb.Sheets[dataSheetName] = newWs;
-        const buffer = XLSX.write(templateWb, { type: "buffer", bookType: "xlsx" });
+        const buffer = await workbook.xlsx.writeBuffer();
 
         return new NextResponse(buffer, {
             status: 200,
             headers: {
                 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                'Content-Disposition': `attachment; filename="Template_Relleno_${profitFile.name}"`,
+                'Content-Disposition': `attachment; filename="Listado_Relleno_${templateFile.name}"`,
             },
         });
 
     } catch (error) {
-        console.error('❌ Fill From List Error:', error);
+        console.error('❌ Fill Template From List Error:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

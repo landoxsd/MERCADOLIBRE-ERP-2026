@@ -1,6 +1,6 @@
 
 import { NextResponse } from "next/server";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export const maxDuration = 300;
@@ -105,7 +105,6 @@ function getSplitTitles(rawTitle) {
             pos = cleanTitle.indexOf(model, pos + 1);
         }
     });
-
     findings = findings.filter(f => !findings.some(other => other !== f && other.pos <= f.pos && (other.pos + other.model.length) >= (f.pos + f.model.length) && other.model.length > f.model.length));
     findings.sort((a, b) => a.pos - b.pos);
     if (findings.length <= 1) return [rawTitle];
@@ -129,100 +128,100 @@ export async function POST(req) {
         if (!file || !accountId) return NextResponse.json({ error: "Faltan datos" }, { status: 400 });
 
         const bytes = await file.arrayBuffer();
-        const workbook = XLSX.read(bytes, { type: "buffer" });
-        const dataSheetName = workbook.SheetNames.find(name => name !== 'Ayuda' && name !== 'extra info');
-        if (!dataSheetName) return NextResponse.json({ error: "Plantilla inválida" }, { status: 400 });
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(Buffer.from(bytes));
 
-        const worksheet = workbook.Sheets[dataSheetName];
-        const rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        const worksheet = workbook.worksheets.find(ws => ws.name !== 'Ayuda' && ws.name !== 'extra info');
+        if (!worksheet) return NextResponse.json({ error: "Plantilla inválida" }, { status: 400 });
 
-        let mlCategoryName = rawRows[1] && rawRows[1][0] ? String(rawRows[1][0]).trim() : null;
-        if (!mlCategoryName && rawRows[0] && rawRows[0][1]) {
-            const parts = String(rawRows[0][1]).split(' > ');
-            mlCategoryName = parts[parts.length - 1].trim();
+        // Identificar categoría ML
+        let mlCategoryName = "";
+        const cellA1 = worksheet.getCell('A1').value;
+        const cellB1 = worksheet.getCell('B1').value;
+
+        if (cellA1 && typeof cellA1 === 'string') {
+             mlCategoryName = cellA1.trim();
+        } else if (cellB1 && typeof cellB1 === 'string') {
+             const parts = cellB1.split(' > ');
+             mlCategoryName = parts[parts.length - 1].trim();
         }
-        if (!mlCategoryName) return NextResponse.json({ error: "Categoría no detectada" }, { status: 400 });
 
+        if (!mlCategoryName) return NextResponse.json({ error: "Categoría no detectada en A1 o B1" }, { status: 400 });
+
+        // Mapeos
         const { data: mappings } = await supabaseAdmin.from('category_mappings').select('internal_name').eq('ml_category_name', mlCategoryName);
         if (!mappings || mappings.length === 0) return NextResponse.json({ error: `No hay mapeos para ${mlCategoryName}` }, { status: 400 });
 
         const sublineNames = mappings.map(m => m.internal_name.toUpperCase());
 
-        // --- NUEVA LÓGICA DE DETECCIÓN DE PUBLICADOS (MÁS PRECISA) ---
-        // Consultar productos reales de ML sincronizados en la tabla 'products'
-        const { data: mlProducts } = await supabaseAdmin
-            .from('products')
-            .select('sku')
-            .eq('meli_account_id', accountId);
-        
-        const publishedSkusSet = new Set();
+        // SKUs publicados
+        const { data: mlProducts } = await supabaseAdmin.from('products').select('sku').eq('meli_account_id', accountId);
+        const publishedSet = new Set();
         mlProducts?.forEach(p => {
-            // Soportar SKUs múltiples separados por coma, espacio o barra (igual que en la auditoría)
             String(p.sku || "").split(/[, /]+/).forEach(s => {
-                const clean = s.trim().toUpperCase();
-                if (clean) publishedSkusSet.add(clean);
+                const c = s.trim().toUpperCase();
+                if (c) publishedSet.add(c);
             });
         });
 
-        const { data: items } = await supabaseAdmin
-            .from('internal_inventory')
-            .select('*')
-            .in('subcategory', sublineNames)
-            .gt('stock', 0);
+        // Productos de Profit
+        const { data: items } = await supabaseAdmin.from('internal_inventory').select('*').in('subcategory', sublineNames).gt('stock', 0);
+        const missingItems = (items || []).filter(item => !publishedSet.has(String(item.sku || "").trim().toUpperCase()));
 
-        // Filtrar missingItems usando el Set de SKUs publicados normalizados
-        const missingItems = (items || []).filter(item => {
-            const sku = String(item.sku || "").trim().toUpperCase();
-            return !publishedSkusSet.has(sku);
-        });
+        if (missingItems.length === 0) return NextResponse.json({ error: "Sin productos nuevos" }, { status: 400 });
 
-        if (missingItems.length === 0) return NextResponse.json({ error: "Sin productos nuevos para publicar." }, { status: 400 });
-
+        // Fotos
         const allSkus = missingItems.map(i => i.sku);
         const { data: photoData } = await supabaseAdmin.from('image_bank').select('sku, ml_url, ml_picture_id').in('sku', allSkus).eq('sync_status', 'synced');
-        const skuPhotoMap = {};
+        const photoMap = {};
         photoData?.forEach(p => {
-            if (!skuPhotoMap[p.sku]) skuPhotoMap[p.sku] = [];
+            if (!photoMap[p.sku]) photoMap[p.sku] = [];
             const url = p.ml_url || (p.ml_picture_id ? `https://http2.mlstatic.com/D_${p.ml_picture_id}-O.jpg` : null);
-            if (url) skuPhotoMap[p.sku].push(url);
+            if (url) photoMap[p.sku].push(url);
         });
 
-        const headers = rawRows[2]; 
-        const filledRows = [...rawRows.slice(0, 4)]; 
+        // Cabeceras (Fila 3)
+        const headerRow = worksheet.getRow(3);
+        const headers = [];
+        headerRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+            headers[colNumber] = String(cell.value || "").toLowerCase();
+        });
+
+        let currentRow = 5; // Empezar a escribir en la fila 5 (ML Data start)
 
         for (const item of missingItems) {
             const variantTitles = getSplitTitles(item.title);
             for (const vTitle of variantTitles) {
-                const optimizedTitle = optimizeSEO(vTitle);
-                const row = headers.map(h => {
-                    const header = String(h || "").toLowerCase();
-                    if (header.includes('título')) return optimizedTitle;
-                    if (header.includes('sku')) return item.sku;
-                    if (header.includes('stock')) return item.stock;
-                    if (header.includes('precio')) return item.price;
-                    if (header.includes('fotos')) return (skuPhotoMap[item.sku] || []).join(',');
-                    if (header.includes('descripción')) {
-                        return `Producto Original. \nSKU: ${item.sku}. \nOEM: ${item.oem || 'N/A'}. \nMarca: ${item.brand || 'Genérico'}.\n\nAplicación: ${vTitle}` + DESCRIPTION_FOOTER;
+                const optTitle = optimizeSEO(vTitle);
+                const row = worksheet.getRow(currentRow);
+                
+                headers.forEach((header, colIdx) => {
+                    if (!header) return;
+                    if (header.includes('título')) row.getCell(colIdx).value = optTitle;
+                    else if (header.includes('sku')) row.getCell(colIdx).value = item.sku;
+                    else if (header.includes('stock')) row.getCell(colIdx).value = item.stock;
+                    else if (header.includes('precio')) row.getCell(colIdx).value = item.price;
+                    else if (header.includes('fotos')) row.getCell(colIdx).value = (photoMap[item.sku] || []).join(',');
+                    else if (header.includes('descripción')) {
+                        row.getCell(colIdx).value = `Producto Original. \nSKU: ${item.sku}. \nOEM: ${item.oem || 'N/A'}. \nMarca: ${item.brand || 'Genérico'}.\n\nAplicación: ${vTitle}` + DESCRIPTION_FOOTER;
                     }
-                    if (header.includes('condición')) return 'Nuevo';
-                    if (header.includes('marca')) return item.brand || 'Genérico';
-                    if (header.includes('número de pieza')) return item.oem || item.sku;
-                    if (header.includes('tipo de publicación')) return 'Premium';
-                    if (header.includes('forma de envío')) return 'Mercado Envíos';
-                    if (header.includes('costo de envío')) return 'Envío gratis';
-                    if (header.includes('retiro en persona')) return 'Acepto';
-                    if (header.includes('tipo de garantía')) return 'Garantía del vendedor';
-                    if (header.includes('tiempo de garantía')) return '30';
-                    if (header.includes('unidad de tiempo de garantía')) return 'días';
-                    return "";
+                    else if (header.includes('condición')) row.getCell(colIdx).value = 'Nuevo';
+                    else if (header.includes('marca')) row.getCell(colIdx).value = item.brand || 'Genérico';
+                    else if (header.includes('número de pieza')) row.getCell(colIdx).value = item.oem || item.sku;
+                    else if (header.includes('tipo de publicación')) row.getCell(colIdx).value = 'Premium';
+                    else if (header.includes('forma de envío')) row.getCell(colIdx).value = 'Mercado Envíos';
+                    else if (header.includes('costo de envío')) row.getCell(colIdx).value = 'Envío gratis';
+                    else if (header.includes('retiro en persona')) row.getCell(colIdx).value = 'Acepto';
+                    else if (header.includes('tipo de garantía')) row.getCell(colIdx).value = 'Garantía del vendedor';
+                    else if (header.includes('tiempo de garantía')) row.getCell(colIdx).value = 30;
+                    else if (header.includes('unidad de tiempo de garantía')) row.getCell(colIdx).value = 'días';
                 });
-                filledRows.push(row);
+                row.commit();
+                currentRow++;
             }
         }
 
-        const newWorksheet = XLSX.utils.aoa_to_sheet(filledRows);
-        workbook.Sheets[dataSheetName] = newWorksheet;
-        const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+        const buffer = await workbook.xlsx.writeBuffer();
 
         return new NextResponse(buffer, {
             status: 200,
