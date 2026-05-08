@@ -234,6 +234,24 @@ export default function InventoryAuditPage() {
     }
   };
 
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (auditMode === 'master') setFileMaster(file);
+      else setFileInbound(file);
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      if (auditMode === 'master') setFileMaster(file);
+      else setFileInbound(file);
+    }
+  };
+
   const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
 
   const handleUpload = async () => {
