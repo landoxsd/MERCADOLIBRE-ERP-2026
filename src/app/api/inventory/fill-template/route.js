@@ -154,15 +154,32 @@ export async function POST(req) {
 
         const sublineNames = mappings.map(m => m.internal_name.toUpperCase());
 
-        // SKUs publicados
-        const { data: mlProducts } = await supabaseAdmin.from('products').select('sku').eq('meli_account_id', accountId);
+        // SKUs publicados (Extracción con paginación para superar límite de 1000 de Supabase)
         const publishedSet = new Set();
-        mlProducts?.forEach(p => {
-            String(p.sku || "").split(/[, /]+/).forEach(s => {
-                const c = s.trim().toUpperCase();
-                if (c) publishedSet.add(c);
-            });
-        });
+        let hasMore = true;
+        let offset = 0;
+        const limit = 1000;
+        
+        while (hasMore) {
+            const { data: mlProducts } = await supabaseAdmin
+                .from('products')
+                .select('sku')
+                .eq('meli_account_id', accountId)
+                .range(offset, offset + limit - 1);
+                
+            if (mlProducts && mlProducts.length > 0) {
+                mlProducts.forEach(p => {
+                    String(p.sku || "").split(/[, /]+/).forEach(s => {
+                        const c = s.trim().toUpperCase();
+                        if (c) publishedSet.add(c);
+                    });
+                });
+                offset += limit;
+                if (mlProducts.length < limit) hasMore = false;
+            } else {
+                hasMore = false;
+            }
+        }
 
         // Productos de Profit
         const { data: items } = await supabaseAdmin.from('internal_inventory').select('*').in('subcategory', sublineNames).gt('stock', 0);

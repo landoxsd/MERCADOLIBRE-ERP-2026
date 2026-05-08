@@ -185,15 +185,32 @@ export async function POST(req) {
 
         const profitSkus = Object.keys(profitDataMap);
 
-        // 2. Filtrar SKUs ya publicados en ML
-        const { data: mlProducts } = await supabaseAdmin.from('products').select('sku').eq('meli_account_id', accountId);
+        // 2. Filtrar SKUs ya publicados en ML (Extracción con paginación)
         const publishedSet = new Set();
-        mlProducts?.forEach(p => {
-            String(p.sku || "").split(/[, /]+/).forEach(s => {
-                const c = s.trim().toUpperCase();
-                if (c) publishedSet.add(c);
-            });
-        });
+        let hasMore = true;
+        let offset = 0;
+        const limit = 1000;
+        
+        while (hasMore) {
+            const { data: mlProducts } = await supabaseAdmin
+                .from('products')
+                .select('sku')
+                .eq('meli_account_id', accountId)
+                .range(offset, offset + limit - 1);
+                
+            if (mlProducts && mlProducts.length > 0) {
+                mlProducts.forEach(p => {
+                    String(p.sku || "").split(/[, /]+/).forEach(s => {
+                        const c = s.trim().toUpperCase();
+                        if (c) publishedSet.add(c);
+                    });
+                });
+                offset += limit;
+                if (mlProducts.length < limit) hasMore = false;
+            } else {
+                hasMore = false;
+            }
+        }
 
         const skusToPublish = profitSkus.filter(s => !publishedSet.has(s));
         if (skusToPublish.length === 0) return NextResponse.json({ error: "Todos los productos del listado ya están publicados" }, { status: 400 });
