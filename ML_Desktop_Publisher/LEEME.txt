@@ -1,0 +1,15 @@
+ML DESKTOP PUBLISHER
+====================
+
+Esta herramienta permite procesar archivos de Profit Plus y generar la plantilla oficial de Mercado Libre sin errores de formulas.
+
+INSTRUCCIONES:
+1. Copia esta carpeta completa a cualquier PC que tenga Node.js instalado.
+2. Ejecuta "Instalar_Dependencias.bat" (solo la primera vez).
+3. Pon tu archivo de Profit en la carpeta "Input_Profit".
+4. Pon tu plantilla de ML vacia en la carpeta "Input_Template".
+5. Ejecuta "Ejecutar_Procesamiento.bat".
+6. Recoge el resultado en la carpeta "Output".
+
+REQUISITOS:
+- Tener Node.js instalado en la PC.

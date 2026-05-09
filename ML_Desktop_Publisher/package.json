@@ -1,0 +1,12 @@
+{
+  "name": "ml-desktop-publisher",
+  "version": "1.0.0",
+  "description": "Herramienta portátil para generar plantillas de Mercado Libre sin errores",
+  "main": "app.js",
+  "dependencies": {
+    "exceljs": "^4.4.0",
+    "xlsx": "^0.18.5"
+  },
+  "author": "Antigravity",
+  "license": "ISC"
+}
