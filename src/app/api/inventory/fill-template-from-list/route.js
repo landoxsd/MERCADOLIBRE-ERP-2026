@@ -4,6 +4,30 @@ import * as XLSX from "xlsx";
 import ExcelJS from "exceljs";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
+// MONKEY PATCH CRÍTICO PARA EXCELJS
+// Este parche intercepta el serializador de celdas de exceljs y suprime el error fatal 
+// "Shared Formula master must exist above and or left of clone for cell..."
+// Esto ocurre porque las plantillas de ML tienen miles de fórmulas compartidas residuales.
+try {
+    const CellXform = require('exceljs/lib/xlsx/xform/sheet/cell-xform.js');
+    if (CellXform && CellXform.prototype && CellXform.prototype.render) {
+        const originalRender = CellXform.prototype.render;
+        CellXform.prototype.render = function(xmlStream, model, options) {
+            if (model.sharedFormula) {
+                const formulae = options.formulae || {};
+                const master = formulae[model.sharedFormula];
+                if (!master) {
+                    // Si no encuentra el maestro, desvincula el clon en lugar de colapsar la app
+                    delete model.sharedFormula;
+                }
+            }
+            return originalRender.call(this, xmlStream, model, options);
+        };
+    }
+} catch (patchError) {
+    console.error("No se pudo aplicar el monkey patch a exceljs:", patchError);
+}
+
 export const maxDuration = 300;
 
 const ABBREVIATIONS = {
