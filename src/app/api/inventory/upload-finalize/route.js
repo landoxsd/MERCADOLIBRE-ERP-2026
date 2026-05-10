@@ -9,6 +9,9 @@ export async function POST(req) {
   try {
     const { accountId, mode, totalExcelCount } = await req.json();
 
+    // Esperar 2 segundos para asegurar que Supabase haya terminado de indexar los últimos lotes
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
     if (!accountId) {
       return NextResponse.json({ error: "Falta accountId" }, { status: 400 });
     }
