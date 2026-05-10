@@ -49,5 +49,13 @@ Desarrollar un ERP/CRM web en Next.js (escalable a la nube) para la gestión mul
   - Despliegue de Habilidades Modulares (`.agents/skills/`)
   - Configuración de Workflows para ejecución delegada (Kimi/Cline)
 
+### Fase Publicación - ML Desktop Publisher Pro
+- **Estado:** ✅ Completado (V2.1)
+- **Hitos:**
+    - **Detección Dinámica:** Escaneo inteligente de Profit (independiente de la versión del reporte).
+    - **SEO Sincronizado:** Réplica exacta de la lógica de Vercel (expansión de abreviaturas).
+    - **Configuración Desacoplada:** Control total via `config.json` sin tocar el código.
+    - **Asset Management:** Banco de imágenes con fallback oficial de Corporación RWC.
+
 ---
-*Última actualización: 2026-05-06 - Infraestructura de Inteligencia de Mercado y Agentes Operativa.*
+*Última actualización: 2026-05-10 - Estabilización de Publicación Masiva y Sincronización SEO.*

@@ -325,11 +325,17 @@ Para asegurar la continuidad eterna del proyecto, se seguirán estas reglas:
 | `src/app/dashboard/intelligence/page.js` | ✅ Nuevo. Dashboard principal del Sniper. |
 | `src/components/Sidebar.js` | ✅ Modificado. Ruta `/dashboard/intelligence`. |
 
-### Pendiente técnico inmediato:
-- [ ] Ejecutar SQL `supabase/migration_sniper_2026-05-06.sql` en Supabase Dashboard.
-- [ ] Hacer `git push` y deployar a Vercel.
-- [ ] Probar análisis con productos reales de autopartes en MLV.
-- [ ] Validar que el scoring detecta correctamente modo Fitment vs Price.
+- [x] Ejecutar SQL `supabase/migration_sniper_2026-05-06.sql` en Supabase Dashboard.
+- [x] Hacer `git push` y deployar a Vercel.
+- [x] Probar análisis con productos reales de autopartes en MLV.
+- [x] Validar que el scoring detecta correctamente modo Fitment vs Price.
+
+*   **Hito: Optimización de Publicación Masiva y Configuración Externa (Publisher V2.1)** (2026-05-10)
+    *   **Publisher Pro V2.1**: Rediseño total del publicador de escritorio para robustez extrema.
+    *   **Detección Dinámica**: Eliminación de índices hardcoded para columnas de Profit (SKU, Stock, Precio).
+    *   **SEO Sincronizado**: Integración de la lógica de optimización de títulos de Vercel (expansión de abreviaturas y Title Case).
+    *   **Configuración desacoplada**: Introducción de `config.json` para gestión de descripciones, garantías y fallback de imágenes.
+    *   **Imagen de Respaldo**: Creación de `rwc_placeholder.png` para asegurar publicaciones con estética premium ante falta de fotos.
 
 *   **Hito: Inteligencia Competitiva (Listing Sniper) y Configuración de Agentes** (2026-05-06)
     *   **Listing Sniper v2**: Plan de ejecución detallado en `docs/LISTING_SNIPER_PLAN_V2_INVESTIGADO.md`. Investigación profunda de Performance API y multiget de ítems para MLV.

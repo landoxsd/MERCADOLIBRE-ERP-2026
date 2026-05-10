@@ -1,13 +1,20 @@
-ML DESKTOP PUBLISHER
-====================
+ML DESKTOP PUBLISHER PRO - V2.0
+==============================
 
-Esta herramienta permite procesar archivos de Profit Plus y generar la plantilla oficial de Mercado Libre sin errores de formulas.
+Esta herramienta permite procesar archivos de Profit Plus y generar la plantilla oficial de Mercado Libre sin errores de fórmulas.
+
+NOVEDADES V2.1:
+- Archivo "config.json" externo para ajustar descripción y garantía.
+- Detección inteligente de columnas en Profit (no importa el orden).
+- Generador de títulos SEO optimizado (abreviaturas inteligentes).
+- Filtrado automático de ítems ya publicados en Supabase.
+- Sincronización proactiva con el Banco de Imágenes (URLs de ML).
 
 INSTRUCCIONES:
 1. Copia esta carpeta completa a cualquier PC que tenga Node.js instalado.
 2. Ejecuta "Instalar_Dependencias.bat" (solo la primera vez).
 3. Pon tu archivo de Profit en la carpeta "Input_Profit".
-4. Pon tu plantilla de ML vacia en la carpeta "Input_Template".
+4. Pon tu plantilla de ML vacía en la carpeta "Input_Template".
 5. Ejecuta "Ejecutar_Procesamiento.bat".
 6. Recoge el resultado en la carpeta "Output".
 

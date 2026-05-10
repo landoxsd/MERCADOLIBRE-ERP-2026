@@ -1,0 +1,11 @@
+{
+    "DESCRIPTION_TEMPLATE": "¡BIENVENIDOS A CORPORACION RWC!\n\nPRODUCTO: {PRODUCTO}\nNÚMERO DE PIEZA (OEM): {OEM}\n\n-- INFORMACIÓN IMPORTANTE --\n* Somos Tienda Física.\n* Horario: Lunes a Viernes de 8:30 AM a 5:00 PM.\n* Envíos Nacionales GRATIS: MRW, Zoom y Tealca (MercadoEnvíos).\n* Por favor verifique disponibilidad y haga todas sus preguntas antes de ofertar.\n\n¡GRACIAS POR PREFERIRNOS!",
+    "TIPO_PUBLICACION": "Premium",
+    "RETIRO_PERSONA": "Acepto",
+    "CONDICION": "Nuevo",
+    "TIPO_GARANTIA": "Garantía del vendedor",
+    "TIEMPO_GARANTIA": "90",
+    "UNIDAD_GARANTIA": "días",
+    "ORIGEN": "Importado",
+    "FALLBACK_IMAGE_URL": "https://http2.mlstatic.com/D_NQ_NP_927964-MLV111474686141_052026-F.jpg"
+}
