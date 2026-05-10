@@ -261,19 +261,41 @@ export default function InventoryAuditPage() {
     setUploadProgress({ current: 0, total: 0 });
 
     try {
-      // 1. Leer el archivo en el Navegador
+      // 1. Leer el archivo en un WEB WORKER para no congelar la UI
+      console.log("🧵 Iniciando Worker para procesar Excel pesado...");
+      const workerCode = `
+        importScripts('https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js');
+        onmessage = function(e) {
+          try {
+            const workbook = XLSX.read(e.data, { type: 'array', dense: true });
+            const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+            const rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+            postMessage({ success: true, rawRows });
+          } catch (err) {
+            postMessage({ success: false, error: err.message });
+          }
+        };
+      `;
+      const blob = new Blob([workerCode], { type: 'application/javascript' });
+      const worker = new Worker(URL.createObjectURL(blob));
+
       const reader = new FileReader();
-      const data = await new Promise((resolve, reject) => {
+      const fileData = await new Promise((resolve, reject) => {
         reader.onload = (e) => resolve(new Uint8Array(e.target.result));
         reader.onerror = reject;
         reader.readAsArrayBuffer(currentFile);
       });
 
-      const workbook = XLSX.read(data, { type: 'array' });
-      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+      const { rawRows } = await new Promise((resolve, reject) => {
+        worker.onmessage = (e) => {
+          if (e.data.success) resolve(e.data);
+          else reject(new Error(e.data.error));
+          worker.terminate();
+        };
+        worker.postMessage(fileData, [fileData.buffer]);
+      });
 
-      // 2. Detectar Cabeceras (Igual que en el servidor)
+      // 2. Detectar Cabeceras
       let headerRowIndex = -1;
       for (let i = 0; i < Math.min(rawRows.length, 50); i++) {
         const row = rawRows[i];
@@ -338,20 +360,34 @@ export default function InventoryAuditPage() {
           .filter(item => item.sku && item.sku !== "CODIGO");
 
         if (batch.length > 0) {
-          const res = await fetch('/api/inventory/upload-chunk', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ items: batch })
-          });
-          
-          if (!res.ok) {
-            const errData = await res.json();
-            throw new Error(errData.error || `Error en lote de fila ${i}`);
+          let retryCount = 0;
+          const MAX_RETRIES = 3;
+          let success = false;
+
+          while (retryCount < MAX_RETRIES && !success) {
+            try {
+              const res = await fetch('/api/inventory/upload-chunk', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ items: batch })
+              });
+              
+              if (!res.ok) {
+                const errData = await res.json();
+                throw new Error(errData.error || `HTTP ${res.status}`);
+              }
+              success = true;
+            } catch (err) {
+              retryCount++;
+              console.warn(`⚠️ Error en lote (Fila ${i}). Reintento ${retryCount}/${MAX_RETRIES}...`, err.message);
+              if (retryCount >= MAX_RETRIES) throw new Error(`Falló lote en fila ${i} tras ${MAX_RETRIES} intentos: ${err.message}`);
+              await new Promise(r => setTimeout(r, 1000 * retryCount)); // Esperar más tiempo en cada reintento
+            }
           }
         }
 
         setUploadProgress({ current: Math.min(i - headerRowIndex + BATCH_SIZE, totalRows), total: totalRows });
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 50));
       }
 
       console.log("✅ Todos los lotes subidos. Finalizando auditoría...");
