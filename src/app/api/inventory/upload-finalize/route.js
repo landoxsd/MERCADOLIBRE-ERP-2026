@@ -16,7 +16,7 @@ export async function POST(req) {
     // 1. Obtener TODO el inventario interno para comparación (Solo SKUs para no saturar memoria)
     const { data: internalItems, error: internalError } = await supabaseAdmin
       .from("internal_inventory")
-      .select("sku, title, price, cost, stock, brand, oem, subcategory, category, profit_breadcrumb");
+      .select("sku, title, price, cost, stock, brand, oem, subcategory, category");
 
     if (internalError) throw internalError;
 
