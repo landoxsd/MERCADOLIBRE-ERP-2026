@@ -50,17 +50,24 @@ export default function IntelligencePage() {
         setCompareResult(null);
 
         try {
-            // PASO 1: Búsqueda directa desde el navegador (evita bloqueo de IP de Vercel)
-            const mlSearchRes = await fetch(
-                `https://api.mercadolibre.com/sites/MLV/search?q=${encodeURIComponent(query.trim())}&limit=20`,
-                { headers: { Accept: "application/json" } }
-            );
-            if (!mlSearchRes.ok) {
-                throw new Error(`ML Search failed: ${mlSearchRes.status}`);
+            // PASO 1: Intentar búsqueda directa desde el navegador
+            let mlSearchData = { results: [] };
+            try {
+                const mlSearchRes = await fetch(
+                    `https://api.mercadolibre.com/sites/MLV/search?q=${encodeURIComponent(query.trim())}&limit=20`,
+                    { headers: { Accept: "application/json" } }
+                );
+                if (mlSearchRes.ok) {
+                    mlSearchData = await mlSearchRes.json();
+                } else {
+                    console.warn(`Browser search failed (${mlSearchRes.status}), falling back to server...`);
+                }
+            } catch (err) {
+                console.warn("Browser search blocked by CORS/WAF, falling back to server...");
             }
-            const mlSearchData = await mlSearchRes.json();
 
-            // PASO 2: Enviar resultados raw a nuestra API para procesamiento
+            // PASO 2: Enviar resultados (si hay) o solo la query a nuestra API
+            // Si mlSearchData.results está vacío, la API hará la búsqueda por nosotros usando el token
             const res = await fetch("/api/tools/sniper/analyze", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -69,7 +76,7 @@ export default function IntelligencePage() {
                     sku: sku.trim() || undefined,
                     ourItemId: ourItemId.trim() || undefined,
                     accountId: accountId || undefined,
-                    rawSearchResults: mlSearchData.results || [],
+                    rawSearchResults: mlSearchData.results.length > 0 ? mlSearchData.results : undefined,
                 }),
             });
 
