@@ -313,41 +313,46 @@ export default function InventoryAuditPage() {
 
       const normalize = (s) => String(s || "").trim().toUpperCase();
 
-      const internalItems = rawRows.slice(headerRowIndex + 1)
-        .filter(row => row[finalIdxSku])
-        .map(row => {
-          const sku = normalize(row[finalIdxSku]);
-          const line = finalIdxCategory >= 0 ? String(row[finalIdxCategory] || "").trim().toUpperCase() : "";
-          const sub = finalIdxSubcategory >= 0 ? String(row[finalIdxSubcategory] || "").trim().toUpperCase() : "";
-          
-          return {
-            sku,
-            title: String(row[finalIdxTitle] || "").trim(),
+      // 3. Procesar y Enviar en MINI-LOTES con Pausas (Máxima Resiliencia)
+      const BATCH_SIZE = 200;
+      const totalRows = rawRows.length - (headerRowIndex + 1);
+      
+      for (let i = headerRowIndex + 1; i < rawRows.length; i += BATCH_SIZE) {
+        const chunkRows = rawRows.slice(i, i + BATCH_SIZE);
+        
+        const batch = chunkRows
+          .filter(row => row[finalIdxSku])
+          .map(row => ({
+            sku: normalize(row[finalIdxSku]),
+            title: String(row[finalIdxTitle] || "").trim().slice(0, 150), // Limitar título para ahorrar espacio
             price: parseFloat(row[finalIdxCost] || 0),
             cost: parseFloat(row[finalIdxCost] || 0),
             stock: parseFloat(row[finalIdxStock] || 0),
             brand: String(row[finalIdxBrand] || "").trim(),
             oem: String(row[finalIdxOem] || "").trim(),
-            category: line,
-            subcategory: sub,
-            profit_breadcrumb: line && sub ? `${line} > ${sub}` : (line || sub || "")
-          };
-        })
-        .filter(item => item.sku && item.sku !== "CODIGO");
+            category: finalIdxCategory >= 0 ? String(row[finalIdxCategory] || "").trim().toUpperCase() : "",
+            subcategory: finalIdxSubcategory >= 0 ? String(row[finalIdxSubcategory] || "").trim().toUpperCase() : ""
+          }))
+          .filter(item => item.sku && item.sku !== "CODIGO");
 
-      setUploadProgress({ current: 0, total: internalItems.length });
+        if (batch.length > 0) {
+          const res = await fetch('/api/inventory/upload-chunk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items: batch })
+          });
+          
+          if (!res.ok) {
+            const errData = await res.json();
+            throw new Error(errData.error || "Error al subir lote " + i);
+          }
+        }
 
-      // 3. Enviar en LOTES al servidor (Reducido a 500 para evitar límites de Vercel)
-      const BATCH_SIZE = 500;
-      for (let i = 0; i < internalItems.length; i += BATCH_SIZE) {
-        const batch = internalItems.slice(i, i + BATCH_SIZE);
-        const res = await fetch('/api/inventory/upload-chunk', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ items: batch })
-        });
-        if (!res.ok) throw new Error("Error al subir lote " + i);
-        setUploadProgress(prev => ({ ...prev, current: Math.min(i + BATCH_SIZE, internalItems.length) }));
+        // Actualizar progreso
+        setUploadProgress({ current: Math.min(i - headerRowIndex + BATCH_SIZE, totalRows), total: totalRows });
+        
+        // Pausa de 200ms para permitir que el navegador respire y actualice la UI
+        await new Promise(resolve => setTimeout(resolve, 200));
       }
 
       // 4. Finalizar Auditoría (Cruce de datos)
