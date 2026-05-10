@@ -316,15 +316,17 @@ export default function InventoryAuditPage() {
       // 3. Procesar y Enviar en MINI-LOTES con Pausas (Máxima Resiliencia)
       const BATCH_SIZE = 200;
       const totalRows = rawRows.length - (headerRowIndex + 1);
+      console.log(`🚀 Iniciando auditoría. Filas totales a procesar: ${totalRows}`);
       
       for (let i = headerRowIndex + 1; i < rawRows.length; i += BATCH_SIZE) {
+        console.log(`📦 Procesando lote desde fila ${i}...`);
         const chunkRows = rawRows.slice(i, i + BATCH_SIZE);
         
         const batch = chunkRows
           .filter(row => row[finalIdxSku])
           .map(row => ({
             sku: normalize(row[finalIdxSku]),
-            title: String(row[finalIdxTitle] || "").trim().slice(0, 150), // Limitar título para ahorrar espacio
+            title: String(row[finalIdxTitle] || "").trim().slice(0, 150),
             price: parseFloat(row[finalIdxCost] || 0),
             cost: parseFloat(row[finalIdxCost] || 0),
             stock: parseFloat(row[finalIdxStock] || 0),
@@ -344,16 +346,15 @@ export default function InventoryAuditPage() {
           
           if (!res.ok) {
             const errData = await res.json();
-            throw new Error(errData.error || "Error al subir lote " + i);
+            throw new Error(errData.error || `Error en lote de fila ${i}`);
           }
         }
 
-        // Actualizar progreso
         setUploadProgress({ current: Math.min(i - headerRowIndex + BATCH_SIZE, totalRows), total: totalRows });
-        
-        // Pausa de 200ms para permitir que el navegador respire y actualice la UI
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
+
+      console.log("✅ Todos los lotes subidos. Finalizando auditoría...");
 
       // 4. Finalizar Auditoría (Cruce de datos)
       const resAudit = await fetch('/api/inventory/upload-finalize', {
@@ -362,7 +363,7 @@ export default function InventoryAuditPage() {
         body: JSON.stringify({ 
           accountId: activeAccount, 
           mode: auditMode,
-          totalExcelCount: internalItems.length 
+          totalExcelCount: totalRows 
         })
       });
       const dataAudit = await resAudit.json();
