@@ -1,34 +1,21 @@
-
 import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import ExcelJS from "exceljs";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-
-// MONKEY PATCH CRÍTICO PARA EXCELJS
-// Este parche intercepta el serializador de celdas de exceljs y suprime el error fatal 
-// "Shared Formula master must exist above and or left of clone for cell..."
-// Esto ocurre porque las plantillas de ML tienen miles de fórmulas compartidas residuales.
-try {
-    const CellXform = require('exceljs/lib/xlsx/xform/sheet/cell-xform.js');
-    if (CellXform && CellXform.prototype && CellXform.prototype.render) {
-        const originalRender = CellXform.prototype.render;
-        CellXform.prototype.render = function(xmlStream, model, options) {
-            if (model.sharedFormula) {
-                const formulae = options.formulae || {};
-                const master = formulae[model.sharedFormula];
-                if (!master) {
-                    // Si no encuentra el maestro, desvincula el clon en lugar de colapsar la app
-                    delete model.sharedFormula;
-                }
-            }
-            return originalRender.call(this, xmlStream, model, options);
-        };
-    }
-} catch (patchError) {
-    console.error("No se pudo aplicar el monkey patch a exceljs:", patchError);
-}
+import "@/lib/exceljs-patch"; // Importar el parche global
 
 export const maxDuration = 300;
+
+const CONFIG_FALLBACK = {
+    FALLBACK_IMAGE_URL: "https://http2.mlstatic.com/D_NQ_NP_927964-MLV111474686141_052026-F.jpg", // Tu imagen de RWC
+    TIPO_PUBLICACION: 'Premium',
+    RETIRO_PERSONA: 'Acepto',
+    CONDICION: 'Nuevo',
+    TIPO_GARANTIA: 'Garantía del vendedor',
+    TIEMPO_GARANTIA: '30',
+    UNIDAD_GARANTIA: 'días',
+    ORIGEN: 'Importado'
+};
 
 const ABBREVIATIONS = {
     'AMORT.': 'AMORTIGUADOR', 'AMORT': 'AMORTIGUADOR',
@@ -61,28 +48,9 @@ const ABBREVIATIONS = {
     'CREM.': 'CREMALLERA', 'CREM': 'CREMALLERA'
 };
 
-const VEHICLE_MODELS = [
-    'FIESTA', 'ECOSPORT', 'AVEO', 'CORSA', 'VITARA', 'OPTRA', 'SPARK', 'CRUZE', 'ORLANDO', 
-    'LUV DMAX', 'D-MAX', 'KADETT', 'MONZA', 'SILVERADO', 'TAHOE', 'GRAND VITARA', 'SWIFT', 
-    'ESTEEM', 'JIMNY', 'SAMURAI', 'EXPLORER', 'FOCUS', 'FUSION', 'RANGER', 'TRITON', 'HILUX',
-    'COROLLA', 'YARIS', 'FORTUNER', 'CELICA', 'CAMRY', 'TERIOS', 'MERU', 'PRADO', 'BORA', 'GOL',
-    'JETTA', 'PASSAT', 'TIGUAN', 'POLO', 'AMAROK', 'SENTRA', 'TIIDA', 'ALMERA', 'FRONTIER', 
-    'PATHFINDER', 'PATROL', 'XTERRA', 'CIVIC', 'ACCORD', 'FIT', 'CRV', 'ODYSSEY', 'PILOT',
-    'TUCSON', 'SANTA FE', 'ELANTRA', 'GETZ', 'ACCENT', 'SPORTAGE', 'RIO', 'PICANTO', 'SORENTO',
-    'CERATO', 'K2700', 'CANTER', 'L300', 'L200', 'MONTERO', 'DAKAR', 'SIGNUM', 'LANCER',
-    'LOGAN', 'SYMBOL', 'MEGANE', 'KANGOO', 'TWINGO', 'CLIO', 'DUSTER', 'SANDERO', 'CAPTUR',
-    'GRAN CHEROKEE', 'CHEROKEE', 'LIBERTY', 'WRANGLER', 'WAGONEER', 'COMPASS', 'RENEGADE',
-    'GRAND WAGONEER', 'COMMANDER', 'CALIBER', 'JOURNEY', 'RAM', 'DAKOTA', 'NEON', 'STRATUS',
-    'BLAZER', 'S10', 'TRAILBLAZER', 'ASTRA', 'MERIVA', 'MONTANA', 'ZAFIRA', 'IMPALA', 'MALIBU',
-    'COLORADO', 'CAPRICE', 'CELEBRITY', 'CAVALIER', 'CHEVETTE', 'KODIAK', 'NHR', 'NPR', 'NKR',
-    'FVR', 'EXPRESS', 'VENTURE', 'LUMINA', 'MONTE CARLO', 'LEBARON', 'ASPEN', 'ENCAVA', 'IVECO',
-    'MACK', 'SCANIA', 'VOLVO', 'FREIGHTLINER', 'INTERNATIONAL', 'PATRIOT', 'KA', 'WAGON R', 
-    'TICO', 'NUBIRA', 'STARLET', 'TERCEL', 'BALITA', 'LASER', 'ALLEGRO', 'ACCORD', 'CIVIC'
-];
-
-function optimizeSEO(title) {
-    if (!title) return '';
-    let seoTitle = String(title).toUpperCase();
+function optimizeSEO(rawTitle) {
+    if (!rawTitle) return '';
+    let seoTitle = String(rawTitle).toUpperCase();
     const sortedKeys = Object.keys(ABBREVIATIONS).sort((a, b) => b.length - a.length);
     const escapedKeys = sortedKeys.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
     const regex = new RegExp(`\\b(${escapedKeys.join('|')})(?=\\.|\\s|$)`, 'gi');
@@ -93,55 +61,33 @@ function optimizeSEO(title) {
     });
 
     seoTitle = seoTitle
-        .replace(/[,().]/g, " ")
-        .replace(/\s+/g, " ")
+        .replace(/[,()]/g, " ")
+        .replace(/\.([A-Z])/g, " $1")
+        .replace(/\./g, " ")
         .replace(/\b(DE|LA|EL|LOS|LAS|CON|PARA|DEL)\b/gi, "")
-        .replace(/NUEVO|OFERTA|PROMO|BARATO|ENVIO GRATIS|EXCELENTE/gi, "")
+        .replace(/NUEVO|OFERTA|PROMO|BARATO|ENVIO GRATIS|EXCELENTE|ORIGINAL|REEMPLAZO/gi, "")
         .replace(/\s+/g, " ")
         .trim();
     
-    return seoTitle.substring(0, 60).trim();
-}
-
-function getSplitTitles(rawTitle) {
-    if (!rawTitle) return [];
-    const cleanTitle = String(rawTitle).toUpperCase().replace(/[,().]/g, " ").replace(/\s+/g, " ").trim();
-    let findings = [];
-    VEHICLE_MODELS.forEach(model => {
-        let pos = cleanTitle.indexOf(model);
-        while (pos !== -1) {
-            const isStart = pos === 0 || cleanTitle[pos-1] === ' ';
-            const isEnd = pos + model.length === cleanTitle.length || cleanTitle[pos + model.length] === ' ';
-            if (isStart && isEnd) findings.push({ model, pos });
-            pos = cleanTitle.indexOf(model, pos + 1);
-        }
-    });
-    findings = findings.filter(f => !findings.some(other => other !== f && other.pos <= f.pos && (other.pos + other.model.length) >= (f.pos + f.model.length) && other.model.length > f.model.length));
-    findings.sort((a, b) => a.pos - b.pos);
-    if (findings.length <= 1) return [rawTitle];
-
-    const prefix = cleanTitle.substring(0, findings[0].pos).trim();
-    let segments = [];
-    for (let i = 0; i < findings.length; i++) {
-        const start = findings[i].pos;
-        const end = (i + 1 < findings.length) ? findings[i+1].pos : cleanTitle.length;
-        segments.push(cleanTitle.substring(start, end).trim());
+    // Title Case y Límite
+    let finalTitle = seoTitle.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+    if (finalTitle.length > 60) {
+        let truncated = finalTitle.substring(0, 60);
+        const lastSpace = truncated.lastIndexOf(' ');
+        if (lastSpace > 45) truncated = truncated.substring(0, lastSpace);
+        return truncated.trim();
     }
-    return segments.map(seg => `${prefix} ${seg}`.trim());
+    return finalTitle;
 }
 
 const DESCRIPTION_FOOTER = `
---------------------------------------------------
-🏢 TIENDA OFICIAL - CALIDAD GARANTIZADA
---------------------------------------------------
-✅ PRODUCTO 100% ORIGINAL Y NUEVO
-✅ FACTURA FISCAL DISPONIBLE
-✅ ENVIOS GRATIS A TODO EL PAIS (MRW, ZOOM, TEALCA)
-✅ RETIRO EN PERSONA (VALENCIA / CARACAS)
-
-⚠️ IMPORTANTE: 
-Por favor verifique la compatibilidad con su vehículo antes de ofertar. 
-Realice todas sus preguntas, estamos para servirle.
+\n¡BIENVENIDOS A CORPORACION RWC!
+-- INFORMACIÓN IMPORTANTE --
+* Somos Tienda Física.
+* Horario: Lunes a Viernes de 8:30 AM a 5:00 PM.
+* Envíos Nacionales GRATIS: MRW, Zoom y Tealca (MercadoEnvíos).
+* Por favor verifique disponibilidad antes de ofertar.
+¡GRACIAS POR PREFERIRNOS!
 `;
 
 export async function POST(req) {
@@ -162,41 +108,29 @@ export async function POST(req) {
         let headerRowIndex = -1;
         let skuIdx = -1, stockIdx = -1, priceIdx = -1;
 
-        // Buscar la fila de cabecera en las primeras 30 filas
         for (let i = 0; i < Math.min(rawProfitRows.length, 30); i++) {
             const row = rawProfitRows[i];
             if (!row || !Array.isArray(row)) continue;
-            
-            const sIdx = row.findIndex(c => {
-                const val = String(c || "").toUpperCase();
-                return val === "CODIGO" || val === "CÓDIGO" || val === "SKU" || val.includes("COD_ART");
-            });
-
-            if (sIdx !== -1) {
+            const rowStr = row.map(c => String(c || "").toUpperCase()).join("|");
+            if (rowStr.includes("CODIGO") && rowStr.includes("DESCRIPCION")) {
                 headerRowIndex = i;
-                skuIdx = sIdx;
-                // Buscar stock y precio en la misma fila
-                stockIdx = row.findIndex(c => {
+                row.forEach((c, idx) => {
                     const val = String(c || "").toUpperCase();
-                    return val.includes("STOCK") || val.includes("EXISTENCIA") || val.includes("CANT");
-                });
-                priceIdx = row.findIndex(c => {
-                    const val = String(c || "").toUpperCase();
-                    return val.includes("PRECIO") || val.includes("VENTA") || val.includes("COSTO") || val.includes("P.VENTA");
+                    if (val === "CODIGO" || val === "SKU") skuIdx = idx;
+                    if (val.includes("STOCK") || val.includes("EXISTENCIA")) stockIdx = idx;
+                    if (val === "PRECIO" || val === "COSTO" || val === "P.VENTA") priceIdx = idx;
                 });
                 break;
             }
         }
 
         if (headerRowIndex === -1 || skuIdx === -1) {
-            return NextResponse.json({ error: "No se encontró columna de SKU/CODIGO en el archivo de Profit. Asegúrate de que el listado tenga una fila con estos títulos." }, { status: 400 });
+            return NextResponse.json({ error: "No se detectó la estructura de Profit. Falta columna 'CODIGO'." }, { status: 400 });
         }
 
         const profitDataMap = {};
         for (let i = headerRowIndex + 1; i < rawProfitRows.length; i++) {
             const row = rawProfitRows[i];
-            if (!row || row.length === 0) continue;
-            
             const sku = String(row[skuIdx] || "").trim().toUpperCase();
             if (sku && sku !== "NULL") {
                 profitDataMap[sku] = {
@@ -207,39 +141,22 @@ export async function POST(req) {
             }
         }
 
-        const profitSkus = Object.keys(profitDataMap);
-
-        // 2. Filtrar SKUs ya publicados en ML (Extracción con paginación)
+        // 2. Filtrar ya publicados
         const publishedSet = new Set();
-        let hasMore = true;
-        let offset = 0;
-        const limit = 1000;
-        
+        let offset = 0, limit = 1000, hasMore = true;
         while (hasMore) {
-            const { data: mlProducts } = await supabaseAdmin
-                .from('products')
-                .select('sku')
-                .eq('meli_account_id', accountId)
-                .range(offset, offset + limit - 1);
-                
-            if (mlProducts && mlProducts.length > 0) {
-                mlProducts.forEach(p => {
-                    String(p.sku || "").split(/[, /]+/).forEach(s => {
-                        const c = s.trim().toUpperCase();
-                        if (c) publishedSet.add(c);
-                    });
-                });
+            const { data } = await supabaseAdmin.from('products').select('sku').eq('meli_account_id', accountId).range(offset, offset + limit - 1);
+            if (data && data.length > 0) {
+                data.forEach(p => String(p.sku || "").split(/[, /]+/).forEach(s => publishedSet.add(s.trim().toUpperCase())));
                 offset += limit;
-                if (mlProducts.length < limit) hasMore = false;
-            } else {
-                hasMore = false;
-            }
+                if (data.length < limit) hasMore = false;
+            } else hasMore = false;
         }
 
-        const skusToPublish = profitSkus.filter(s => !publishedSet.has(s));
-        if (skusToPublish.length === 0) return NextResponse.json({ error: "Todos los productos del listado ya están publicados" }, { status: 400 });
+        const skusToPublish = Object.keys(profitDataMap).filter(s => !publishedSet.has(s));
+        if (skusToPublish.length === 0) return NextResponse.json({ error: "No hay productos nuevos para publicar" }, { status: 400 });
 
-        // 3. Obtener Data Técnica (Fotos, OEM, Títulos Originales) de la DB Interna
+        // 3. Data Técnica
         const { data: internalItems } = await supabaseAdmin.from('internal_inventory').select('*').in('sku', skusToPublish);
         const { data: photoData } = await supabaseAdmin.from('image_bank').select('sku, ml_url, ml_picture_id').in('sku', skusToPublish).eq('sync_status', 'synced');
 
@@ -250,78 +167,73 @@ export async function POST(req) {
             if (url) photoMap[p.sku].push(url);
         });
 
-        // 4. Rellenar Plantilla ML con ExcelJS para preservar formato/fórmulas
+        // 4. ExcelJS
         const templateBytes = await templateFile.arrayBuffer();
         const workbook = new ExcelJS.Workbook();
         await workbook.xlsx.load(Buffer.from(templateBytes));
-
         const worksheet = workbook.worksheets.find(ws => ws.name !== 'Ayuda' && ws.name !== 'extra info');
-        if (!worksheet) return NextResponse.json({ error: "Plantilla de ML inválida" }, { status: 400 });
 
-        // Detectar Cabeceras (Fila 3)
         const headerRow = worksheet.getRow(3);
         const columns = [];
         headerRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
             columns.push({ name: String(cell.value || "").toLowerCase(), index: colNumber });
         });
 
-        let currentRow = 5; // ML Data start
-
+        let currentRow = 5;
         for (const item of internalItems) {
             const profitInfo = profitDataMap[item.sku.toUpperCase()];
             if (!profitInfo) continue;
 
-            const optTitle = optimizeSEO(item.title);
             const row = worksheet.getRow(currentRow);
+            let photos = (photoMap[item.sku] || []).join(',');
+            if (!photos) photos = CONFIG_FALLBACK.FALLBACK_IMAGE_URL;
 
             columns.forEach(col => {
                 const header = col.name;
-                const colIdx = col.index;
-                if (!header) return;
+                const cell = row.getCell(col.index);
 
-                if (header === 'título' || header.includes('título: incluye')) row.getCell(colIdx).value = optTitle;
-                else if (header === 'sku' || header.includes('sku / código')) row.getCell(colIdx).value = item.sku;
-                else if (header === 'stock' || header.includes('cantidad')) row.getCell(colIdx).value = profitInfo.stock;
-                else if (header === 'precio' || header.includes('precio [us$]')) row.getCell(colIdx).value = profitInfo.price;
-                else if (header === 'fotos' || header.includes('fotos (url)')) row.getCell(colIdx).value = (photoMap[item.sku] || []).join(',');
-                else if (header === 'descripción') {
-                    row.getCell(colIdx).value = `Producto Original. \nSKU: ${item.sku}. \nOEM: ${item.oem || 'N/A'}. \nMarca: ${item.brand || 'Genérico'}.\n\nAplicación: ${item.title}` + DESCRIPTION_FOOTER;
+                if (header.includes('precio por zona') || header.includes('región')) {
+                    cell.value = null; return;
                 }
-                else if (header === 'condición') row.getCell(colIdx).value = 'Nuevo';
-                else if (header === 'marca') row.getCell(colIdx).value = item.brand || 'Genérico';
-                else if (header === 'número de pieza') row.getCell(colIdx).value = item.oem || item.sku;
-                else if (header.includes('tipo de publicación')) row.getCell(colIdx).value = 'Premium';
-                else if (header.includes('forma de envío')) row.getCell(colIdx).value = 'Mercado Envíos';
-                else if (header.includes('costo de envío')) row.getCell(colIdx).value = 'Envío gratis';
-                else if (header.includes('retiro en persona')) row.getCell(colIdx).value = 'Acepto';
-                else if (header.includes('tipo de garantía')) row.getCell(colIdx).value = 'Garantía del vendedor';
-                else if (header.includes('tiempo de garantía')) row.getCell(colIdx).value = 30;
-                else if (header.includes('unidad de tiempo de garantía')) row.getCell(colIdx).value = 'días';
+
+                if (header === 'título' || header.includes('título: incluye')) cell.value = optimizeSEO(item.title);
+                else if (header === 'sku' || header.includes('sku / código')) cell.value = item.sku;
+                else if (header === 'stock' || header.includes('cantidad')) cell.value = profitInfo.stock;
+                else if (header === 'precio' || header.includes('precio [us$]')) cell.value = profitInfo.price;
+                else if (header === 'fotos' || header.includes('fotos (url)')) cell.value = photos;
+                else if (header === 'descripción') {
+                    cell.value = `Producto Original. SKU: ${item.sku}. OEM: ${item.oem || 'N/A'}.\n\nAplicación: ${item.title}` + DESCRIPTION_FOOTER;
+                }
+                else if (header === 'condición') cell.value = CONFIG_FALLBACK.CONDICION;
+                else if (header === 'marca') cell.value = item.brand || 'Genérico';
+                else if (header === 'número de pieza') cell.value = item.oem || item.sku;
+                else if (header.includes('tipo de publicación')) cell.value = CONFIG_FALLBACK.TIPO_PUBLICACION;
+                else if (header.includes('forma de envío')) cell.value = 'Mercado Envíos';
+                else if (header.includes('costo de envío')) cell.value = 'Envío gratis';
+                else if (header.includes('retiro en persona')) cell.value = CONFIG_FALLBACK.RETIRO_PERSONA;
+                else if (header.includes('tipo de garantía')) cell.value = CONFIG_FALLBACK.TIPO_GARANTIA;
+                else if (header.includes('tiempo de garantía')) cell.value = CONFIG_FALLBACK.TIEMPO_GARANTIA;
+                else if (header.includes('unidad de tiempo de garantía')) cell.value = CONFIG_FALLBACK.UNIDAD_GARANTIA;
+                else if (header === 'origen') cell.value = CONFIG_FALLBACK.ORIGEN;
             });
             row.commit();
             currentRow++;
         }
 
-        // WORKAROUND DEFINITIVO: Eliminar todas las filas no utilizadas de la plantilla.
-        // Esto elimina las miles de fórmulas compartidas residuales (como la B631) 
-        // que causan el colapso de exceljs al guardar, y reduce drásticamente el peso del archivo.
         const totalRows = worksheet.rowCount;
-        if (totalRows >= currentRow) {
-            worksheet.spliceRows(currentRow, totalRows - currentRow + 1);
-        }
+        if (totalRows >= currentRow) worksheet.spliceRows(currentRow, totalRows - currentRow + 1);
 
         const buffer = await workbook.xlsx.writeBuffer();
-
         return new NextResponse(buffer, {
             status: 200,
             headers: {
                 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                'Content-Disposition': `attachment; filename="Listado_Relleno_${templateFile.name}"`,
+                'Content-Disposition': `attachment; filename="ML_RWC_${templateFile.name}"`,
             },
         });
 
     } catch (error) {
-        console.error('❌ Fill Template From List Error:', error);
+        console.error('❌ Fill Template Error:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
