@@ -337,8 +337,8 @@ export default function InventoryAuditPage() {
 
       setUploadProgress({ current: 0, total: internalItems.length });
 
-      // 3. Enviar en LOTES al servidor
-      const BATCH_SIZE = 2000;
+      // 3. Enviar en LOTES al servidor (Reducido a 500 para evitar límites de Vercel)
+      const BATCH_SIZE = 500;
       for (let i = 0; i < internalItems.length; i += BATCH_SIZE) {
         const batch = internalItems.slice(i, i + BATCH_SIZE);
         const res = await fetch('/api/inventory/upload-chunk', {
