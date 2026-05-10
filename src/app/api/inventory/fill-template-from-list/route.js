@@ -99,34 +99,31 @@ export async function POST(req) {
 
         if (!profitFile || !templateFile || !accountId) return NextResponse.json({ error: "Faltan archivos o cuenta" }, { status: 400 });
 
-        // 1. Leer Listado de Profit (Búsqueda robusta de cabeceras)
+        // 1. Leer Listado de Profit (ADN Local: detectProfitColumns)
         const profitBytes = await profitFile.arrayBuffer();
         const profitWb = XLSX.read(profitBytes, { type: "buffer" });
         const profitSheet = profitWb.Sheets[profitWb.SheetNames[0]];
         const rawProfitRows = XLSX.utils.sheet_to_json(profitSheet, { header: 1 });
 
-        let headerRowIndex = -1;
-        let skuIdx = -1, stockIdx = -1, priceIdx = -1;
+        let skuIdx = -1, stockIdx = -1, priceIdx = -1, headerRowIndex = -1;
 
         for (let i = 0; i < Math.min(rawProfitRows.length, 30); i++) {
             const row = rawProfitRows[i];
             if (!row || !Array.isArray(row)) continue;
             const rowStr = row.map(c => String(c || "").toUpperCase()).join("|");
-            if (rowStr.includes("CODIGO") && rowStr.includes("DESCRIPCION")) {
+            if (rowStr.includes("CODIGO") || rowStr.includes("COD_ART")) {
                 headerRowIndex = i;
-                row.forEach((c, idx) => {
-                    const val = String(c || "").toUpperCase();
-                    if (val === "CODIGO" || val === "SKU") skuIdx = idx;
-                    if (val.includes("STOCK") || val.includes("EXISTENCIA")) stockIdx = idx;
-                    if (val === "PRECIO" || val === "COSTO" || val === "P.VENTA") priceIdx = idx;
+                row.forEach((cell, idx) => {
+                    const val = String(cell || "").toUpperCase();
+                    if (val === "CODIGO" || val === "SKU" || val === "COD_ART") skuIdx = idx;
+                    if (val.includes("STOCK") || val.includes("EXISTENCIA") || val.includes("CANT")) stockIdx = idx;
+                    if (val === "PRECIO" || val === "P.VENTA" || (val.includes("PRECIO") && !val.includes("ZONA"))) priceIdx = idx;
                 });
                 break;
             }
         }
 
-        if (headerRowIndex === -1 || skuIdx === -1) {
-            return NextResponse.json({ error: "No se detectó la estructura de Profit. Falta columna 'CODIGO'." }, { status: 400 });
-        }
+        if (skuIdx === -1) return NextResponse.json({ error: "No se detectó la columna 'CODIGO' en el archivo de Profit." }, { status: 400 });
 
         const profitDataMap = {};
         for (let i = headerRowIndex + 1; i < rawProfitRows.length; i++) {
@@ -141,7 +138,7 @@ export async function POST(req) {
             }
         }
 
-        // 2. Filtrar ya publicados
+        // 2. Filtrar ya publicados (Paginación Supabase)
         const publishedSet = new Set();
         let offset = 0, limit = 1000, hasMore = true;
         while (hasMore) {
@@ -154,9 +151,9 @@ export async function POST(req) {
         }
 
         const skusToPublish = Object.keys(profitDataMap).filter(s => !publishedSet.has(s));
-        if (skusToPublish.length === 0) return NextResponse.json({ error: "No hay productos nuevos para publicar" }, { status: 400 });
+        if (skusToPublish.length === 0) return NextResponse.json({ error: "Todos los productos ya están publicados." }, { status: 400 });
 
-        // 3. Data Técnica
+        // 3. Data Técnica (Fotos y Atributos)
         const { data: internalItems } = await supabaseAdmin.from('internal_inventory').select('*').in('sku', skusToPublish);
         const { data: photoData } = await supabaseAdmin.from('image_bank').select('sku, ml_url, ml_picture_id').in('sku', skusToPublish).eq('sync_status', 'synced');
 
@@ -167,11 +164,26 @@ export async function POST(req) {
             if (url) photoMap[p.sku].push(url);
         });
 
-        // 4. ExcelJS
+        // 4. ExcelJS con LIMPIEZA RADICAL DE FÓRMULAS
         const templateBytes = await templateFile.arrayBuffer();
         const workbook = new ExcelJS.Workbook();
         await workbook.xlsx.load(Buffer.from(templateBytes));
-        const worksheet = workbook.worksheets.find(ws => ws.name !== 'Ayuda' && ws.name !== 'extra info');
+        const worksheet = workbook.worksheets.find(ws => ws.name !== 'Ayuda' && ws.name !== 'extra info') || workbook.worksheets[0];
+
+        // --- MATAR EL ERROR B643 AQUÍ ---
+        worksheet.eachRow(row => {
+            row.eachCell({ includeEmpty: true }, cell => {
+                if (cell.formula || cell.sharedFormula || (cell._value && cell._value.sharedFormula)) {
+                    const val = cell.value;
+                    cell.value = null; // Reset
+                    cell.value = val;  // Restaurar solo el valor, sin el fantasma de la fórmula
+                    if (cell._value) {
+                        delete cell._value.formula;
+                        delete cell._value.sharedFormula;
+                    }
+                }
+            });
+        });
 
         const headerRow = worksheet.getRow(3);
         const columns = [];
@@ -192,6 +204,7 @@ export async function POST(req) {
                 const header = col.name;
                 const cell = row.getCell(col.index);
 
+                // Logística Limpia: No duplicar precios en zonas
                 if (header.includes('precio por zona') || header.includes('región')) {
                     cell.value = null; return;
                 }
@@ -220,19 +233,16 @@ export async function POST(req) {
             currentRow++;
         }
 
+        // Limpieza final de filas sobrantes
         const totalRows = worksheet.rowCount;
         if (totalRows >= currentRow) {
-            // Limpieza manual de metadatos de fórmulas compartidas para evitar el crash B643
             for (let i = currentRow; i <= totalRows; i++) {
                 const row = worksheet.getRow(i);
                 row.eachCell({ includeEmpty: true }, (cell) => {
-                    // Si la celda tiene una fórmula, la matamos para que no busque un 'master' inexistente
-                    if (cell.formula || cell.sharedFormula) {
-                        cell.value = null;
-                        if (cell._value) {
-                            delete cell._value.formula;
-                            delete cell._value.sharedFormula;
-                        }
+                    cell.value = null;
+                    if (cell._value) {
+                        delete cell._value.formula;
+                        delete cell._value.sharedFormula;
                     }
                 });
             }

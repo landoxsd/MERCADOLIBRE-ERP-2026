@@ -101,6 +101,21 @@ export async function POST(req) {
         await workbook.xlsx.load(Buffer.from(bytes));
         const worksheet = workbook.worksheets.find(ws => ws.name !== 'Ayuda' && ws.name !== 'extra info') || workbook.worksheets[0];
 
+        // --- MATAR EL ERROR B643 AQUÍ ---
+        worksheet.eachRow(row => {
+            row.eachCell({ includeEmpty: true }, cell => {
+                if (cell.formula || cell.sharedFormula || (cell._value && cell._value.sharedFormula)) {
+                    const val = cell.value;
+                    cell.value = null; // Reset
+                    cell.value = val;  // Restaurar solo el valor, sin el fantasma de la fórmula
+                    if (cell._value) {
+                        delete cell._value.formula;
+                        delete cell._value.sharedFormula;
+                    }
+                }
+            });
+        });
+
         // Identificar categoría ML
         let mlCategoryName = "";
         const cellA1 = worksheet.getCell('A1').value;
@@ -190,16 +205,13 @@ export async function POST(req) {
 
         const totalRows = worksheet.rowCount;
         if (totalRows >= currentRow) {
-            // Limpieza manual de metadatos de fórmulas compartidas para evitar el crash B643
             for (let i = currentRow; i <= totalRows; i++) {
                 const row = worksheet.getRow(i);
                 row.eachCell({ includeEmpty: true }, (cell) => {
-                    if (cell.formula || cell.sharedFormula) {
-                        cell.value = null;
-                        if (cell._value) {
-                            delete cell._value.formula;
-                            delete cell._value.sharedFormula;
-                        }
+                    cell.value = null;
+                    if (cell._value) {
+                        delete cell._value.formula;
+                        delete cell._value.sharedFormula;
                     }
                 });
             }
