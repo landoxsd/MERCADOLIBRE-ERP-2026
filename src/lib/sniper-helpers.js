@@ -228,3 +228,39 @@ export function detectAnalysisMode(query = "") {
 
     return hasVehicleTerms && !hasPartNumber ? "fitment" : "price";
 }
+/**
+ * Sugiere palabras clave para expandir un título hasta los 60 caracteres
+ * Basado en datos del ítem (marca, oem, modelo)
+ */
+export function suggestTitleExpansion(title = "", metadata = {}) {
+    const MAX_CHARS = 60;
+    let currentTitle = title.trim();
+    if (currentTitle.length >= MAX_CHARS) return currentTitle;
+
+    const keywords = [];
+    
+    // 1. Añadir Marca si no está
+    if (metadata.brand && !currentTitle.toLowerCase().includes(metadata.brand.toLowerCase())) {
+        keywords.push(metadata.brand);
+    }
+
+    // 2. Añadir OEM / Part Number si no está
+    if (metadata.oem && !currentTitle.toLowerCase().includes(metadata.oem.toLowerCase())) {
+        keywords.push(metadata.oem);
+    }
+
+    // 3. Añadir "Original" o "Generico"
+    if (!currentTitle.toLowerCase().includes("original") && !currentTitle.toLowerCase().includes("generico")) {
+        keywords.push(metadata.isOriginal ? "Original" : "Generico");
+    }
+
+    // 4. Intentar rellenar
+    let expanded = currentTitle;
+    for (const kw of keywords) {
+        if ((expanded + " " + kw).length <= MAX_CHARS) {
+            expanded += " " + kw;
+        }
+    }
+
+    return expanded;
+}

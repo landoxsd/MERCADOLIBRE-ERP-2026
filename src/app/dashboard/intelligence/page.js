@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from "react";
-import { Search, Crosshair, Loader2, BarChart3 } from "lucide-react";
+import { Search, Crosshair, Loader2, BarChart3, Sparkles } from "lucide-react";
+import { suggestTitleExpansion } from "@/lib/sniper-helpers";
 
 // Components
 import ScoreChart from "@/components/intelligence/ScoreChart";
@@ -29,6 +30,17 @@ export default function IntelligencePage() {
         const match = document.cookie.match(/meli_erp_account=([^;]+)/);
         if (match) setAccountId(match[1]);
     }, []);
+
+    // Sugerencia de expansión para nuestro ítem o el líder
+    const getExpansionSuggestion = (item) => {
+        if (!item) return null;
+        const expanded = suggestTitleExpansion(item.title, {
+            brand: item.attributes?.find(a => a.id === 'BRAND')?.value_name,
+            oem: item.attributes?.find(a => a.id === 'PART_NUMBER')?.value_name,
+            isOriginal: item.title.toLowerCase().includes('original')
+        });
+        return expanded !== item.title ? expanded : null;
+    };
 
     const handleAnalyze = async () => {
         if (!query.trim()) return;
@@ -116,53 +128,77 @@ export default function IntelligencePage() {
                 </p>
             </div>
 
-            {/* Search Panel */}
-            <div className="bg-slate-900 rounded-xl border border-slate-700 p-5 mb-6">
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-                    <div className="md:col-span-5">
-                        <label className="block text-xs font-medium text-slate-400 mb-1">🔎 Término de búsqueda</label>
+            {/* Search Panel - Premium Overhaul */}
+            <div className="bg-slate-900/60 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-6 mb-8 shadow-2xl shadow-cyan-500/5">
+                <div className="flex flex-col lg:flex-row items-end gap-4">
+                    <div className="flex-1 w-full">
+                        <div className="flex items-center gap-2 mb-2">
+                            <div className="w-6 h-6 rounded-full bg-cyan-500/10 flex items-center justify-center">
+                                <Search className="w-3.5 h-3.5 text-cyan-400" />
+                            </div>
+                            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Término de búsqueda</label>
+                        </div>
                         <input
                             type="text"
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
                             placeholder="Ej: amortiguador delantero corolla 2015"
-                            className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors"
+                            className="w-full bg-slate-950/50 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition-all duration-300"
                             onKeyDown={(e) => e.key === "Enter" && handleAnalyze()}
                         />
                     </div>
-                    <div className="md:col-span-3">
-                        <label className="block text-xs font-medium text-slate-400 mb-1">🏷️ SKU interno (opcional)</label>
+                    
+                    <div className="w-full lg:w-48">
+                        <div className="flex items-center gap-2 mb-2">
+                            <div className="w-6 h-6 rounded-full bg-amber-500/10 flex items-center justify-center">
+                                <Search className="w-3.5 h-3.5 text-amber-400" />
+                            </div>
+                            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">SKU Interno</label>
+                        </div>
                         <input
                             type="text"
                             value={sku}
                             onChange={(e) => setSku(e.target.value)}
-                            placeholder="Ej: 11-001-ABC"
-                            className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors"
+                            placeholder="11-001..."
+                            className="w-full bg-slate-950/50 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all duration-300"
                         />
                     </div>
-                    <div className="md:col-span-3">
-                        <label className="block text-xs font-medium text-slate-400 mb-1">🆔 Tu ML Item ID (opcional)</label>
+
+                    <div className="w-full lg:w-48">
+                        <div className="flex items-center gap-2 mb-2">
+                            <div className="w-6 h-6 rounded-full bg-purple-500/10 flex items-center justify-center">
+                                <Search className="w-3.5 h-3.5 text-purple-400" />
+                            </div>
+                            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">ML Item ID</label>
+                        </div>
                         <input
                             type="text"
                             value={ourItemId}
                             onChange={(e) => setOurItemId(e.target.value)}
-                            placeholder="Ej: MLV123456789"
-                            className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors"
+                            placeholder="MLV..."
+                            className="w-full bg-slate-950/50 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all duration-300"
                         />
                     </div>
-                    <div className="md:col-span-1 flex items-end">
-                        <button
-                            onClick={handleAnalyze}
-                            disabled={loading || !query.trim()}
-                            className="w-full bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-medium py-2 px-3 rounded-lg text-sm transition-all flex items-center justify-center gap-1"
-                        >
-                            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-                        </button>
-                    </div>
+
+                    <button
+                        onClick={handleAnalyze}
+                        disabled={loading || !query.trim()}
+                        className="h-[46px] px-8 bg-gradient-to-r from-cyan-600 to-blue-700 hover:from-cyan-500 hover:to-blue-600 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-500 text-white font-bold rounded-xl text-sm transition-all duration-300 shadow-lg shadow-cyan-900/20 flex items-center justify-center gap-2 group"
+                    >
+                        {loading ? (
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                        ) : (
+                            <>
+                                <Crosshair className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                                ANALIZAR
+                            </>
+                        )}
+                    </button>
                 </div>
 
                 {error && (
-                    <div className="mt-3 bg-red-900/30 border border-red-700 text-red-300 text-sm px-3 py-2 rounded-lg">
+                    <div className="mt-4 bg-red-500/10 border border-red-500/20 text-red-400 text-xs px-4 py-3 rounded-xl flex items-center gap-2 animate-pulse">
+                        <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
                         {error}
                     </div>
                 )}
@@ -193,6 +229,42 @@ export default function IntelligencePage() {
                             </button>
                         )}
                     </div>
+
+                    {/* SEO Expansion Suggestion */}
+                    {(getExpansionSuggestion(result.ourItem) || getExpansionSuggestion(result.leader)) && (
+                        <div className="bg-gradient-to-r from-blue-900/40 to-cyan-900/40 border border-cyan-500/30 rounded-2xl p-5 relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                                <Sparkles className="w-24 h-24 text-cyan-400" />
+                            </div>
+                            <div className="flex items-start gap-4 relative z-10">
+                                <div className="w-12 h-12 rounded-xl bg-cyan-500/20 flex items-center justify-center flex-shrink-0 border border-cyan-500/30">
+                                    <Sparkles className="w-6 h-6 text-cyan-400 animate-pulse" />
+                                </div>
+                                <div className="flex-1">
+                                    <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-1">💡 Sugerencia de Expansión SEO</h3>
+                                    <p className="text-xs text-slate-300 mb-3">Hemos detectado una oportunidad para optimizar tu título y aprovechar los 60 caracteres permitidos.</p>
+                                    
+                                    <div className="bg-slate-950/80 rounded-xl p-4 border border-slate-800">
+                                        <div className="text-xs text-slate-500 mb-2 uppercase font-bold">Título Sugerido:</div>
+                                        <div className="text-cyan-400 font-medium text-sm leading-relaxed">
+                                            {getExpansionSuggestion(result.ourItem) || getExpansionSuggestion(result.leader)}
+                                        </div>
+                                        <div className="mt-2 flex items-center gap-2">
+                                            <div className="h-1.5 flex-1 bg-slate-800 rounded-full overflow-hidden">
+                                                <div 
+                                                    className="h-full bg-cyan-500" 
+                                                    style={{ width: `${((getExpansionSuggestion(result.ourItem) || getExpansionSuggestion(result.leader)).length / 60) * 100}%` }} 
+                                                />
+                                            </div>
+                                            <span className="text-[10px] font-mono text-slate-500">
+                                                {(getExpansionSuggestion(result.ourItem) || getExpansionSuggestion(result.leader)).length}/60
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Leader + WinnerCard */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
