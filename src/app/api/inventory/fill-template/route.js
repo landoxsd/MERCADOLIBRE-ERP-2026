@@ -189,7 +189,22 @@ export async function POST(req) {
         }
 
         const totalRows = worksheet.rowCount;
-        if (totalRows >= currentRow) worksheet.spliceRows(currentRow, totalRows - currentRow + 1);
+        if (totalRows >= currentRow) {
+            // Limpieza manual de metadatos de fórmulas compartidas para evitar el crash B643
+            for (let i = currentRow; i <= totalRows; i++) {
+                const row = worksheet.getRow(i);
+                row.eachCell({ includeEmpty: true }, (cell) => {
+                    if (cell.formula || cell.sharedFormula) {
+                        cell.value = null;
+                        if (cell._value) {
+                            delete cell._value.formula;
+                            delete cell._value.sharedFormula;
+                        }
+                    }
+                });
+            }
+            worksheet.spliceRows(currentRow, totalRows - currentRow + 1);
+        }
 
         const buffer = await workbook.xlsx.writeBuffer();
         return new NextResponse(buffer, {
