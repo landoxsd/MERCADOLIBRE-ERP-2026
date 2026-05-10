@@ -3,7 +3,11 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export async function POST(req) {
   try {
-    const { items } = await req.json();
+    const { items, clear } = await req.json();
+
+    if (clear) {
+      await supabaseAdmin.from("internal_inventory").delete().neq("sku", "EMPTY_PLACEHOLDER");
+    }
 
     if (!items || !Array.isArray(items)) {
       return NextResponse.json({ error: "No se recibieron items válidos" }, { status: 400 });

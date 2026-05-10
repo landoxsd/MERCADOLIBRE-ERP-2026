@@ -13,12 +13,27 @@ export async function POST(req) {
       return NextResponse.json({ error: "Falta accountId" }, { status: 400 });
     }
 
-    // 1. Obtener TODO el inventario interno para comparación (Solo SKUs para no saturar memoria)
-    const { data: internalItems, error: internalError } = await supabaseAdmin
-      .from("internal_inventory")
-      .select("sku, title, price, cost, stock, brand, oem, subcategory, category");
+    // 1. Obtener TODO el inventario interno para comparación (Paginado para evitar límite de 1000)
+    let internalItems = [];
+    let fetchMoreInternal = true;
+    let internalStart = 0;
+    const internalStep = 1000;
 
-    if (internalError) throw internalError;
+    while (fetchMoreInternal) {
+      const { data: chunk, error: internalError } = await supabaseAdmin
+        .from("internal_inventory")
+        .select("sku, title, price, cost, stock, brand, oem, subcategory, category")
+        .range(internalStart, internalStart + internalStep - 1);
+
+      if (internalError) throw internalError;
+
+      if (chunk && chunk.length > 0) {
+        internalItems = [...internalItems, ...chunk];
+        internalStart += internalStep;
+      } else {
+        fetchMoreInternal = false;
+      }
+    }
 
     // 2. Obtener productos de ML (Paginado)
     let mlProducts = [];

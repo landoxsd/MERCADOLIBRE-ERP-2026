@@ -369,7 +369,10 @@ export default function InventoryAuditPage() {
               const res = await fetch('/api/inventory/upload-chunk', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ items: batch })
+                body: JSON.stringify({ 
+                  items: batch,
+                  clear: i === headerRowIndex + 1 // Solo limpiar en el primer lote
+                })
               });
               
               if (!res.ok) {
