@@ -470,29 +470,6 @@ export default function InventoryAuditPage() {
     }
   };
 
-  const handlePauseOrphans = async () => {
-    if (auditMode !== 'master' || !resultsMaster?.orphans?.length) return;
-    if (!confirm(`¿Estás seguro de pausar ${resultsMaster.orphans.length} publicaciones huérfanas?`)) return;
-
-    setPausing(true);
-    try {
-      const res = await fetch('/api/inventory/orphans/pause', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          accountId: activeAccount,
-          itemIds: resultsMaster.orphans.map(o => o.meli_item_id)
-        }),
-      });
-      const data = await res.json();
-      alert(data.message);
-    } catch (err) {
-      alert('Error al pausar huérfanos');
-    } finally {
-      setPausing(false);
-    }
-  };
-
   const handleDownloadIntegraly = () => {
     if (!results?.orphans?.length) return;
 
