@@ -78,5 +78,61 @@ Este documento registra las ideas y mejoras detectadas durante las sesiones de d
   - UI visual para crear y gestionar reglas sin código.
   - Convierte el ERP en un sistema semi-autónomo de gestión de catálogo.
 
+## 6. Clonador de Publicaciones Entre Cuentas 🔁
+
+> **Caso de Uso Real:** Tienes publicaciones exitosas en `CORPORACIONRWC` (con ventas, visitas y calidad alta) y quieres replicarlas en otra cuenta conectada al ERP, o duplicarlas dentro de la misma cuenta para otra región o estrategia de precio.
+
+### Requisitos Funcionales
+
+#### Panel de Selección (Origen)
+- [ ] **Selector de Cuenta Origen**: Dropdown con todas las cuentas conectadas al ERP.
+- [ ] **Tabla de Publicaciones con Filtros Avanzados:**
+  - 🔥 **Por Ventas**: Filtrar las que tienen `sold_quantity > N` (las que ya probaron ser rentables).
+  - 👁️ **Por Visitas**: Filtrar las que tienen `visits_count > N` (las que tienen demanda pero quizás no convierten).
+  - ⭐ **Por Calidad de Publicación**: Filtrar por `health_score > 0.7` (publicaciones bien optimizadas).
+  - 📦 **Por Stock**: Solo mostrar las que aún tienen `available_qty > 0`.
+  - 🏷️ **Por Estado**: Activas / Pausadas / Cerradas.
+  - 🗂️ **Por Categoría o Sublínea**: Agrupar por `category_id` o `domain_id` para clonar familias completas de productos.
+- [ ] **Ordenamiento**: Por ventas DESC, visitas DESC, precio, fecha de publicación.
+- [ ] **Selección Masiva**: Checkbox "Seleccionar Todo el Filtro" o selección individual.
+- [ ] **Vista Previa**: Mostrar thumbnail + título + ventas + visitas + precio antes de clonar.
+
+#### Panel de Destino (Cuenta Destino)
+- [ ] **Selector de Cuenta Destino**: Cualquier cuenta conectada al ERP (puede ser la misma).
+- [ ] **Opciones de Clonación:**
+  - `Clonar Exacto`: Mismo precio, mismo título, mismas fotos.
+  - `Clonar con Ajuste de Precio`: Aplicar un % de incremento/descuento al precio original.
+  - `Clonar como Borrador`: Crear en estado `paused` para revisar antes de activar.
+- [ ] **Mapeo de Categoría**: Si la cuenta destino es de otro país, sugerir la categoría equivalente vía `domain_discovery`.
+
+#### Motor de Clonación (Backend)
+- [ ] **Endpoint:** `POST /api/tools/clone-listings`
+- [ ] **Flujo:**
+  1. Leer el ítem completo desde ML origen (`GET /items/{id}` con token de cuenta A).
+  2. Limpiar campos no transferibles (`id`, `permalink`, `date_created`, `sold_quantity`, `visits`).
+  3. Transferir fotos: `GET /items/{id}/pictures` → subir a ML destino → asociar al nuevo ítem.
+  4. Publicar en cuenta destino (`POST /items` con token de cuenta B).
+  5. Guardar en tabla `clone_history`: `(source_item_id, dest_item_id, source_account, dest_account, timestamp)`.
+- [ ] **Rate Limiting Inteligente**: Procesar en lotes de 5 con delay de 1s para evitar bloqueos de la API.
+- [ ] **Reporte Final**: Mostrar cuántos se clonaron exitosamente, cuántos fallaron y el motivo de cada fallo.
+
+#### Tabla Nueva en Supabase
+```sql
+CREATE TABLE clone_history (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  source_item_id TEXT NOT NULL,
+  dest_item_id TEXT,
+  source_account_id TEXT NOT NULL,
+  dest_account_id TEXT NOT NULL,
+  status TEXT DEFAULT 'pending', -- pending | success | error
+  error_message TEXT,
+  cloned_at TIMESTAMPTZ DEFAULT now()
+);
+```
+
+### Consideraciones Técnicas Importantes
+> [!WARNING]
+> ML NO permite transferir publicaciones directamente entre cuentas por API. El proceso real es: **leer → limpiar → re-publicar**. Las fotos deben re-subirse (no se pueden reusar los IDs de imagen entre cuentas). El `sold_quantity` NO se transfiere (empieza desde 0 en la cuenta destino).
+
 ---
 *Sección añadida: 2026-05-11 — Sesión de Webhook Intelligence & MCP Setup.*
