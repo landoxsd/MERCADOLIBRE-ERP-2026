@@ -1,0 +1,34 @@
+===========================================================
+           PMV-CORE: VERIFICADOR DE PAGOS IA
+===========================================================
+
+¿COMO FUNCIONA?
+1. El sistema escucha los mensajes de tu WhatsApp.
+2. Cuando llega una imagen al grupo configurado, la IA (Gemini)
+   lee el monto y la referencia automaticamente.
+3. El sistema responde en el grupo con los datos detectados.
+
+INSTRUCCIONES DE INICIO:
+1. Haz doble clic en "INICIAR_SISTEMA.bat".
+2. Si es la primera vez, se abrira una ventana de Chrome.
+   ESCANEA EL CODIGO QR con tu WhatsApp.
+3. Una vez conectado, el sistema ya esta trabajando. Puedes
+   minimizar las ventanas, pero NO las cierres.
+
+¿COMO VER EL PANEL DE CONTROL?
+Abre tu navegador (Chrome/Edge) y escribe esta direccion:
+http://localhost:3000
+
+¿COMO CONFIGURAR EL BANCO?
+1. Abre el archivo ".env" con el Bloc de Notas.
+2. Cambia BANESCO_USER y BANESCO_PASS por tus datos.
+3. Guarda el archivo.
+
+IMPORTANTE:
+- Solo funciona en el grupo configurado para evitar spam.
+- Si el sistema se queda pegado, cierra la ventana negra y
+  vuelve a abrir "INICIAR_SISTEMA.bat".
+
+===========================================================
+Desarrollado por Antigravity AI
+===========================================================

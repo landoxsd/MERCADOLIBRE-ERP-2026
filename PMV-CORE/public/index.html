@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PMV-Core | Panel de Control</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0a0e14;
+            --card: rgba(255, 255, 255, 0.05);
+            --accent: #00d2ff;
+            --success: #00ff88;
+            --text: #ffffff;
+        }
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            background: var(--card);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .status-badge {
+            padding: 8px 16px;
+            border-radius: 50px;
+            font-size: 0.9em;
+            font-weight: 600;
+            background: #ff4444;
+        }
+        .status-badge.online { background: var(--success); color: #000; }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .card {
+            background: var(--card);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 20px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        h2 { margin-top: 0; color: var(--accent); }
+        
+        .log-item {
+            padding: 12px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            font-size: 0.9em;
+            display: flex;
+            justify-content: space-between;
+        }
+        .log-item:last-child { border: none; }
+        .amount { font-weight: 600; color: var(--success); }
+        .ref { color: #888; font-family: monospace; }
+        
+        #qr-container {
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+        }
+        canvas { background: white; padding: 10px; border-radius: 10px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div>
+            <h1 style="margin:0">PMV-Core</h1>
+            <p style="margin:0; opacity:0.6">Verificador de Pagos IA</p>
+        </div>
+        <div id="status" class="status-badge">Desconectado</div>
+    </div>
+
+    <div id="qr-section" class="card" style="display:none; text-align:center;">
+        <h2>Escanea el código QR</h2>
+        <p>Abre WhatsApp > Dispositivos vinculados > Vincular un dispositivo</p>
+        <div id="qr-container"></div>
+    </div>
+
+    <div class="grid">
+        <div class="card">
+            <h2>Pagos Detectados (IA)</h2>
+            <div id="ai-logs"></div>
+        </div>
+        <div class="card">
+            <h2>Movimientos Banco</h2>
+            <div id="bank-logs"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <script>
+        const socket = io();
+        const statusEl = document.getElementById('status');
+        const qrSection = document.getElementById('qr-section');
+        const qrContainer = document.getElementById('qr-container');
+        let qrcodeInstance = null;
+
+        socket.on('status', (status) => {
+            statusEl.innerText = status;
+            statusEl.className = 'status-badge ' + (status === 'Online' ? 'online' : '');
+            if (status === 'Esperando QR') qrSection.style.display = 'block';
+            else qrSection.style.display = 'none';
+        });
+
+        socket.on('qr', (qrData) => {
+            qrSection.style.display = 'block';
+            qrContainer.innerHTML = '';
+            new QRCode(qrContainer, {
+                text: qrData,
+                width: 380, // Aún más grande
+                height: 380,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel : QRCode.CorrectLevel.L // Nivel bajo = menos puntos = más fácil de leer
+            });
+        });
+
+        socket.on('new_payment', (data) => {
+            const container = document.getElementById('ai-logs');
+            const item = document.createElement('div');
+            item.className = 'log-item';
+            item.innerHTML = `
+                <span>Ref: <span class="ref">${data.reference}</span></span>
+                <span class="amount">Bs. ${data.amount}</span>
+            `;
+            container.prepend(item);
+        });
+
+        socket.on('new_movement', (data) => {
+            const container = document.getElementById('bank-logs');
+            const item = document.createElement('div');
+            item.className = 'log-item';
+            item.innerHTML = `
+                <span>${data.description}</span>
+                <span class="amount">Bs. ${data.amount}</span>
+            `;
+            container.prepend(item);
+        });
+    </script>
+</body>
+</html>
