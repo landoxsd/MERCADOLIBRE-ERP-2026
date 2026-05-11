@@ -138,5 +138,26 @@ CREATE TABLE clone_history (
 > [!WARNING]
 > El `sold_quantity` NO se transfiere — empieza desde 0 en la cuenta destino. Esto es una limitación de la API de ML, no del sistema.
 
+## 7. Módulo de Valor & Productividad (ROI Tracker) 📈
+
+> **Objetivo:** Cuantificar el impacto económico de la herramienta y el tiempo de desarrollo invertido para medir el valor del activo.
+
+### Seguimiento de Inversión (Desarrollo)
+- [ ] **Contador de Tiempo de Vuelo**: Sistema que registre las horas de sesión del agente y commits para calcular el total de horas/hombre invertidas en el software.
+- [ ] **Bitácora de Sesiones**: Registro automático de hitos por fecha para ver la evolución del proyecto (días transcurridos desde el inicio).
+
+### Calculadora de Ahorro (Productividad)
+- [ ] **Estimador de Tiempo Ahorrado**: Panel que calcule cuántas horas de trabajo manual se han evitado.
+  - *Ejemplo:* (Publicaciones Masivas x 5 min) + (Sincronizaciones Manuales x 30 min) = **X horas ahorradas/mes**.
+- [ ] **Ahorro en Errores**: Contador de publicaciones corregidas por el sistema que habrían sido penalizadas por ML (evitando pérdida de reputación).
+- [ ] **Valor de Clonación**: Cuantificar cuánto costaría contratar a un operador para clonar 100 publicaciones vs. los 5 minutos que tarda el sistema.
+
+### Métricas de Valor del Activo
+- [ ] **Dashboard de Volumen de Datos**:
+  - Total de ítems gestionados (ej: 18,000+).
+  - Total de mapeos de categorías generados (el "Golden Database").
+  - Total de imágenes procesadas y almacenadas.
+- [ ] **Valor de Mercado del ERP**: Un estimador que sume el costo de las licencias de herramientas que este ERP reemplaza (ej: lo que pagarías en RealTrends, Integraly, o similar mensualmente).
+
 ---
 *Sección añadida: 2026-05-11 — Sesión de Webhook Intelligence & MCP Setup.*
