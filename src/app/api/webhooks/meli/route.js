@@ -85,6 +85,7 @@ async function processItemNotification(resource, account, payload) {
             title: itemData.title,
             status: itemData.status,
             price: itemData.price,
+            sold_quantity: itemData.sold_quantity || 0,    // ✅ Ventas acumuladas
             available_qty: itemData.available_quantity,
             permalink: itemData.permalink,
             thumbnail: itemData.thumbnail,
@@ -92,7 +93,9 @@ async function processItemNotification(resource, account, payload) {
             domain_id: itemData.domain_id,
             sku: itemData.seller_custom_field || null,
             attributes: itemData.attributes || null,
+            raw_data: itemData,                             // ✅ JSON completo archivado
             last_updated_meli: itemData.last_updated,
+            updated_at: new Date(),
         }, { onConflict: "meli_item_id" });
 
     if (error) throw new Error(`Error upsert producto: ${error.message}`);

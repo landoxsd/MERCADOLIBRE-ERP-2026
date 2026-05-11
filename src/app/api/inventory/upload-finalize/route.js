@@ -47,7 +47,7 @@ export async function POST(req) {
     while (fetchMore) {
       const { data: chunk, error: mlError } = await supabaseAdmin
         .from("products")
-        .select("id, meli_item_id, sku, title, status, permalink, price, available_qty, thumbnail, last_updated_meli, attributes")
+        .select("id, meli_item_id, sku, title, status, permalink, price, available_qty, thumbnail, sold_quantity, visits_count, health_score, last_updated_meli")
         .eq("meli_account_id", accountId)
         .range(rangeStart, rangeStart + rangeStep - 1);
 
@@ -92,21 +92,13 @@ export async function POST(req) {
       }
     });
 
-    // 4. Enriquecer Huérfanos con Ventas (Solo los primeros 100 para no tardar demasiado)
-    // Nota: Para una cuenta de 18k ítems, esto se debería hacer paginado o bajo demanda.
-    // Traeremos ventas para los huérfanos detectados.
-    const account = await accountsTable().select("access_token").eq("id", accountId).single();
-    const orphans = await Promise.all(orphansRaw.slice(0, 1000).map(async (o) => {
-      try {
-        // Consultar ventas en vivo desde la API de ML
-        const res = await fetch(`https://api.mercadolibre.com/items/${o.meli_item_id}?attributes=sold_quantity,health,visits`, {
-          headers: { Authorization: `Bearer ${account.data.access_token}` }
-        });
-        const extra = await res.json();
-        return { ...o, sold_quantity: extra.sold_quantity || 0, health: extra.health || 0 };
-      } catch (e) {
-        return { ...o, sold_quantity: 0 };
-      }
+    // 4. Los huérfanos ya tienen sold_quantity, visits_count y health_score
+    //    directamente desde la base de datos (sin llamadas extra a ML)
+    const orphans = orphansRaw.map(o => ({
+      ...o,
+      sold_quantity: o.sold_quantity || 0,
+      visits_count: o.visits_count || 0,
+      health: o.health_score || 0,
     }));
 
     const missing = internalItems.filter(i => !matchedExcelSkus.has(i.sku));
