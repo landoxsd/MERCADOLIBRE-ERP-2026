@@ -105,7 +105,8 @@ El sistema está construido para ser escalable mediante micro-servicios internos
 ### 🎯 PRÓXIMOS OBJETIVOS (V4 - IA & Performance)
 1.  **Sincronización Inicial de Ventas**: Ejecutar un Sync masivo para poblar las nuevas columnas de ventas/visitas en los 18k ítems.
 2.  **Dashboard de Oportunidades**: Crear vista que filtre huérfanos con ventas > 0 para corrección prioritaria de SKU.
-3.  **Background Sync Workers**: Migrar la lógica de sincronización a un proceso de fondo para evitar timeouts.
+3.  **Clonador entre Cuentas (V4.1)**: Implementar el sistema de réplica de publicaciones exitosas con filtros de rendimiento y re-upload de fotos.
+4.  **Background Sync Workers**: Migrar la lógica de sincronización a un proceso de fondo para evitar timeouts.
 
 ---
 
