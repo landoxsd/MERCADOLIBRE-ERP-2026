@@ -566,6 +566,47 @@ export default function InventoryAuditPage() {
     XLSX.writeFile(workbook, `Masivo_ML_${subline.replace(/\s+/g, '_')}.xlsx`);
   };
 
+  const handlePauseOrphans = async () => {
+    const currentResults = auditMode === 'master' ? resultsMaster : resultsInbound;
+    if (!currentResults?.orphans?.length) return;
+    
+    const activeOrphans = currentResults.orphans.filter(o => o.status === 'active');
+    if (activeOrphans.length === 0) {
+      alert("No hay huérfanos activos para pausar.");
+      return;
+    }
+
+    if (!confirm(`¿Estás seguro de pausar ${activeOrphans.length} publicaciones huérfanas en Mercado Libre?`)) {
+      return;
+    }
+
+    setPausing(true);
+    try {
+      const res = await fetch('/api/inventory/pause-items', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          accountId: activeAccount,
+          itemIds: activeOrphans.map(o => o.meli_item_id)
+        })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        alert(`✅ Éxito: ${data.count} publicaciones pausadas.`);
+        // Recargar para limpiar la lista (opcional)
+        window.location.reload();
+      } else {
+        throw new Error(data.error || "Error al pausar");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error: " + err.message);
+    } finally {
+      setPausing(false);
+    }
+  };
+
   const handleExportMassiveML = async () => {
     if (!activeAccount) return;
     setExportingMassive(true);
@@ -1025,18 +1066,105 @@ export default function InventoryAuditPage() {
 
       {/* DETALLE HUÉRFANOS */}
       {auditMode === 'master' && results?.orphans?.length > 0 && (
-        <div id="orphans-section" className={styles.detailsSection} style={{ borderTop: '1px solid rgba(239, 68, 68, 0.2)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <h2 style={{ margin: 0, color: '#f87171' }}>Huérfanos a Limpiar</h2>
-            <button className={styles.secondaryBtn} onClick={handleDownloadIntegraly}>📥 XLS Integraly</button>
+        <div id="orphans-section" className={styles.detailsSection} style={{ borderTop: '2px solid #f87171' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+            <div>
+              <h2 style={{ margin: 0, color: '#f87171' }}>⚠️ Huérfanos en Mercado Libre</h2>
+              <p style={{ margin: 0, opacity: 0.6, fontSize: '0.9rem' }}>Publicaciones activas en ML que NO existen en tu archivo de Profit Plus.</p>
+            </div>
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button className={styles.secondaryBtn} onClick={handleDownloadIntegraly}>📥 XLS Integraly</button>
+              <button 
+                className={styles.dangerBtn} 
+                onClick={handlePauseOrphans} 
+                disabled={pausing}
+                style={{ background: '#f87171', color: 'white' }}
+              >
+                {pausing ? '⏳ Procesando...' : '⏸️ Pausar Todo'}
+              </button>
+            </div>
           </div>
+
           <table className={styles.table}>
-            <thead><tr><th>ID ML</th><th>SKU</th><th>Título</th><th>Precio</th></tr></thead>
+            <thead>
+              <tr>
+                <th>Producto</th>
+                <th>SKU / Sistema</th>
+                <th>Estado</th>
+                <th>Stock ML</th>
+                <th>Precio</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
             <tbody>
               {results.orphans.map(o => (
                 <tr key={o.meli_item_id}>
-                  <td><a href={o.permalink} target="_blank" style={{ color: '#60a5fa' }}>{o.meli_item_id} ↗</a></td>
-                  <td>{o.sku}</td><td>{o.title}</td><td>${o.price}</td>
+                  <td style={{ minWidth: '350px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                      <img 
+                        src={o.thumbnail} 
+                        alt="thumb" 
+                        style={{ width: '50px', height: '50px', borderRadius: '8px', objectFit: 'cover', border: '1px solid #333' }}
+                        onError={(e) => { e.target.src = 'https://via.placeholder.com/50?text=No+Foto'; }}
+                      />
+                      <div>
+                        <div style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>{o.title}</div>
+                        <div style={{ fontSize: '0.75rem', opacity: 0.5, display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                          <span>{o.meli_item_id}</span>
+                          {o.sold_quantity > 0 && (
+                            <span style={{ background: '#3b82f6', color: 'white', padding: '0.1rem 0.4rem', borderRadius: '4px', fontSize: '0.65rem', fontWeight: 'bold' }}>
+                              🔥 {o.sold_quantity} ventas
+                            </span>
+                          )}
+                          {o.health < 0.8 && o.health > 0 && (
+                            <span style={{ color: '#fbbf24', fontSize: '0.65rem' }}>⚠️ Salud: {Math.round(o.health * 100)}%</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <span style={{ padding: '0.3rem 0.6rem', background: 'rgba(255,255,255,0.05)', borderRadius: '6px', fontSize: '0.85rem' }}>
+                      {o.sku || 'SIN SKU'}
+                    </span>
+                  </td>
+                  <td>
+                    <span style={{ 
+                      padding: '0.3rem 0.8rem', 
+                      borderRadius: '20px', 
+                      fontSize: '0.75rem', 
+                      background: o.status === 'active' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                      color: o.status === 'active' ? '#10b981' : '#f87171',
+                      border: `1px solid ${o.status === 'active' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`
+                    }}>
+                      {o.status === 'active' ? '● Activo' : '● Pausado'}
+                    </span>
+                  </td>
+                  <td style={{ fontWeight: 'bold', color: o.available_qty === 0 ? '#f87171' : '#10b981' }}>
+                    {o.available_qty} uds
+                  </td>
+                  <td style={{ fontWeight: 'bold' }}>${o.price}</td>
+                  <td>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <a 
+                        href={o.permalink} 
+                        target="_blank" 
+                        className={styles.secondaryBtn} 
+                        style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
+                      >
+                        👁️ Ver
+                      </a>
+                      {o.status === 'active' && (
+                        <button 
+                          className={styles.dangerBtn} 
+                          style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', background: 'rgba(239, 68, 68, 0.2)' }}
+                          onClick={() => alert(`Pausando publicación ${o.meli_item_id}...`)}
+                        >
+                          ⏸️ Pausar
+                        </button>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>

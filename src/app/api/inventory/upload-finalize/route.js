@@ -47,7 +47,7 @@ export async function POST(req) {
     while (fetchMore) {
       const { data: chunk, error: mlError } = await supabaseAdmin
         .from("products")
-        .select("id, meli_item_id, sku, title, status, permalink, price")
+        .select("id, meli_item_id, sku, title, status, permalink, price, available_qty, thumbnail, last_updated_meli, attributes")
         .eq("meli_account_id", accountId)
         .range(rangeStart, rangeStart + rangeStep - 1);
 
@@ -65,7 +65,7 @@ export async function POST(req) {
     const normalize = (s) => String(s || "").trim().toUpperCase();
     const excelSkusSet = new Set(internalItems.map(i => i.sku));
 
-    const orphans = [];
+    const orphansRaw = [];
     const matchedMeliIds = new Set();
     const matchedExcelSkus = new Set();
     const matchedItems = [];
@@ -78,7 +78,6 @@ export async function POST(req) {
         if (excelSkusSet.has(s)) {
           isMatched = true;
           matchedExcelSkus.add(s);
-          // Si matchea, guardamos la info para mostrarla
           const itemInfo = internalItems.find(i => i.sku === s);
           if (itemInfo && !matchedItems.find(mi => mi.sku === s)) {
             matchedItems.push({ ...p, sku: s });
@@ -89,9 +88,26 @@ export async function POST(req) {
       if (isMatched) {
         matchedMeliIds.add(p.meli_item_id);
       } else {
-        orphans.push(p);
+        orphansRaw.push(p);
       }
     });
+
+    // 4. Enriquecer Huérfanos con Ventas (Solo los primeros 100 para no tardar demasiado)
+    // Nota: Para una cuenta de 18k ítems, esto se debería hacer paginado o bajo demanda.
+    // Traeremos ventas para los huérfanos detectados.
+    const account = await accountsTable().select("access_token").eq("id", accountId).single();
+    const orphans = await Promise.all(orphansRaw.slice(0, 1000).map(async (o) => {
+      try {
+        // Consultar ventas en vivo desde la API de ML
+        const res = await fetch(`https://api.mercadolibre.com/items/${o.meli_item_id}?attributes=sold_quantity,health,visits`, {
+          headers: { Authorization: `Bearer ${account.data.access_token}` }
+        });
+        const extra = await res.json();
+        return { ...o, sold_quantity: extra.sold_quantity || 0, health: extra.health || 0 };
+      } catch (e) {
+        return { ...o, sold_quantity: 0 };
+      }
+    }));
 
     const missing = internalItems.filter(i => !matchedExcelSkus.has(i.sku));
 
@@ -102,11 +118,11 @@ export async function POST(req) {
         totalExcel: internalItems.length,
         totalML: mlProducts.length,
         matched: matchedMeliIds.size,
-        orphansCount: orphans.length,
+        orphansCount: orphansRaw.length,
         missingCount: missing.length,
       },
       matchedItems: matchedItems.slice(0, 500),
-      orphans: orphans.slice(0, 3000),
+      orphans: orphans, // Ya enriquecidos con ventas
       missing: missing.slice(0, 3000),
       timestamp: new Date().toLocaleString()
     };
