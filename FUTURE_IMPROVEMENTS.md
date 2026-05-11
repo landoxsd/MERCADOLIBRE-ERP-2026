@@ -131,8 +131,12 @@ CREATE TABLE clone_history (
 ```
 
 ### Consideraciones Técnicas Importantes
+
+> [!NOTE]
+> **Transferencia de Fotos:** ML no permite reusar IDs de imagen entre cuentas, PERO sí podemos obtener las URLs públicas de las fotos del ítem origen (`GET /items/{id}/pictures`) y re-subirlas a la cuenta destino descargándolas en memoria. El flujo es: **URL pública ML → `fetch(url)` → buffer → `uploadPicture(buffer, filename, tokenDestino)`**. La función `uploadPicture()` ya está implementada en `src/lib/meli.js`.
+
 > [!WARNING]
-> ML NO permite transferir publicaciones directamente entre cuentas por API. El proceso real es: **leer → limpiar → re-publicar**. Las fotos deben re-subirse (no se pueden reusar los IDs de imagen entre cuentas). El `sold_quantity` NO se transfiere (empieza desde 0 en la cuenta destino).
+> El `sold_quantity` NO se transfiere — empieza desde 0 en la cuenta destino. Esto es una limitación de la API de ML, no del sistema.
 
 ---
 *Sección añadida: 2026-05-11 — Sesión de Webhook Intelligence & MCP Setup.*
