@@ -36,12 +36,22 @@ Desarrollar un ERP/CRM web en Next.js (escalable a la nube) para la gestión mul
   - Componente `AccountOverview` con visualización premium de métricas.
 
 ### Fase Inteligencia de Mercado - Listing Sniper (Audit Console)
+## Módulos Activos
+- **Listing Sniper V3**: Inteligencia competitiva y publicación masiva.
+- **PMV-Core (NUEVO)**: Verificador de Pago Móvil autónomo con IA y WhatsApp.
+- **Inventory Audit**: Sistema de auditoría de stock contra Profit Plus.
 - **Estado:** ✅ Completado
 - **Hitos:**
   - **Consola de Auditoría Pro**: Comparación de alta velocidad entre Profit Plus y Mercado Libre (18k+ ítems).
   - **Detección de Huérfanos con Inteligencia**: Extracción de ventas reales, visitas y salud de publicación (Live API).
   - **Acciones Tácticas Masivas**: Implementación de Pausado Masivo (Kill Switch) para limpieza de catálogo.
   - **Visualización Premium**: Dashboard con thumbnails, badges de rendimiento (Ventas 🔥) y stock real.
+
+### 🚛 Logística y Mercado Envíos
+- [x] Bypass de autenticación para portal externo (Sesión Dual)
+- [x] Extracción automática de teléfonos y receptores
+- [ ] Sincronización masiva de pesos desde /vendedor/productos
+- [ ] Integración de notificaciones WhatsApp para órdenes incompletas
 
 ### Fase Conectividad Avanzada - Ecosistema MCP
 - **Estado:** ✅ Completado

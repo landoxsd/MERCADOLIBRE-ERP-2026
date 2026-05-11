@@ -1,79 +1,74 @@
 import { defineConfig, devices } from '@playwright/test';
+import dotenv from 'dotenv';
+import path from 'path';
+
+// Cargar variables de entorno para los tests (incluye MELI_TEST_SESSION_COOKIE)
+dotenv.config({ path: path.resolve(__dirname, '.env.local') });
+dotenv.config({ path: path.resolve(__dirname, '.env') });
 
 /**
- * Read environment variables from file.
- * https://github.com/motdotla/dotenv
- */
-// import dotenv from 'dotenv';
-// import path from 'path';
-// dotenv.config({ path: path.resolve(__dirname, '.env') });
-
-/**
- * See https://playwright.dev/docs/test-configuration.
+ * Configuración de Playwright para ML ERP — Módulo de Scraping V4
+ * Docs: https://playwright.dev/docs/test-configuration
  */
 export default defineConfig({
   testDir: './tests',
-  /* Run tests in files in parallel */
-  fullyParallel: true,
-  /* Fail the build on CI if you accidentally left test.only in the source code. */
+  fullyParallel: false,         // Secuencial para no sobrecargar ML con requests
   forbidOnly: !!process.env.CI,
-  /* Retry on CI only */
-  retries: process.env.CI ? 2 : 0,
-  /* Opt out of parallel tests on CI. */
-  workers: process.env.CI ? 1 : undefined,
-  /* Reporter to use. See https://playwright.dev/docs/test-reporters */
-  reporter: 'html',
-  /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
-  use: {
-    /* Base URL to use in actions like `await page.goto('')`. */
-    // baseURL: 'http://localhost:3000',
+  retries: process.env.CI ? 2 : 1,
+  workers: 1,                   // Un worker: scraping respetuoso con el servidor
+  timeout: 60000,               // 60 segundos por test (páginas ML pueden tardar)
+  reporter: [
+    ['html', { outputFolder: 'playwright-report' }],
+    ['list'],                   // Output en consola también
+  ],
 
-    /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
+  use: {
+    // ERP local — para tests de integración con el dashboard
+    baseURL: 'http://localhost:3000',
+
+    // Screenshots en caso de fallo (útil para debug de scraping)
+    screenshot: 'only-on-failure',
+    screenshotMode: 'viewport',
+
+    // Grabar video en caso de fallo (muy útil para debug de scraping)
+    video: 'on-first-retry',
+
+    // Trace para análisis detallado
     trace: 'on-first-retry',
+
+    // Carpeta de salida para screenshots de tests
+    testIdAttribute: 'data-testid',
   },
 
-  /* Configure projects for major browsers */
+  // Carpeta de outputs (screenshots, videos, traces)
+  outputDir: 'tests/test-results/',
+
+  /* Solo Chromium para scraping (más rápido y estable) */
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        // Emular navegador real (anti-detección básica)
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        locale: 'es-VE',
+        timezoneId: 'America/Caracas',
+        viewport: { width: 1366, height: 768 },
+      },
     },
 
-    {
-      name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
-    },
-
-    {
-      name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
-    },
-
-    /* Test against mobile viewports. */
+    // Firefox disponible pero desactivado por defecto (activar si ML bloquea Chrome)
     // {
-    //   name: 'Mobile Chrome',
-    //   use: { ...devices['Pixel 5'] },
-    // },
-    // {
-    //   name: 'Mobile Safari',
-    //   use: { ...devices['iPhone 12'] },
-    // },
-
-    /* Test against branded browsers. */
-    // {
-    //   name: 'Microsoft Edge',
-    //   use: { ...devices['Desktop Edge'], channel: 'msedge' },
-    // },
-    // {
-    //   name: 'Google Chrome',
-    //   use: { ...devices['Desktop Chrome'], channel: 'chrome' },
+    //   name: 'firefox',
+    //   use: { ...devices['Desktop Firefox'] },
     // },
   ],
 
-  /* Run your local dev server before starting the tests */
+  /* Descomenta para iniciar el servidor de Next.js automáticamente antes de los tests */
   // webServer: {
-  //   command: 'npm run start',
+  //   command: 'npm run dev',
   //   url: 'http://localhost:3000',
-  //   reuseExistingServer: !process.env.CI,
+  //   reuseExistingServer: true,
+  //   timeout: 120000,
   // },
 });

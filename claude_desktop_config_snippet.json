@@ -7,7 +7,7 @@
         "mcp-remote",
         "https://mcp.mercadolibre.com/mcp",
         "--header",
-        "Authorization:Bearer APP_USR-2657663366318591-050914-3d7600b3b839c190ed61c0fd5f6cecb0-77327265"
+        "Authorization:Bearer APP_USR-2657663366318591-051023-09d77b73e307ababf9017f34b16e52f8-77327265"
       ],
       "env": {}
     }

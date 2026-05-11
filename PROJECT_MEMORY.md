@@ -76,6 +76,11 @@ El sistema está construido para ser escalable mediante micro-servicios internos
     *   **Mercado Libre MCP**: Consultas a la documentación técnica oficial de ML.
 *   **Configuración:** `mcp_config.json` en el directorio de Antigravity. Respaldado en raíz como `mcp_config_BACKUP.json`.
 
+### 10. Logística Externa (Mercado Envíos Venezuela)
+*   **Función:** Automatiza la entrada al portal independiente `mercadoenvios.com.ve` para recuperar datos no disponibles en la API de ML (teléfonos reales).
+*   **Técnica:** Scraping mediante Playwright con inyección de `access_token` persistente y bypass de anti-bot (User-Agent real + stealth scripts).
+*   **Estado:** OPERATIVO. Capaz de extraer receptor y teléfono en segundos.
+
 ---
 
 ## 🚩 ESTADO ACTUAL Y SIGUIENTES PASOS (TODO)
@@ -98,6 +103,7 @@ El sistema está construido para ser escalable mediante micro-servicios internos
 - [x] **Recuperación ante Token Inválido** (Skill #13): Columnas `needs_reauth` + `reauth_error`.
 - [x] **MCP Server Connector** (Skill #14): Token refresher + script `.bat` + conexión a Cline/Antigravity.
 - [x] **Webhooks Processor con Auto-Sync** (Skill #15): Procesamiento automático de notificaciones ML actualizando DB en tiempo real.
+- [x] **Portal de Envíos Scraping (Skill #16):** Bypass de autenticación dual (ML + ME) para extracción de teléfonos y datos de logística en portales externos SPA (Angular).
 - [x] **Frontend Auto-Refresh de Token** (Skill #16): Endpoints nunca muestran "Token expirado" porque refrescan automáticamente.
 - [x] **Batch Token Refresher** (Skill #17): Script que refresca TODAS las cuentas simultáneamente.
 - [x] **Task Scheduler Silencioso** (Skill #18): `.bat` sin interacción para ejecutar desatendido desde Windows Task Scheduler.

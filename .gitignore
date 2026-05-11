@@ -51,3 +51,25 @@ node_modules/
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
+
+# Security & Privacy
+.env
+.env.local
+.env.production
+*.log
+sessions/
+auth/
+credentials/
+tokens.json
+cookies.json
+*.session
+*.session-journal
+
+# Project Specific
+scratch/
+backup*/
+*.zip
+*.rar
+*.7z
+/PMV-CORE/sessions/
+/PMV-CORE/.env
