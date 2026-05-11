@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "supabase": {
+      "serverUrl": "https://mcp.supabase.com/mcp?project_ref=zqxesjcchykncxpekmbz&features=docs%2Caccount%2Cdatabase%2Cdebugging%2Cdevelopment%2Cfunctions%2Cbranching%2Cstorage"
+    },
+    "mercadolibre": {
+      "serverUrl": "https://mcp.mercadolibre.com/mcp",
+      "headers": {
+        "Authorization": "Bearer APP_USR-2657663366318591-051020-872bffad84e58a3af217483a961674f3-77327265"
+      }
+    }
+  }
+}

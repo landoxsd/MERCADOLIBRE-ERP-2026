@@ -46,7 +46,7 @@ El sistema está construido para ser escalable mediante micro-servicios internos
 
 ### 3. Auditoría de Inventario (`src/app/api/inventory/upload/`)
 *   **Función:** Cruza un Excel local (Profit Plus) contra la DB de Meli.
-*   **Estado:** Funcional. Maneja volúmenes masivos (>41k registros) con paginación de Supabase. Posee sistema de **Caché Snapshot** (archivo local `.audit_cache_${accId}.json`) para persistencia por cuenta.
+*   **Estado:** **PRO OPERATIVO**. Incluye consola visual con thumbnails, stock real y detección de huérfanos enriquecida con ventas y visitas históricas. Soporta limpieza automática de tabla interna (`clear=true`).
 
 ### 4. Exportador Integraly (`src/app/dashboard/inventory/page.js`)
 *   **Función:** Genera un archivo `.xlsx` con la estructura exacta que requiere la plataforma Integraly para mapear SKUs masivamente.
@@ -69,9 +69,12 @@ El sistema está construido para ser escalable mediante micro-servicios internos
 *   **Función:** `meliGet()` ahora incluye retry con backoff exponencial para HTTP 429 (rate limit).
 *   **Estado:** Implementado. 3 reintentos automáticos (1s → 2s → 4s → max 30s).
 
-### 9. MCP Server Connector (`mcp-token-refresh/` + `cline_mcp_settings.json`)
-*   **Función:** Mantiene el servidor MCP de MercadoLibre conectado a Cline/Antigravity para consultar documentación oficial y herramientas de ML directamente desde el chat.
-*   **Estado:** Activo. Token auto-refrescable mediante `refresh-token.js` y script `actualizar-token-mcp.bat`.
+### 9. Conectividad MCP (Ecosistema Inteligente)
+*   **Función:** Conexión nativa del agente a las APIs oficiales.
+*   **Servidores:**
+    *   **Supabase MCP**: Acceso a DB, docs y debugging.
+    *   **Mercado Libre MCP**: Consultas a la documentación técnica oficial de ML.
+*   **Configuración:** `mcp_config.json` en el directorio de Antigravity. Respaldado en raíz como `mcp_config_BACKUP.json`.
 
 ---
 
@@ -99,17 +102,10 @@ El sistema está construido para ser escalable mediante micro-servicios internos
 - [x] **Batch Token Refresher** (Skill #17): Script que refresca TODAS las cuentas simultáneamente.
 - [x] **Task Scheduler Silencioso** (Skill #18): `.bat` sin interacción para ejecutar desatendido desde Windows Task Scheduler.
 
-### 🎯 PRÓXIMOS OBJETIVOS (Prioridad en orden)
-1.  **Verificar Webhooks en Producción:**
-    - Confirmar que MercadoLibre envía notificaciones a `https://mercadolibre-erp.vercel.app/api/webhooks/ml`.
-    - Verificar en dashboard que lleguen notificaciones y se marquen como `completed`.
-    - Ejecutar SQL `ALTER TABLE ml_notifications DISABLE ROW LEVEL SECURITY;` en Supabase para que el frontend pueda leer las notificaciones.
-2.  **Mapear Categorías Existentes:**
-    - Importar sublíneas de `LINEAS SUBLINEAS.xlsx` a `category_mappings`.
-    - Usar script para sugerir categorías ML vía `domain_discovery` masivamente.
-    - Validar mapeos manualmente (especialmente las 20 sublíneas más usadas).
-3.  **Módulo de Ventas y Visitas:** Implementar el tablero de analíticas usando los datos ya sincronizados para medir el rendimiento real por publicación.
-4.  **Extractor Universal:** Crear scripts que aprovechen la columna `raw_data` para extraer descripciones o variaciones sin llamar a la API.
+### 🎯 PRÓXIMOS OBJETIVOS (V4 - IA & Performance)
+1.  **Sincronización Inicial de Ventas**: Ejecutar un Sync masivo para poblar las nuevas columnas de ventas/visitas en los 18k ítems.
+2.  **Dashboard de Oportunidades**: Crear vista que filtre huérfanos con ventas > 0 para corrección prioritaria de SKU.
+3.  **Background Sync Workers**: Migrar la lógica de sincronización a un proceso de fondo para evitar timeouts.
 
 ---
 
@@ -330,12 +326,13 @@ Para asegurar la continuidad eterna del proyecto, se seguirán estas reglas:
 - [x] Probar análisis con productos reales de autopartes en MLV.
 - [x] Validar que el scoring detecta correctamente modo Fitment vs Price.
 
-*   **Hito: Optimización de Publicación Masiva y Configuración Externa (Publisher V2.1)** (2026-05-10)
-    *   **Publisher Pro V2.1**: Rediseño total del publicador de escritorio para robustez extrema.
-    *   **Detección Dinámica**: Eliminación de índices hardcoded para columnas de Profit (SKU, Stock, Precio).
-    *   **SEO Sincronizado**: Integración de la lógica de optimización de títulos de Vercel (expansión de abreviaturas y Title Case).
-    *   **Configuración desacoplada**: Introducción de `config.json` para gestión de descripciones, garantías y fallback de imágenes.
-    *   **Imagen de Respaldo**: Creación de `rwc_placeholder.png` para asegurar publicaciones con estética premium ante falta de fotos.
+*   **Hito: Ecosistema de Publicación Pro V2.1 y Sincronización Vercel** (2026-05-10)
+    *   **ML Desktop Publisher Pro V2.1**: Herramienta de escritorio 100% operativa con arquitectura `config.json`.
+    *   **SEO & Estética Premium**: Implementación de Title Case y Diccionario de Abreviaturas sincronizado entre local y nube.
+    *   **Logística Inteligente**: Vaciado automático de columnas de envío regionales para delegar a MercadoEnvíos.
+    *   **Sincronización Total**: Backend de Vercel actualizado con la misma lógica de negocio que la herramienta de escritorio.
+    *   **Resiliencia Excel**: Implementación de técnicas de limpieza radical de metadatos para combatir el error B643 (Shared Formulas).
+    *   **Estado**: Victoria en el canal de escritorio. Backend sincronizado y listo para pruebas de carga masiva en producción.
 
 *   **Hito: Inteligencia Competitiva (Listing Sniper) y Configuración de Agentes** (2026-05-06)
     *   **Listing Sniper v2**: Plan de ejecución detallado en `docs/LISTING_SNIPER_PLAN_V2_INVESTIGADO.md`. Investigación profunda de Performance API y multiget de ítems para MLV.

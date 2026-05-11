@@ -21,5 +21,62 @@ Este documento registra las ideas y mejoras detectadas durante las sesiones de d
 - [ ] **Migración Total a TypeScript**: Para mayor robustez y menos errores en tiempo de ejecución.
 - [ ] **Sincronización en Tiempo Real con Profit Plus**: Usar un webhook o tarea programada para que el stock se actualice sin necesidad de subir el Excel manualmente.
 
+## 5. Ecosistema de Webhooks — Automatización Reactiva ⚡
+
+> **Contexto Técnico:** El Webhook de Mercado Libre ya está activo en `https://mercadolibre-erp.vercel.app/api/webhooks/meli`. Captura eventos de: `items`, `orders_v2`, `questions`, `shipments`, `payments`. La base de datos ya tiene las columnas `sold_quantity` y `visits_count` en la tabla `products`.
+
+### 🟢 Prioridad Alta (Bajo Esfuerzo, Alto Impacto)
+
+- [ ] **Panel de Ventas en Vivo** *(Dificultad: Baja)*
+  - Cada evento `orders_v2` actualiza un contador en el dashboard en tiempo real.
+  - Sin necesidad de recargar la página (usar SSE o polling cada 30s).
+  - Mostrar: Última venta, Revenue del día, Unidades vendidas hoy.
+
+- [ ] **Alerta de Stock Crítico** *(Dificultad: Baja)*
+  - Cuando `available_qty` baje de un umbral configurable (ej: < 3 unidades), el webhook dispara una alerta.
+  - Canal de notificación: Correo, WhatsApp o notificación push en el dashboard.
+  - Evita quedarse sin stock sin darse cuenta.
+
+- [ ] **Detector de Publicación Pausada por ML** *(Dificultad: Baja)*
+  - Si ML pausa automáticamente una publicación (por denuncia, política o error de ficha técnica), el webhook `items` lo detecta al instante.
+  - El dashboard marca el ítem en rojo con el motivo.
+  - Permite reaccionar en minutos en vez de descubrirlo días después.
+
+### 🟡 Prioridad Media (Esfuerzo Moderado, Gran Valor Analítico)
+
+- [ ] **Tracker de Precio Histórico** *(Dificultad: Media)*
+  - Crear tabla `price_history` en Supabase: `(meli_item_id, price, timestamp)`.
+  - Cada vez que el webhook `items` detecte un cambio de precio, guarda una fila.
+  - Visualización: Gráfica de líneas del precio de cada producto en el tiempo.
+  - Valor: Auditoría de competencia, detección de guerras de precios.
+
+- [ ] **Alertas de Preguntas Sin Responder** *(Dificultad: Media)*
+  - El webhook `questions` ya captura preguntas nuevas en la tabla `questions`.
+  - Implementar un cron job cada 2 horas que busque preguntas con `status = 'unanswered'` y `created_at > 4h`.
+  - Notificación push: "Tienes 5 preguntas sin responder de más de 4 horas".
+  - ML penaliza la reputación del vendedor por tiempos de respuesta lentos.
+
+- [ ] **Rastreador de Conversión Visitas → Ventas** *(Dificultad: Media)*
+  - Cruzar `visits_count` (actualizado por Sync) con `sold_quantity` (actualizado por Webhook).
+  - Calcular la tasa de conversión de cada publicación: `ventas / visitas * 100`.
+  - Identificar productos con muchas visitas pero pocas ventas (precio o fotos malas).
+
+### 🔴 Prioridad Futura (Alto Impacto Estratégico)
+
+- [ ] **Auto-responder de Preguntas con IA** *(Dificultad: Alta)*
+  - Cuando llegue una pregunta nueva vía webhook, enviarla a GPT-4 con el contexto del producto.
+  - GPT genera una respuesta de calidad y la postea automáticamente vía `POST /questions/{id}/answer`.
+  - Requiere: Base de conocimiento de productos, prompt engineering, revisión de calidad.
+
+- [ ] **Sincronización Bidireccional con Profit Plus** *(Dificultad: Alta)*
+  - Cuando se vende un producto en ML (evento `orders_v2`), descontar automáticamente el stock en Profit Plus.
+  - Requiere: Acceso a la API o base de datos de Profit Plus (posiblemente SQL directo).
+  - Elimina el cuello de botella de actualización manual de stock.
+
+- [ ] **Motor de Reglas de Negocio (Trigger Engine)** *(Dificultad: Alta)*
+  - Configurar reglas tipo: "SI stock < 5 ENTONCES pausar publicación" o "SI precio de competencia baja un 10% ENTONCES bajar precio un 5%".
+  - UI visual para crear y gestionar reglas sin código.
+  - Convierte el ERP en un sistema semi-autónomo de gestión de catálogo.
+
 ---
-*Documento creado el 2026-05-05 basado en la optimización del Motor GOLDEN.*
+*Sección añadida: 2026-05-11 — Sesión de Webhook Intelligence & MCP Setup.*

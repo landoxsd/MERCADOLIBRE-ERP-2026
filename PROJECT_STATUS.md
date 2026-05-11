@@ -35,27 +35,25 @@ Desarrollar un ERP/CRM web en Next.js (escalable a la nube) para la gestión mul
   - Endpoint `api/account/overview` con reputación, billing (deuda) y ventas.
   - Componente `AccountOverview` con visualización premium de métricas.
 
-### Fase Inteligencia de Mercado - Listing Sniper
-- **Estado:** 🚧 En Desarrollo (Infraestructura Lista)
+### Fase Inteligencia de Mercado - Listing Sniper (Audit Console)
+- **Estado:** ✅ Completado
 - **Hitos:**
-  - Plan Maestro Investigado (`docs/LISTING_SNIPER_PLAN_V2_INVESTIGADO.md`)
-  - Algoritmo de Scoring Definido (Precio, SEO, Fotos, Atributos)
-  - Exportación Masiva con Vista Plana (Breadcrumbs + IDs)
+  - **Consola de Auditoría Pro**: Comparación de alta velocidad entre Profit Plus y Mercado Libre (18k+ ítems).
+  - **Detección de Huérfanos con Inteligencia**: Extracción de ventas reales, visitas y salud de publicación (Live API).
+  - **Acciones Tácticas Masivas**: Implementación de Pausado Masivo (Kill Switch) para limpieza de catálogo.
+  - **Visualización Premium**: Dashboard con thumbnails, badges de rendimiento (Ventas 🔥) y stock real.
 
-### Fase Automatización - Ecosistema de Agentes
+### Fase Conectividad Avanzada - Ecosistema MCP
 - **Estado:** ✅ Completado
 - **Acciones:**
-  - Implementación de `.clinerules` (Reglas de Oro del Repositorio)
-  - Despliegue de Habilidades Modulares (`.agents/skills/`)
-  - Configuración de Workflows para ejecución delegada (Kimi/Cline)
+  - **Supabase MCP**: Conexión directa del agente a la base de datos para diagnósticos SQL.
+  - **Mercado Libre MCP**: Acceso a documentación y programación oficial de ML en tiempo real.
+  - **Agent Skills (V2)**: Instalación de guías expertas de Postgres y Supabase para desarrollo seguro.
 
-### Fase Publicación - ML Desktop Publisher Pro
-- **Estado:** ✅ Completado (V2.1)
-- **Hitos:**
-    - **Detección Dinámica:** Escaneo inteligente de Profit (independiente de la versión del reporte).
-    - **SEO Sincronizado:** Réplica exacta de la lógica de Vercel (expansión de abreviaturas).
-    - **Configuración Desacoplada:** Control total via `config.json` sin tocar el código.
-    - **Asset Management:** Banco de imágenes con fallback oficial de Corporación RWC.
+### Próxima Fase: Optimización & Expansión (Sniper V4)
+- [ ] **Background Sync**: Migrar la sincronización masiva a Workers para evitar límites de tiempo en Vercel.
+- [ ] **Análisis de Oportunidad**: Detectar productos con muchas visitas pero pocas ventas para sugerir cambios de precio.
+- [ ] **IA Content Generator**: Usar el MCP de ML para generar descripciones y títulos que cumplan al 100% con las políticas vigentes.
 
 ---
-*Última actualización: 2026-05-10 - Estabilización de Publicación Masiva y Sincronización SEO.*
+*Última actualización: 2026-05-10 - Lanzamiento de Consola de Auditoría Inteligente y Ecosistema MCP.*
