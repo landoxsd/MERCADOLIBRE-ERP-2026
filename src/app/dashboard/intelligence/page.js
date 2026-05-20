@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from "react";
-import { Search, Crosshair, Loader2, BarChart3, Sparkles } from "lucide-react";
+import { Search, Crosshair, Loader2, BarChart3, Sparkles, Database, CircleDollarSign, Flame, LineChart } from "lucide-react";
 import { suggestTitleExpansion } from "@/lib/sniper-helpers";
 
 // Components
@@ -168,6 +168,7 @@ export default function IntelligencePage() {
                             onChange={(e) => setSku(e.target.value)}
                             placeholder="11-001..."
                             className="w-full bg-slate-950/50 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all duration-300"
+                            onKeyDown={(e) => e.key === "Enter" && handleAnalyze()}
                         />
                     </div>
 
@@ -184,6 +185,7 @@ export default function IntelligencePage() {
                             onChange={(e) => setOurItemId(e.target.value)}
                             placeholder="MLV..."
                             className="w-full bg-slate-950/50 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all duration-300"
+                            onKeyDown={(e) => e.key === "Enter" && handleAnalyze()}
                         />
                     </div>
 
@@ -215,11 +217,11 @@ export default function IntelligencePage() {
             {result && (
                 <div className="space-y-6">
                     {/* Stats Bar */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        <StatCard label="Resultados totales" value={result.totalResults} icon="📊" />
-                        <StatCard label="Precio promedio" value={`$${result.stats?.avg_price?.toFixed(2) || "—"}`} icon="💰" />
-                        <StatCard label="Mayor ventas" value={result.stats?.max_sales || 0} icon="🔥" />
-                        <StatCard label="Rango precios" value={`$${result.stats?.min_price?.toFixed(0) || "—"} - $${result.stats?.max_price?.toFixed(0) || "—"}`} icon="📈" />
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <StatCard label="Resultados totales" value={result.totalResults} icon={Database} colorClass="border-blue-500/30" />
+                        <StatCard label="Precio promedio" value={`$${result.stats?.avg_price?.toFixed(2) || "—"}`} icon={CircleDollarSign} colorClass="border-emerald-500/30" />
+                        <StatCard label="Mayor ventas" value={result.stats?.max_sales || 0} icon={Flame} colorClass="border-orange-500/30" />
+                        <StatCard label="Rango precios" value={`$${result.stats?.min_price?.toFixed(0) || "—"} - $${result.stats?.max_price?.toFixed(0) || "—"}`} icon={LineChart} colorClass="border-purple-500/30" />
                     </div>
 
                     {/* Analysis Mode */}
@@ -320,11 +322,16 @@ export default function IntelligencePage() {
     );
 }
 
-function StatCard({ label, value, icon }) {
+function StatCard({ label, value, icon: Icon, colorClass }) {
     return (
-        <div className="bg-slate-900 border border-slate-700 rounded-lg p-3">
-            <div className="text-xs text-slate-400">{icon} {label}</div>
-            <div className="text-lg font-bold text-white mt-1">{value}</div>
+        <div className={`bg-slate-900/60 backdrop-blur-xl border ${colorClass} rounded-2xl p-4 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:shadow-cyan-500/5`}>
+            <div className="flex items-center gap-3 mb-2">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${colorClass.replace('border-', 'bg-').replace('/30', '/10')}`}>
+                    <Icon className={`w-4 h-4 ${colorClass.replace('border-', 'text-').replace('/30', '')}`} />
+                </div>
+                <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{label}</div>
+            </div>
+            <div className="text-2xl font-black text-white">{value}</div>
         </div>
     );
 }

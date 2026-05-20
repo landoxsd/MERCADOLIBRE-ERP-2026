@@ -16,23 +16,73 @@ const fs = require("fs");
 const path = require("path");
 
 // ---------------------------------------------------------------------------
-// CONFIGURACIÓN (modifica según tu entorno)
+// CARGAR VARIABLES DE ENTORNO LOCALES (.env)
+// ---------------------------------------------------------------------------
+try {
+    const envPath = path.join(__dirname, "..", ".env");
+    if (fs.existsSync(envPath)) {
+        const envContent = fs.readFileSync(envPath, "utf-8");
+        envContent.split(/\r?\n/).forEach((line) => {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith("#")) return;
+            const match = trimmed.match(/^([\w.\-]+)\s*=\s*(.*)?\s*$/);
+            if (match) {
+                const key = match[1];
+                let value = match[2] || "";
+                if (value.startsWith('"') && value.endsWith('"')) {
+                    value = value.substring(1, value.length - 1);
+                } else if (value.startsWith("'") && value.endsWith("'")) {
+                    value = value.substring(1, value.length - 1);
+                }
+                process.env[key] = value;
+            }
+        });
+        console.log("ℹ️  Variables de entorno cargadas desde .env de forma nativa");
+    }
+} catch (e) {
+    console.warn("⚠️  Error al cargar .env:", e.message);
+}
+
+// ---------------------------------------------------------------------------
+// CONFIGURACIÓN
 // ---------------------------------------------------------------------------
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://zqxesjcchykncxpekmbz.supabase.co";
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || "sb_publishable_ZMzOEp7m4QlwTUQOqZcmrA_cwu-Yk0U";
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 const MELI_CLIENT_ID = process.env.MELI_CLIENT_ID || "2657663366318591";
 const MELI_CLIENT_SECRET = process.env.MELI_CLIENT_SECRET || "VgPvucR8v97fp8ruCEfb2QOyeeAdvj73";
 
 // Cuenta de MercadoLibre a refrescar (dejar vacío "" para refrescar TODAS)
 const ACCOUNT_NICKNAME = process.env.ACCOUNT_NICKNAME || "";
 
-// Rutas al archivo de configuración de Cline (usa doble barra invertida en Windows)
+// Rutas al archivo de configuración de Cline/Claude/Desktop (usa doble barra invertida en Windows)
 const CONFIG_PATHS = [
-    // Antigravity / Cline
+    // Antigravity / Cline (Entorno del Agente)
     path.join(
         process.env.APPDATA || "C:/Users/ORLANDO/AppData/Roaming",
         "Antigravity/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json"
     ),
+    // Antigravity Agent Configuration
+    path.join(
+        process.env.USERPROFILE || "C:/Users/ORLANDO",
+        ".gemini",
+        "antigravity",
+        "mcp_config.json"
+    ),
+    // Gemini IDE Configuration (Active Environment)
+    path.join(
+        process.env.USERPROFILE || "C:/Users/ORLANDO",
+        ".gemini",
+        "config",
+        "mcp_config.json"
+    ),
+    // Claude Desktop (Configuración global del usuario)
+    path.join(
+        process.env.APPDATA || "C:/Users/ORLANDO/AppData/Roaming",
+        "Claude",
+        "claude_desktop_config.json"
+    ),
+    // Copia local mcp_config_BACKUP.json
+    path.join(__dirname, "..", "mcp_config_BACKUP.json"),
     // Backup en el proyecto
     path.join(__dirname, "..", "claude_desktop_config_snippet.json"),
 ];
@@ -79,15 +129,17 @@ function updateConfigFile(filePath, newToken) {
 
     let content = fs.readFileSync(filePath, "utf-8");
 
-    // Regex para reemplazar cualquier Bearer token en el archivo
-    const bearerRegex = /Authorization:Bearer APP_USR-[\w-]+/g;
+    // Regex para reemplazar cualquier Bearer token en el archivo (soporta formato CLI 'Authorization:Bearer APP_USR-...' y formato JSON '"Authorization": "Bearer APP_USR-..."')
+    const bearerRegex = /(Authorization(?:\":\s*\"|\s*:\s*)Bearer\s+)(APP_USR-[\w\-]+)/gi;
 
     if (!bearerRegex.test(content)) {
         console.warn(`⚠️  No se encontró token Bearer en: ${filePath}`);
         return false;
     }
 
-    content = content.replace(bearerRegex, `Authorization:Bearer ${newToken}`);
+    // Resetear regex para la operación de reemplazo
+    bearerRegex.lastIndex = 0;
+    content = content.replace(bearerRegex, `$1${newToken}`);
     fs.writeFileSync(filePath, content, "utf-8");
     console.log(`✅ Config actualizado: ${filePath}`);
     return true;

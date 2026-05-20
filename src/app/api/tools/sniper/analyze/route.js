@@ -19,10 +19,42 @@ const MLV_SITE_ID = "MLV";
 
 export async function POST(request) {
     try {
-        const { query, sku, ourItemId, accountId, categoryId, rawSearchResults } = await request.json();
+        let { query, sku, ourItemId, accountId, categoryId, rawSearchResults } = await request.json();
+
+        let skuExistsInInventory = false;
+        if (sku) {
+            const { data: invData } = await supabaseAdmin
+                .from("internal_inventory")
+                .select("sku, title")
+                .eq("sku", sku)
+                .single();
+            
+            if (invData) {
+                skuExistsInInventory = true;
+                if (!query || query.trim().length === 0) {
+                    query = invData.title;
+                }
+            }
+
+            if (!ourItemId) {
+                const { data: prodData } = await supabaseAdmin
+                    .from("products")
+                    .select("meli_item_id, title")
+                    .eq("sku", sku)
+                    .limit(1)
+                    .single();
+                
+                if (prodData) {
+                    ourItemId = prodData.meli_item_id;
+                    if (!query || query.trim().length === 0) {
+                        query = prodData.title;
+                    }
+                }
+            }
+        }
 
         if (!query || query.trim().length === 0) {
-            return NextResponse.json({ error: "Query requerida" }, { status: 400 });
+            return NextResponse.json({ error: "Query requerida o SKU no encontrado para auto-resolver" }, { status: 400 });
         }
 
         const batchId = crypto.randomUUID();
@@ -186,7 +218,7 @@ export async function POST(request) {
                 const snapshot = processSnapshot(item, detail, descText, {
                     batchId,
                     query: normalizedQuery,
-                    sku,
+                    sku: skuExistsInInventory ? sku : null,
                     ourItemId,
                     position: index + 1,
                 });

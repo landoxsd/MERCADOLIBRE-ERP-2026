@@ -346,3 +346,19 @@ Para asegurar la continuidad eterna del proyecto, se seguirán estas reglas:
     *   **Ecosistema de Agentes**: Implementación de `.clinerules` y habilidades modulares en `.agents/skills/` (Meli Expert, Sniper Logic, UI Premium).
     *   **Excel Power-Up**: Nueva pestaña "Resumen_General" en la exportación masiva para auditoría rápida de IDs y Breadcrumbs de categorías.
     *   **Estado**: Infraestructura de inteligencia lista para ejecución por IA.
+
+---
+
+## 🚦 CHECKPOINT DE IMPLEMENTACIÓN (Sesión 2026-05-20 — CONEXIÓN MCP RESTAURADA)
+
+**Estado:** Conexión MCP de MercadoLibre completamente reparada y funcional.
+**Logros Clave:**
+- **Refresco de Tokens Exitoso**: Se ejecutó el renovador de tokens sobre las cuentas `ORTOSISTEMAS`, `CORPORACIONRWC2` y `CORPORACIONRWCCA`, actualizando los access_tokens y persistiendo el estado en Supabase.
+- **Creación de Configuración Antigravity**: Añadimos el archivo de configuración oficial del agente (`C:\Users\ORLANDO\.gemini\antigravity\mcp_config.json`) para habilitar la conectividad MCP del agente local.
+- **Script de Sincronización Integrado**: Modificamos `refresh-token.js` para actualizar de forma recursiva y automática 5 archivos de configuración en el sistema:
+  1. `cline_mcp_settings.json` (Cline / VS Code)
+  2. `mcp_config.json` (Agente Antigravity)
+  3. `mcp_config.json` (Entorno Activo Gemini IDE: `C:\Users\ORLANDO\.gemini\config\mcp_config.json`)
+  4. `mcp_config_BACKUP.json` (Copia local)
+  5. `claude_desktop_config_snippet.json` (Copia en el proyecto)
+- **Estado de Preparación**: El sistema se encuentra 100% actualizado y listo para usar.
