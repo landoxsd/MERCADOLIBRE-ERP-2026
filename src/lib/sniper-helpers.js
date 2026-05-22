@@ -91,12 +91,13 @@ export function detectSpamWords(title = "") {
  * Procesa un snapshot enriquecido a partir de datos crudos de ML
  */
 export function processSnapshot(item, detail, description, meta) {
-    const titleLower = (item.title || "").toLowerCase();
+    const finalTitle = detail.title || item.title || "";
+    const titleLower = finalTitle.toLowerCase();
     const descLower = (description || "").toLowerCase();
 
-    const pickupZones = extractPickupZones(item.title, description);
-    const deliveryMethods = extractDeliveryMethods(item.title, description);
-    const spamWords = detectSpamWords(item.title);
+    const pickupZones = extractPickupZones(finalTitle, description);
+    const deliveryMethods = extractDeliveryMethods(finalTitle, description);
+    const spamWords = detectSpamWords(finalTitle);
 
     // Encontrar SKU o Número de pieza
     const skuAttr = detail.attributes?.find(a => 
@@ -122,16 +123,16 @@ export function processSnapshot(item, detail, description, meta) {
         our_ml_item_id: meta.ourItemId || null,
 
         ml_item_id: item.id,
-        title: item.title,
+        title: finalTitle,
         sku: sku || null,
         brand: brand || null,
-        price_usd: item.price,
+        price_usd: item.price || detail.price || 0,
         original_price_usd: item.original_price || detail.original_price || null,
-        available_quantity: item.available_quantity,
+        available_quantity: item.available_quantity || detail.available_quantity || 0,
         sold_quantity: item.sold_quantity || detail.sold_quantity || 0,
         sold_since: detail.date_created ? detail.date_created.split("T")[0] : null,
-        condition: item.condition,
-        listing_type_id: item.listing_type_id,
+        condition: item.condition || detail.condition,
+        listing_type_id: item.listing_type_id || detail.listing_type_id,
         permalink: detail.permalink || item.permalink || null,
 
         seller_id: detail.seller_id?.toString() || item.seller?.id?.toString() || null,
@@ -139,7 +140,7 @@ export function processSnapshot(item, detail, description, meta) {
         seller_reputation_level: item.seller?.seller_reputation?.level_id || null,
         seller_power_seller: item.seller?.seller_reputation?.power_seller_status || null,
 
-        thumbnail: item.thumbnail || null,
+        thumbnail: item.thumbnail || detail.thumbnail || detail.secure_thumbnail || null,
 
         health_score: detail.health_score || null,
         health_level: detail.health_level || null,
@@ -157,9 +158,10 @@ export function processSnapshot(item, detail, description, meta) {
         logistics_data: {
             pickup_zones: pickupZones,
             delivery_methods: deliveryMethods,
-            seller_city: item.seller_address?.city?.name || null,
-            seller_state: item.seller_address?.state?.name || null,
-            local_pickup: item.shipping?.local_pick_up || false,
+            seller_city: item.seller_address?.city?.name || detail.seller_address?.city?.name || null,
+            seller_state: item.seller_address?.state?.name || detail.seller_address?.state?.name || null,
+            free_shipping: item.shipping?.free_shipping || detail.shipping?.free_shipping || false,
+            local_pick_up: item.shipping?.local_pick_up || detail.shipping?.local_pick_up || false,
             spam_words_detected: spamWords,
         },
 

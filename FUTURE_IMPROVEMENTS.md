@@ -161,3 +161,29 @@ CREATE TABLE clone_history (
 
 ---
 *Sección añadida: 2026-05-11 — Sesión de Webhook Intelligence & MCP Setup.*
+
+## Roadmap: Inspiración de Real Trends, Administrado y UpSeller (Añadido 2026-05-22)
+El objetivo es transformar esta plataforma en el "Real Trends" de Venezuela, integrando las siguientes mecánicas analíticas:
+
+### 1. Inteligencia de Categorías (Radar de Nichos)
+- **Semáforos de Tendencia**: Indicadores visuales (flechas verdes/rojas) para mostrar si una categoría crece o decrece (+/- 20%).
+- **Métricas Globales**: Consolidar volumen total facturado, unidades vendidas y ticket promedio de una categoría entera.
+
+### 2. Extracción de Productos Ganadores (Top 20)
+- **Filtros Históricos**: Retroceder meses/años para ver estacionalidad.
+- **Orden Múltiple**: Ordenar por facturación o unidades vendidas para encontrar ganadores absolutos.
+- **Market Share**: Calcular el % de dependencia de un vendedor sobre un solo producto.
+
+### 3. Seguimiento a Nivel Cuenta (Espionaje Directo)
+- **Clonación del Dashboard**: Replicar las métricas de un competidor (facturación, conversión).
+- **Cruce Visitas vs. Conversión**: Comparar el embudo propio contra el líder para identificar problemas de tráfico vs. problemas de ficha técnica.
+- **Matriz Logística**: Analizar uso de envíos gratis, Flex, Full del rival.
+- **Control de Stock**: Trackear pausas por quiebre de stock para subir precios.
+
+### 4. Búsqueda Inversa y Keywords
+- **Intención de Búsqueda**: Top 50 de palabras más buscadas vs. títulos reales.
+- **Fricciones Algorítmicas**: Cruzar "términos buscados" con "más vendidos".
+
+### 5. Exportación Masiva (Big Data)
+- **Descarga en Crudo**: Exportar 10 competidores a Excel y unificarlos.
+- **Armado de Catálogos**: Filtrar los 20 mejores productos de ese ecosistema para decidir qué importar/fabricar.

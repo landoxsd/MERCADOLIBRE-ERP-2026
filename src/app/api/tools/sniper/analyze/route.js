@@ -114,11 +114,18 @@ export async function POST(request) {
         }
 
         // ------------------------------------------------------------------
-        // 1. BÚSQUEDA POR RELEVANCIA
+        // 1. BÚSQUEDA O EXTRACCIÓN QUIRÚRGICA
         // ------------------------------------------------------------------
         let rawResults = [];
 
-        if (rawSearchResults && Array.isArray(rawSearchResults) && rawSearchResults.length > 0) {
+        // Modo Sniper Quirúrgico (IDs directos en la query)
+        const mlvRegex = /MLV\d{8,11}/gi;
+        const extractedIds = [...new Set((normalizedQuery.match(mlvRegex) || []).map(id => id.toUpperCase()))];
+
+        if (extractedIds.length > 0) {
+            console.log(`📦 Modo Quirúrgico: Detectados ${extractedIds.length} IDs en la query.`);
+            rawResults = extractedIds.map(id => ({ id, is_direct: true, sold_quantity: 0 }));
+        } else if (rawSearchResults && Array.isArray(rawSearchResults) && rawSearchResults.length > 0) {
             // Usar resultados enviados desde el frontend (navegador del usuario)
             console.log(`📦 Usando ${rawSearchResults.length} resultados enviados desde el navegador`);
             rawResults = rawSearchResults;
@@ -420,6 +427,7 @@ export async function POST(request) {
                 attributes_count: s.attributes_count,
                 primary_attributes_count: s.attributes_primary?.length || 0,
                 secondary_attributes_count: s.attributes_other?.length || 0,
+                attributes_raw: s.raw_api_response?.attributes || [],
                 logistics_data: s.logistics_data,
                 search_position: s.search_position,
             })),

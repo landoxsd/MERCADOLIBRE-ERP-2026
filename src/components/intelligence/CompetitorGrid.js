@@ -12,22 +12,46 @@ export default function CompetitorGrid({ competitors, leaderId, onDelete }) {
     if (!competitors || competitors.length === 0) return null;
 
     const exportToExcel = () => {
-        const header = ["Rnk", "Vendedor", "Titulo", "SKU", "Marca", "Precio", "Ventas", "Vistas", "Fotos", "Atributos Principales", "Atributos Secundarios", "ID", "URL"];
-        const rows = sortedCompetitors.map((c, idx) => [
-            idx + 1,
-            c.seller_nickname || "—",
-            c.title,
-            c.sku || "—",
-            c.brand || "—",
-            c.price_usd?.toFixed(2) || "0",
-            c.sold_quantity || 0,
-            c.visits || 0,
-            c.pictures_count || 0,
-            c.primary_attributes_count || 0,
-            c.secondary_attributes_count || 0,
-            c.ml_item_id,
-            c.permalink || `https://articulo.mercadolibre.com.ve/MLV-${(c.ml_item_id || "").replace('MLV', '')}`
-        ]);
+        // 1. Extraer todos los nombres de atributos únicos presentes en los competidores visibles
+        const uniqueAttributeNames = new Set();
+        sortedCompetitors.forEach(c => {
+            if (c.attributes_raw && Array.isArray(c.attributes_raw)) {
+                c.attributes_raw.forEach(attr => {
+                    if (attr.name) uniqueAttributeNames.add(attr.name);
+                });
+            }
+        });
+        const dynamicAttributeHeaders = Array.from(uniqueAttributeNames).sort();
+
+        const baseHeader = ["Rnk", "Vendedor", "Titulo", "SKU", "Marca", "Precio", "Ventas", "Vistas", "Fotos", "Atributos Principales", "Atributos Secundarios", "ID", "URL"];
+        const header = [...baseHeader, ...dynamicAttributeHeaders.map(name => `Atributo ${name}`)];
+
+        const rows = sortedCompetitors.map((c, idx) => {
+            const baseRow = [
+                idx + 1,
+                c.seller_nickname || "—",
+                c.title,
+                c.sku || "—",
+                c.brand || "—",
+                c.price_usd?.toFixed(2) || "0",
+                c.sold_quantity || 0,
+                c.visits || 0,
+                c.pictures_count || 0,
+                c.primary_attributes_count || 0,
+                c.secondary_attributes_count || 0,
+                c.ml_item_id,
+                c.permalink || `https://articulo.mercadolibre.com.ve/MLV-${(c.ml_item_id || "").replace('MLV', '')}`
+            ];
+
+            // Rellenar valores de atributos dinámicos
+            const attrValues = dynamicAttributeHeaders.map(attrName => {
+                if (!c.attributes_raw || !Array.isArray(c.attributes_raw)) return "N/A";
+                const found = c.attributes_raw.find(a => a.name === attrName);
+                return found ? found.value_name : "N/A";
+            });
+
+            return [...baseRow, ...attrValues];
+        });
 
         const csvContent = [
             header.join(","),
