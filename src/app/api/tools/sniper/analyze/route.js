@@ -3,6 +3,7 @@
 // Búsqueda de competidores + enriquecimiento multiget + scraping MLV
 // ================================================================
 import { NextResponse } from "next/server";
+import crypto from "node:crypto";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getValidAccessToken } from "@/lib/meli-auth-helper";
 import {
@@ -16,6 +17,11 @@ import {
 
 const MELI_BASE_URL = "https://api.mercadolibre.com";
 const MLV_SITE_ID = "MLV";
+
+// ------------------------------------------------------------------
+// SCRAPER DE BÚSQUEDA PÚBLICA CON PLAYWRIGHT (HYBRID APPROACH)
+// ------------------------------------------------------------------
+import { scrapeMeliSearch } from "@/lib/mlv-playwright-scraper";
 
 export async function POST(request) {
     try {
@@ -117,25 +123,61 @@ export async function POST(request) {
             console.log(`📦 Usando ${rawSearchResults.length} resultados enviados desde el navegador`);
             rawResults = rawSearchResults;
         } else {
-            // Fallback: búsqueda desde el servidor (puede fallar por IP de datacenter)
-            const clientIdParam = clientId ? `&client_id=${clientId}` : "";
-            const searchUrl = `${MELI_BASE_URL}/sites/${MLV_SITE_ID}/search?q=${encodeURIComponent(normalizedQuery)}&limit=20${categoryId ? `&category=${categoryId}` : ""}${clientIdParam}`;
+            // Intentar búsqueda oficial. Si falla por 403 u otro error, usar bypass scraper
+            try {
+                const clientIdParam = clientId ? `&client_id=${clientId}` : "";
+                const searchUrl = `${MELI_BASE_URL}/sites/${MLV_SITE_ID}/search?q=${encodeURIComponent(normalizedQuery)}&limit=30${categoryId ? `&category=${categoryId}` : ""}${clientIdParam}`;
 
-            const searchHeaders = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "Accept": "application/json",
-                "Accept-Language": "es-VE,es;q=0.9",
-            };
-            if (accessToken) {
-                searchHeaders["Authorization"] = `Bearer ${accessToken}`;
-            }
+                const searchHeaders = {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    "Accept": "application/json",
+                    "Accept-Language": "es-VE,es;q=0.9",
+                };
+                if (accessToken) {
+                    searchHeaders["Authorization"] = `Bearer ${accessToken}`;
+                }
 
-            const searchRes = await fetch(searchUrl, { headers: searchHeaders });
-            if (!searchRes.ok) {
-                throw new Error(`ML Search failed: ${searchRes.status}`);
+                console.log(`🔍 Intentando búsqueda API oficial para: "${normalizedQuery}"`);
+                const searchRes = await fetch(searchUrl, { headers: searchHeaders });
+                if (!searchRes.ok) {
+                    throw new Error(`ML Search failed: ${searchRes.status}`);
+                }
+                const searchData = await searchRes.json();
+                rawResults = searchData.results || [];
+                console.log(`✅ Búsqueda API oficial exitosa: ${rawResults.length} resultados obtenidos`);
+            } catch (searchErr) {
+                console.warn(`⚠️ Búsqueda API oficial falló (${searchErr.message}). Iniciando scraper Playwright en el servidor...`);
+                
+                const scrapedItems = await scrapeMeliSearch(normalizedQuery);
+                if (scrapedItems && scrapedItems.length > 0) {
+                    rawResults = scrapedItems.map(item => {
+                        return {
+                            id: item.id,
+                            title: item.title || "",
+                            price: item.price || 0,
+                            currency_id: item.currency_id || "USD",
+                            permalink: item.permalink || "",
+                            available_quantity: 1,
+                            sold_quantity: item.sold_quantity || 0,
+                            condition: 'new',
+                            listing_type_id: 'gold_special',
+                            seller: {
+                                id: 0,
+                                nickname: item.seller_nickname || 'Competidor'
+                            },
+                            thumbnail: item.thumbnail || "",
+                            shipping: {
+                                free_shipping: item.free_shipping || false,
+                                local_pick_up: true
+                            }
+                        };
+                    });
+                    console.log(`✅ Scraper Playwright exitoso: ${rawResults.length} resultados obtenidos y mapeados`);
+                } else {
+                    console.error("❌ Scraper Playwright no obtuvo ningún resultado.");
+                    throw searchErr;
+                }
             }
-            const searchData = await searchRes.json();
-            rawResults = searchData.results || [];
         }
 
         if (rawResults.length === 0) {
@@ -152,7 +194,7 @@ export async function POST(request) {
         // 2. ORDENAR POR VENTAS EN MEMORIA (simula sold_quantity_desc)
         // ------------------------------------------------------------------
         const sortedResults = sortBySoldQuantity(rawResults);
-        const topCompetitors = sortedResults.slice(0, 10);
+        const topCompetitors = sortedResults.slice(0, 25);
 
         // ------------------------------------------------------------------
         // 3. MULTIGET PARA DETALLES ENRIQUECIDOS (fotos, atributos)
@@ -160,24 +202,79 @@ export async function POST(request) {
         const itemIds = topCompetitors.map((r) => r.id);
         const chunks = chunkArray(itemIds, 20);
         const itemDetails = [];
-
-        for (const chunk of chunks) {
-            const idsParam = chunk.join(",");
-            const detailHeaders = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "Accept": "application/json",
-            };
-            if (accessToken) detailHeaders["Authorization"] = `Bearer ${accessToken}`;
-            const detailRes = await fetch(`${MELI_BASE_URL}/items?ids=${idsParam}`, {
-                headers: detailHeaders,
-            });
-            if (detailRes.ok) {
-                const details = await detailRes.json();
-                itemDetails.push(...details.filter((d) => d.code === 200).map((d) => d.body));
+        
+        const detailPromises = topCompetitors.map(async (item) => {
+            try {
+                const detailHeaders = {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    "Accept": "application/json",
+                };
+                const res = await fetch(`${MELI_BASE_URL}/items/${item.id}`, { headers: detailHeaders });
+                console.log(`[Details API] Fetching ${item.id} anonymously. Status: ${res.status}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    itemDetails.push(data);
+                }
+            } catch (e) {
+                console.log(`[Details API] Error fetching ${item.id}:`, e.message);
             }
-        }
+        });
+        
+        await Promise.all(detailPromises);
 
         const detailsMap = new Map(itemDetails.map((d) => [d.id, d]));
+
+        // 3.2. OBTENER NOMBRES DE VENDEDORES (SELLER NICKNAMES)
+        const sellerIds = [...new Set(itemDetails.map(d => d.seller_id).filter(Boolean))];
+        const sellersMap = new Map();
+        
+        if (sellerIds.length > 0) {
+            const sellerPromises = sellerIds.map(async (sellerId) => {
+                try {
+                    const sellerHeaders = { "Accept": "application/json" };
+                    if (accessToken) sellerHeaders["Authorization"] = `Bearer ${accessToken}`;
+                    const res = await fetch(`${MELI_BASE_URL}/users/${sellerId}`, { headers: sellerHeaders });
+                    if (res.ok) {
+                        const data = await res.json();
+                        sellersMap.set(sellerId, { nickname: data.nickname, permalink: data.permalink });
+                    }
+                } catch (e) {
+                    console.log(`[Seller API] Error fetching seller ${sellerId}:`, e.message);
+                }
+            });
+            await Promise.all(sellerPromises);
+        }
+
+        // ------------------------------------------------------------------
+        // 3.5. OBTENER VISTAS (VISITS)
+        // ------------------------------------------------------------------
+        const visitsMap = new Map();
+        try {
+            const visitsHeaders = { "Accept": "application/json" };
+            if (accessToken) visitsHeaders["Authorization"] = `Bearer ${accessToken}`;
+            
+            // ML API only allows 1 ID per request for visits
+            const visitPromises = topCompetitors.map(async (item) => {
+                try {
+                    const visitsUrl = `${MELI_BASE_URL}/visits/items?ids=${item.id}`;
+                    const res = await fetch(visitsUrl, { headers: visitsHeaders });
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data[item.id] !== undefined) {
+                            visitsMap.set(item.id, data[item.id]);
+                        }
+                    } else {
+                        console.log(`[Visits API] Failed for ${item.id} with status: ${res.status}`);
+                    }
+                } catch (e) {
+                    console.log(`[Visits API] Exception for ${item.id}: ${e.message}`);
+                }
+            });
+            
+            await Promise.all(visitPromises);
+        } catch (e) {
+            console.warn("⚠️ Error general en fetch de vistas:", e.message);
+        }
 
         // ------------------------------------------------------------------
         // 4. TOKEN YA ESTÁ DISPONIBLE DESDE EL PASO 0
@@ -223,9 +320,16 @@ export async function POST(request) {
                     position: index + 1,
                 });
 
-                // Inyectar health
+                // Inyectar seller nickname si lo obtuvimos
+                if (detail.seller_id && sellersMap.has(detail.seller_id)) {
+                    const sellerInfo = sellersMap.get(detail.seller_id);
+                    snapshot.seller_nickname = sellerInfo.nickname;
+                }
+
+                // Inyectar health y visitas
                 snapshot.health_score = healthData.score;
                 snapshot.health_level = healthData.level;
+                snapshot.visits = visitsMap.get(item.id) || 0;
 
                 return snapshot;
             })
@@ -234,9 +338,23 @@ export async function POST(request) {
         // ------------------------------------------------------------------
         // 7. PERSISTIR SNAPSHOTS EN SUPABASE
         // ------------------------------------------------------------------
+        const dbSnapshots = snapshots.map(s => {
+            const { 
+                attributes_primary, 
+                attributes_other, 
+                original_price_usd, 
+                video_id, 
+                first_picture_size, 
+                visits,
+                thumbnail,
+                ...dbFields 
+            } = s;
+            return dbFields;
+        });
+
         const { data: insertedSnapshots, error: snapError } = await supabaseAdmin
             .from("mlv_market_snapshots")
-            .insert(snapshots)
+            .insert(dbSnapshots)
             .select();
 
         if (snapError) {
@@ -286,10 +404,23 @@ export async function POST(request) {
             competitors: snapshots.map((s) => ({
                 ml_item_id: s.ml_item_id,
                 title: s.title,
+                sku: s.sku || null,
+                brand: s.brand || null,
+                permalink: s.permalink || null,
                 price_usd: s.price_usd,
+                original_price_usd: s.original_price_usd,
                 sold_quantity: s.sold_quantity,
+                visits: s.visits || 0,
+                seller_id: s.seller_id,
                 seller_nickname: s.seller_nickname,
+                thumbnail: s.thumbnail || s.raw_api_response?.thumbnail || s.raw_api_response?.secure_thumbnail || null,
                 pictures_count: s.pictures_count,
+                first_picture_size: s.first_picture_size,
+                video_id: s.video_id,
+                attributes_count: s.attributes_count,
+                primary_attributes_count: s.attributes_primary?.length || 0,
+                secondary_attributes_count: s.attributes_other?.length || 0,
+                logistics_data: s.logistics_data,
                 search_position: s.search_position,
             })),
             ourItem: ourItem

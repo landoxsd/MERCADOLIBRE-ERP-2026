@@ -27,23 +27,23 @@ export default function WinnerCard({ ourItem, leader }) {
             (label === "Precio" ? ours > leaderVal : ours < leaderVal);
 
         return (
-            <div className="grid grid-cols-3 gap-2 py-3 border-b border-slate-700/50 items-center group hover:bg-slate-800/30 transition-colors px-2 rounded-lg">
+            <div className="winner-row">
                 {/* NOSOTROS */}
-                <div className={`flex items-center gap-2 text-sm font-bold ${isBetter ? 'text-emerald-400 drop-shadow-[0_0_4px_rgba(52,211,153,0.3)]' : isWorse ? 'text-rose-400 drop-shadow-[0_0_4px_rgba(251,113,133,0.3)]' : 'text-slate-300'}`}>
-                    <div className="w-6 h-6 rounded bg-slate-800/80 flex items-center justify-center shadow-inner border border-slate-700/50">
-                        {isBetter && <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />}
-                        {isWorse && <TrendingDown className="w-3.5 h-3.5 text-rose-400" />}
-                        {!isBetter && !isWorse && <Minus className="w-3.5 h-3.5 text-slate-500" />}
+                <div className={`winner-cell-ours ${isBetter ? 'better-style' : isWorse ? 'worse-style' : 'neutral-style'}`}>
+                    <div className="winner-trend-badge">
+                        {isBetter && <TrendingUp size={14} className="better-style" />}
+                        {isWorse && <TrendingDown size={14} className="worse-style" />}
+                        {!isBetter && !isWorse && <Minus size={14} className="neutral-style" />}
                     </div>
                     {format ? format(ours) : ours ?? "—"}
                 </div>
                 {/* MÉTRICA */}
-                <div className="flex flex-col items-center justify-center">
-                    {Icon && <Icon className="w-4 h-4 text-slate-500 mb-1" />}
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{label}</span>
+                <div className="winner-cell-metric">
+                    {Icon && <Icon size={16} color="#64748b" style={{ marginBottom: '2px' }} />}
+                    <span className="winner-metric-label">{label}</span>
                 </div>
                 {/* LÍDER */}
-                <div className="text-sm font-bold text-amber-300 drop-shadow-[0_0_4px_rgba(252,211,77,0.3)] text-right flex items-center justify-end gap-2">
+                <div className="winner-cell-leader">
                     {format ? format(leaderVal) : leaderVal ?? "—"}
                 </div>
             </div>
@@ -51,23 +51,23 @@ export default function WinnerCard({ ourItem, leader }) {
     };
 
     return (
-        <div className="bg-slate-900/80 backdrop-blur-xl rounded-2xl border border-amber-500/20 shadow-xl overflow-hidden shadow-amber-500/5 flex flex-col h-full">
-            <div className="bg-gradient-to-r from-amber-900/60 to-orange-900/40 px-5 py-4 border-b border-amber-500/30 flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center border border-amber-500/30">
-                    <Trophy className="w-4 h-4 text-amber-400" />
+        <div className="winner-card">
+            <div className="winner-card-header">
+                <div className="winner-card-icon-bg">
+                    <Trophy size={18} color="#f59e0b" />
                 </div>
-                <h3 className="text-sm font-black tracking-wide text-amber-400 uppercase">
+                <h3 className="winner-card-title">
                     Head-to-Head vs Líder
                 </h3>
             </div>
 
-            <div className="grid grid-cols-3 gap-2 px-5 py-3 bg-slate-950/50 text-xs font-black text-slate-500 tracking-wider">
+            <div className="winner-card-columns-header">
                 <div>NUESTRO ITEM</div>
-                <div className="text-center">VS</div>
-                <div className="text-right text-amber-500/70">#1 RANKING</div>
+                <div style={{ textAlign: 'center' }}>VS</div>
+                <div style={{ textAlign: 'right', color: 'rgba(245, 158, 11, 0.7)' }}>#1 RANKING</div>
             </div>
 
-            <div className="px-3 pb-3 flex-1 flex flex-col justify-center">
+            <div className="winner-card-rows-container">
                 <Row
                     label="Precio"
                     ours={ourPrice}
@@ -96,13 +96,23 @@ export default function WinnerCard({ ourItem, leader }) {
             </div>
 
             {ourItem && (
-                <div className="px-5 py-3 bg-slate-950/80 text-xs text-slate-400 border-t border-slate-800">
-                    <span className="font-bold text-slate-300">NOSOTROS:</span> <span className="text-slate-500">{ourItem.title || "Sin título"}</span>
+                <div className="winner-card-footer">
+                    <span style={{ fontWeight: '800', color: '#cbd5e1' }}>NOSOTROS:</span>{' '}
+                    <span style={{ color: '#64748b' }}>{ourItem.title || "Sin título"}</span>
                 </div>
             )}
-            <div className="px-5 py-3 bg-amber-950/30 text-xs text-amber-300/80 border-t border-amber-900/50">
-                <span className="font-bold text-amber-500">LÍDER:</span> <span className="text-amber-500/60">{leader.title}</span>
+            <div 
+                className="winner-card-footer" 
+                style={{ 
+                    background: 'rgba(120, 53, 4, 0.1)', 
+                    borderTop: '1px solid rgba(245, 158, 11, 0.2)', 
+                    color: '#f59e0b' 
+                }}
+            >
+                <span style={{ fontWeight: '800' }}>LÍDER:</span>{' '}
+                <span style={{ color: 'rgba(245, 158, 11, 0.7)' }}>{leader.title}</span>
             </div>
         </div>
     );
 }
+

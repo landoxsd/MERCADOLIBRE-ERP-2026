@@ -21,6 +21,8 @@ export default function IntelligencePage() {
     const [loading, setLoading] = useState(false);
     const [loadingCompare, setLoadingCompare] = useState(false);
     const [error, setError] = useState(null);
+    const [selectedZones, setSelectedZones] = useState([]);
+    const [displayLimit, setDisplayLimit] = useState(10);
 
     const [result, setResult] = useState(null);
     const [compareResult, setCompareResult] = useState(null);
@@ -42,12 +44,16 @@ export default function IntelligencePage() {
         return expanded !== item.title ? expanded : null;
     };
 
+    const canAnalyze = query.trim() || sku.trim() || ourItemId.trim();
+
     const handleAnalyze = async () => {
-        if (!query.trim()) return;
+        if (!canAnalyze) return;
         setLoading(true);
         setError(null);
         setResult(null);
         setCompareResult(null);
+        setSelectedZones([]);
+        setDisplayLimit(10);
 
         try {
             // PASO 1: Intentar búsqueda directa desde el navegador
@@ -121,84 +127,122 @@ export default function IntelligencePage() {
     };
 
     const scoreBreakdown = compareResult?.score_breakdown || {};
+    
+    // Zone Filtering Logic
+    const availableZones = result ? [...new Set(result.competitors.map(c => c.logistics_data?.seller_state).filter(Boolean))] : [];
+    
+    const filteredByZone = result ? result.competitors.filter(c => 
+        selectedZones.length === 0 || selectedZones.includes(c.logistics_data?.seller_state)
+    ) : [];
+
+    const displayedCompetitors = filteredByZone.slice(0, displayLimit);
+
+    const displayStats = {
+        avg_price: displayedCompetitors.length > 0 ? parseFloat((displayedCompetitors.reduce((acc, c) => acc + (c.price_usd || 0), 0) / displayedCompetitors.length).toFixed(2)) : 0,
+        max_sales: displayedCompetitors.length > 0 ? Math.max(...displayedCompetitors.map(c => c.sold_quantity || 0)) : 0,
+        min_price: displayedCompetitors.length > 0 ? Math.min(...displayedCompetitors.map(c => c.price_usd || Infinity)) : 0,
+        max_price: displayedCompetitors.length > 0 ? Math.max(...displayedCompetitors.map(c => c.price_usd || 0)) : 0,
+    };
+
+    const toggleZone = (zone) => {
+        setSelectedZones(prev => 
+            prev.includes(zone) 
+                ? prev.filter(z => z !== zone)
+                : [...prev, zone]
+        );
+    };
+
+    const handleDeleteCompetitor = (idToRemove) => {
+        setResult(prev => {
+            if (!prev) return prev;
+            const newCompetitors = prev.competitors.filter(c => c.ml_item_id !== idToRemove);
+            
+            return {
+                ...prev,
+                competitors: newCompetitors,
+            };
+        });
+    };
 
     return (
-        <div className="min-h-screen bg-slate-950 text-slate-100 p-6">
+        <div className="dashboard-wrapper">
             {/* Header */}
-            <div className="mb-6">
-                <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-                    <Crosshair className="w-6 h-6 text-cyan-400" />
+            <div className="dashboard-title-container">
+                <h1 className="dashboard-title">
+                    <Crosshair className="w-7 h-7 text-cyan-400" />
                     Inteligencia de Mercado
                 </h1>
-                <p className="text-sm text-slate-400 mt-1">
+                <p className="dashboard-subtitle">
                     Analiza a tus competidores en MLV y descubre por qué te están ganando.
                 </p>
             </div>
 
-            {/* Search Panel - Premium Overhaul */}
-            <div className="bg-slate-900/60 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-6 mb-8 shadow-2xl shadow-cyan-500/5">
-                <div className="flex flex-col lg:flex-row items-end gap-4">
-                    <div className="flex-1 w-full">
-                        <div className="flex items-center gap-2 mb-2">
-                            <div className="w-6 h-6 rounded-full bg-cyan-500/10 flex items-center justify-center">
-                                <Search className="w-3.5 h-3.5 text-cyan-400" />
+            {/* Search Panel - Premium Vanilla CSS */}
+            <div className="search-panel">
+                <div className="search-panel-row">
+                    <div className="search-input-group">
+                        <div className="search-input-label-row">
+                            <div className="search-input-icon-bg icon-cyan">
+                                <Search className="w-3.5 h-3.5" />
                             </div>
-                            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Término de búsqueda</label>
+                            <label className="search-input-label">Término de búsqueda</label>
                         </div>
                         <input
                             type="text"
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
                             placeholder="Ej: amortiguador delantero corolla 2015"
-                            className="w-full bg-slate-950/50 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition-all duration-300"
+                            className="input-glass"
                             onKeyDown={(e) => e.key === "Enter" && handleAnalyze()}
                         />
                     </div>
                     
-                    <div className="w-full lg:w-48">
-                        <div className="flex items-center gap-2 mb-2">
-                            <div className="w-6 h-6 rounded-full bg-amber-500/10 flex items-center justify-center">
-                                <Search className="w-3.5 h-3.5 text-amber-400" />
+                    <div style={{ width: '100%', maxWidth: '240px' }} className="search-input-group">
+                        <div className="search-input-label-row">
+                            <div className="search-input-icon-bg icon-amber">
+                                <Search className="w-3.5 h-3.5" />
                             </div>
-                            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">SKU Interno</label>
+                            <label className="search-input-label">SKU Interno</label>
                         </div>
                         <input
                             type="text"
                             value={sku}
                             onChange={(e) => setSku(e.target.value)}
                             placeholder="11-001..."
-                            className="w-full bg-slate-950/50 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all duration-300"
+                            className="input-glass"
+                            style={{ borderColor: 'rgba(245, 158, 11, 0.2)' }}
                             onKeyDown={(e) => e.key === "Enter" && handleAnalyze()}
                         />
                     </div>
 
-                    <div className="w-full lg:w-48">
-                        <div className="flex items-center gap-2 mb-2">
-                            <div className="w-6 h-6 rounded-full bg-purple-500/10 flex items-center justify-center">
-                                <Search className="w-3.5 h-3.5 text-purple-400" />
+                    <div style={{ width: '100%', maxWidth: '240px' }} className="search-input-group">
+                        <div className="search-input-label-row">
+                            <div className="search-input-icon-bg icon-purple">
+                                <Search className="w-3.5 h-3.5" />
                             </div>
-                            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">ML Item ID</label>
+                            <label className="search-input-label">ML Item ID</label>
                         </div>
                         <input
                             type="text"
                             value={ourItemId}
                             onChange={(e) => setOurItemId(e.target.value)}
                             placeholder="MLV..."
-                            className="w-full bg-slate-950/50 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all duration-300"
+                            className="input-glass"
+                            style={{ borderColor: 'rgba(168, 85, 247, 0.2)' }}
                             onKeyDown={(e) => e.key === "Enter" && handleAnalyze()}
                         />
                     </div>
 
                     <button
                         onClick={handleAnalyze}
-                        disabled={loading || !query.trim()}
-                        className="h-[46px] px-8 bg-gradient-to-r from-cyan-600 to-blue-700 hover:from-cyan-500 hover:to-blue-600 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-500 text-white font-bold rounded-xl text-sm transition-all duration-300 shadow-lg shadow-cyan-900/20 flex items-center justify-center gap-2 group"
+                        disabled={loading || !canAnalyze}
+                        className="btn-glow"
                     >
                         {loading ? (
                             <Loader2 className="w-5 h-5 animate-spin" />
                         ) : (
                             <>
-                                <Crosshair className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                                <Crosshair className="w-5 h-5" />
                                 ANALIZAR
                             </>
                         )}
@@ -206,66 +250,94 @@ export default function IntelligencePage() {
                 </div>
 
                 {error && (
-                    <div className="mt-4 bg-red-500/10 border border-red-500/20 text-red-400 text-xs px-4 py-3 rounded-xl flex items-center gap-2 animate-pulse">
-                        <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                        {error}
+                    <div className="error-banner">
+                        <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                        <span>Error: {error}</span>
                     </div>
                 )}
             </div>
 
             {/* Results */}
             {result && (
-                <div className="space-y-6">
+                <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                     {/* Stats Bar */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <StatCard label="Resultados totales" value={result.totalResults} icon={Database} colorClass="border-blue-500/30" />
-                        <StatCard label="Precio promedio" value={`$${result.stats?.avg_price?.toFixed(2) || "—"}`} icon={CircleDollarSign} colorClass="border-emerald-500/30" />
-                        <StatCard label="Mayor ventas" value={result.stats?.max_sales || 0} icon={Flame} colorClass="border-orange-500/30" />
-                        <StatCard label="Rango precios" value={`$${result.stats?.min_price?.toFixed(0) || "—"} - $${result.stats?.max_price?.toFixed(0) || "—"}`} icon={LineChart} colorClass="border-purple-500/30" />
+                    <div className="stat-cards-grid">
+                        <StatCard 
+                            label="Resultados filtrados" 
+                            value={displayedCompetitors.length} 
+                            icon={Database} 
+                            iconColor="#3b82f6"
+                            bgColor="rgba(59, 130, 246, 0.05)"
+                            borderColor="rgba(59, 130, 246, 0.2)"
+                        />
+                        <StatCard 
+                            label="Precio promedio" 
+                            value={`$${displayStats.avg_price?.toFixed(2) || "—"}`} 
+                            icon={CircleDollarSign} 
+                            iconColor="#10b981"
+                            bgColor="rgba(16, 185, 129, 0.05)"
+                            borderColor="rgba(16, 185, 129, 0.2)"
+                        />
+                        <StatCard 
+                            label="Mayor ventas" 
+                            value={displayStats.max_sales || 0} 
+                            icon={Flame} 
+                            iconColor="#f59e0b"
+                            bgColor="rgba(245, 158, 11, 0.05)"
+                            borderColor="rgba(245, 158, 11, 0.2)"
+                        />
+                        <StatCard 
+                            label="Rango precios" 
+                            value={`$${displayStats.min_price?.toFixed(0) || "—"} - $${displayStats.max_price?.toFixed(0) || "—"}`} 
+                            icon={LineChart} 
+                            iconColor="#8b5cf6"
+                            bgColor="rgba(139, 92, 246, 0.05)"
+                            borderColor="rgba(139, 92, 246, 0.2)"
+                        />
                     </div>
 
-                    {/* Analysis Mode */}
-                    <div className="flex items-center gap-3">
+                    {/* Analysis Mode & Compare Button */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
                         <AnalysisModeBadge mode={result.analysis_mode} />
                         {result.ourItem && (
                             <button
                                 onClick={handleCompare}
                                 disabled={loadingCompare}
-                                className="bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-all flex items-center gap-1"
+                                className="btn-compare-green"
                             >
-                                {loadingCompare ? <Loader2 className="w-3 h-3 animate-spin" /> : <BarChart3 className="w-3 h-3" />}
-                                Comparar con mi publicación
+                                {loadingCompare ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <BarChart3 className="w-3.5 h-3.5" />}
+                                COMPARAR CON MI PUBLICACIÓN
                             </button>
                         )}
                     </div>
 
                     {/* SEO Expansion Suggestion */}
                     {(getExpansionSuggestion(result.ourItem) || getExpansionSuggestion(result.leader)) && (
-                        <div className="bg-gradient-to-r from-blue-900/40 to-cyan-900/40 border border-cyan-500/30 rounded-2xl p-5 relative overflow-hidden group">
-                            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                        <div className="seo-card">
+                            <div className="seo-card-sparkle">
                                 <Sparkles className="w-24 h-24 text-cyan-400" />
                             </div>
-                            <div className="flex items-start gap-4 relative z-10">
-                                <div className="w-12 h-12 rounded-xl bg-cyan-500/20 flex items-center justify-center flex-shrink-0 border border-cyan-500/30">
+                            <div className="seo-card-content">
+                                <div className="seo-card-icon-bg">
                                     <Sparkles className="w-6 h-6 text-cyan-400 animate-pulse" />
                                 </div>
-                                <div className="flex-1">
-                                    <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-1">💡 Sugerencia de Expansión SEO</h3>
-                                    <p className="text-xs text-slate-300 mb-3">Hemos detectado una oportunidad para optimizar tu título y aprovechar los 60 caracteres permitidos.</p>
+                                <div className="seo-card-text">
+                                    <h3 className="seo-card-title">💡 Sugerencia de Expansión SEO</h3>
+                                    <p className="seo-card-desc">Hemos detectado una oportunidad para optimizar tu título y aprovechar los 60 caracteres permitidos en MercadoLibre.</p>
                                     
-                                    <div className="bg-slate-950/80 rounded-xl p-4 border border-slate-800">
-                                        <div className="text-xs text-slate-500 mb-2 uppercase font-bold">Título Sugerido:</div>
-                                        <div className="text-cyan-400 font-medium text-sm leading-relaxed">
+                                    <div className="seo-suggested-box">
+                                        <div className="seo-suggested-label">Título Sugerido:</div>
+                                        <div className="seo-suggested-title">
                                             {getExpansionSuggestion(result.ourItem) || getExpansionSuggestion(result.leader)}
                                         </div>
-                                        <div className="mt-2 flex items-center gap-2">
-                                            <div className="h-1.5 flex-1 bg-slate-800 rounded-full overflow-hidden">
+                                        <div className="seo-char-progress-row">
+                                            <div className="seo-char-progress-track">
                                                 <div 
-                                                    className="h-full bg-cyan-500" 
-                                                    style={{ width: `${((getExpansionSuggestion(result.ourItem) || getExpansionSuggestion(result.leader)).length / 60) * 100}%` }} 
+                                                    className="seo-char-progress-bar" 
+                                                    style={{ width: `${Math.min(((getExpansionSuggestion(result.ourItem) || getExpansionSuggestion(result.leader)).length / 60) * 100, 100)}%` }} 
                                                 />
                                             </div>
-                                            <span className="text-[10px] font-mono text-slate-500">
+                                            <span className="seo-char-count">
                                                 {(getExpansionSuggestion(result.ourItem) || getExpansionSuggestion(result.leader)).length}/60
                                             </span>
                                         </div>
@@ -275,26 +347,28 @@ export default function IntelligencePage() {
                         </div>
                     )}
 
-                    {/* Leader + WinnerCard */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {/* Leader + WinnerCard in responsive grid */}
+                    <div className="compare-row-grid">
                         <WinnerCard ourItem={result.ourItem} leader={result.leader} />
                         <LogisticsCard data={result.leader?.logistics_data} />
                     </div>
 
                     {/* Compare Results */}
                     {compareResult && (
-                        <>
-                            <div className="bg-slate-900 rounded-xl border border-slate-700 p-5">
-                                <div className="flex items-center justify-between mb-4">
-                                    <h3 className="text-lg font-bold text-white">⚔️ Score Competitivo</h3>
-                                    <div className="text-3xl font-black text-cyan-400">{compareResult.score_total}<span className="text-sm text-slate-400 font-normal">/100</span></div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                            <div className="score-board">
+                                <div className="score-board-header">
+                                    <h3 className="score-board-title">⚔️ Score Competitivo vs Líder</h3>
+                                    <div className="score-board-value">
+                                        {compareResult.score_total}<span>/100</span>
+                                    </div>
                                 </div>
 
                                 {/* Spam Alert */}
                                 <SpamAlert words={compareResult.gaps?.spam_words} />
 
                                 {/* Score Charts */}
-                                <div className="grid grid-cols-3 md:grid-cols-6 gap-4 mb-4">
+                                <div className="score-charts-grid">
                                     {Object.entries(scoreBreakdown).map(([key, val]) => (
                                         <ScoreChart key={key} score={val} label={key.replace(/_/g, " ").toUpperCase()} />
                                     ))}
@@ -303,18 +377,72 @@ export default function IntelligencePage() {
 
                             {/* Action Plan */}
                             <div>
-                                <h3 className="text-sm font-bold text-slate-300 mb-3">📝 Plan de Acción</h3>
+                                <h3 style={{ fontSize: '14px', fontWeight: '800', color: '#cbd5e1', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    📝 Plan de Acción
+                                </h3>
                                 <ActionPlan actions={compareResult.action_plan} />
                             </div>
-                        </>
+                        </div>
                     )}
 
-                    {/* Competitor Grid */}
-                    <div>
-                        <CompetitorGrid
-                            competitors={result.competitors}
-                            leaderId={result.leader?.ml_item_id}
-                        />
+                    {/* Competitor Grid with Zone Filter */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+                            {/* Zones Pills */}
+                            {availableZones.length > 0 && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                    <label style={{ fontSize: '13px', color: '#94a3b8', fontWeight: '500' }}>Zonas:</label>
+                                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                        {availableZones.map(zone => {
+                                            const isSelected = selectedZones.includes(zone);
+                                            return (
+                                                <button
+                                                    key={zone}
+                                                    onClick={() => toggleZone(zone)}
+                                                    style={{
+                                                        padding: '4px 10px',
+                                                        borderRadius: '999px',
+                                                        fontSize: '11px',
+                                                        fontWeight: '600',
+                                                        cursor: 'pointer',
+                                                        transition: 'all 0.2s ease',
+                                                        backgroundColor: isSelected ? '#3b82f6' : 'rgba(30, 41, 59, 0.8)',
+                                                        color: isSelected ? '#ffffff' : '#94a3b8',
+                                                        border: `1px solid ${isSelected ? '#60a5fa' : '#334155'}`
+                                                    }}
+                                                >
+                                                    {zone}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Display Limit Dropdown */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <label style={{ fontSize: '13px', color: '#94a3b8', fontWeight: '500' }}>Mostrar:</label>
+                                <select 
+                                    className="input-glass" 
+                                    style={{ width: 'auto', padding: '4px 12px', height: '32px', fontSize: '12px' }}
+                                    value={displayLimit}
+                                    onChange={(e) => setDisplayLimit(Number(e.target.value))}
+                                >
+                                    <option value={10}>Top 10</option>
+                                    <option value={15}>Top 15</option>
+                                    <option value={20}>Top 20</option>
+                                    <option value={25}>Top 25</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div style={{ animationDelay: '0.4s' }} className="animate-slide-up">
+                            <CompetitorGrid 
+                                competitors={displayedCompetitors} 
+                                leaderId={result.stats?.price_leader_id} 
+                                onDelete={handleDeleteCompetitor}
+                            />
+                        </div>
                     </div>
                 </div>
             )}
@@ -322,16 +450,17 @@ export default function IntelligencePage() {
     );
 }
 
-function StatCard({ label, value, icon: Icon, colorClass }) {
+function StatCard({ label, value, icon: Icon, iconColor, bgColor, borderColor }) {
     return (
-        <div className={`bg-slate-900/60 backdrop-blur-xl border ${colorClass} rounded-2xl p-4 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:shadow-cyan-500/5`}>
-            <div className="flex items-center gap-3 mb-2">
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${colorClass.replace('border-', 'bg-').replace('/30', '/10')}`}>
-                    <Icon className={`w-4 h-4 ${colorClass.replace('border-', 'text-').replace('/30', '')}`} />
+        <div className="stat-card-custom" style={{ border: `1px solid ${borderColor}` }}>
+            <div className="stat-card-header">
+                <div className="stat-card-icon-bg" style={{ backgroundColor: bgColor }}>
+                    <Icon className="w-5 h-5" style={{ color: iconColor }} />
                 </div>
-                <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{label}</div>
+                <div className="stat-card-label">{label}</div>
             </div>
-            <div className="text-2xl font-black text-white">{value}</div>
+            <div className="stat-card-value">{value}</div>
         </div>
     );
 }
+

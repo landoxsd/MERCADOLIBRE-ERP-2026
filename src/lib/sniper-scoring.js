@@ -155,6 +155,20 @@ export function calculateCompetitiveScore(ourItem, leader, allCompetitors, mode 
             impact_estimate: "+25% visibilidad, evita pérdida de posición",
         });
     }
+    
+    // --- 4.5. ACELERADOR DE OFERTAS ---
+    const leaderHasOffer = leader.original_price_usd && leader.original_price_usd > leaderPrice;
+    const weHaveOffer = ourItem.original_price && ourItem.original_price > ourPrice;
+    
+    if (leaderHasOffer && !weHaveOffer) {
+        actions.push({
+            priority: "high",
+            type: "price",
+            action_code: "create_discount_campaign",
+            detail: "El líder usa un Descuento Activo (Acelerador). Crea una oferta táctica del 5%.",
+            impact_estimate: "+15% CTR (etiqueta verde en búsqueda)",
+        });
+    }
 
     // --- 5. SEO TÍTULO ---
     let seoScore = 100;
@@ -221,6 +235,20 @@ export function calculateCompetitiveScore(ourItem, leader, allCompetitors, mode 
             impact_estimate: "+10% búsquedas relacionadas",
         });
     }
+    
+    // Densidad de Búsqueda Exacta
+    const queryWords = (leader.search_query || "").toLowerCase().split(" ").filter(w => w.length > 3);
+    const missingQueryWords = queryWords.filter(w => !ourTitle.toLowerCase().includes(w));
+    if (missingQueryWords.length > 0) {
+        seoScore -= 20;
+        actions.push({
+            priority: "high",
+            type: "seo",
+            action_code: "add_exact_match",
+            detail: `Te faltan palabras clave de búsqueda exacta: ${missingQueryWords.join(", ")}`,
+            impact_estimate: "+25% Impresiones",
+        });
+    }
 
     scores.seo_title = Math.max(0, seoScore);
 
@@ -241,8 +269,21 @@ export function calculateCompetitiveScore(ourItem, leader, allCompetitors, mode 
             action_code: "add_photos",
             current_value: ourPhotos,
             target_value: Math.min(10, leaderPhotos + 1),
-            detail: `Añade ${diff} foto(s) más. El líder usa ${leaderPhotos}.`,
-            impact_estimate: `+${diff * 5}% clicks`,
+            detail: `Añade ${diff} foto(s) de ambientación. El líder usa ${leaderPhotos}.`,
+            impact_estimate: `+${diff * 5}% retención visual`,
+        });
+    }
+    
+    // Auditoría de Video (Retención)
+    const leaderHasVideo = !!leader.video_id;
+    const weHaveVideo = !!ourItem.video_id;
+    if (leaderHasVideo && !weHaveVideo) {
+        actions.push({
+            priority: "medium",
+            type: "content",
+            action_code: "add_video",
+            detail: "El líder tiene un video explicativo. Añadir uno reduce rebotes.",
+            impact_estimate: "+10% tiempo en página",
         });
     }
 
@@ -310,7 +351,7 @@ export function calculateCompetitiveScore(ourItem, leader, allCompetitors, mode 
 // ================================================================
 
 const HIGH_VALUE_KEYWORDS = [
-    "original", "generico", "alterno", "oem",
+    "original", "oem",
     "delantero", "trasero", "izquierdo", "derecho", "conductor", "copiloto",
     "amortiguador", "bumper", "guardafango", "faro", "stop", "catalítico",
 ];

@@ -9,23 +9,22 @@ export default function AnalysisModeBadge({ mode }) {
     const config = mode === 'fitment'
         ? {
             label: '🔧 MODO COMPATIBILIDAD',
-            bg: 'bg-blue-900/60',
-            text: 'text-blue-200',
-            border: 'border-blue-700',
+            badgeClass: 'mode-badge-fitment',
+            labelClass: 'mode-badge-label-fitment',
             desc: 'Prioriza atributos BRAND/MODEL/PART_NUMBER'
         }
         : {
             label: '💰 MODO PRECIO',
-            bg: 'bg-emerald-900/60',
-            text: 'text-emerald-200',
-            border: 'border-emerald-700',
+            badgeClass: 'mode-badge-price',
+            labelClass: 'mode-badge-label-price',
             desc: 'Prioriza precio y visibilidad de número de parte'
         };
 
     return (
-        <div className={`inline-flex flex-col px-3 py-1.5 rounded-lg border ${config.bg} ${config.border}`}>
-            <span className={`text-xs font-bold ${config.text}`}>{config.label}</span>
-            <span className="text-[10px] text-slate-400 mt-0.5">{config.desc}</span>
+        <div className={`mode-badge ${config.badgeClass}`}>
+            <span className={`mode-badge-label ${config.labelClass}`}>{config.label}</span>
+            <span className="mode-badge-desc">{config.desc}</span>
         </div>
     );
 }
+

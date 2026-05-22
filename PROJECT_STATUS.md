@@ -46,6 +46,7 @@ Desarrollar un ERP/CRM web en Next.js (escalable a la nube) para la gestión mul
   - **Detección de Huérfanos con Inteligencia**: Extracción de ventas reales, visitas y salud de publicación (Live API).
   - **Acciones Tácticas Masivas**: Implementación de Pausado Masivo (Kill Switch) para limpieza de catálogo.
   - **Visualización Premium**: Dashboard con thumbnails, badges de rendimiento (Ventas 🔥) y stock real.
+  - **Dashboard Competitivo (Sniper)**: Grilla de competidores ampliada a Top 25 con extracción de SKU, Marca, reposición dinámica, filtros multi-zona y exportación a Excel.
 
 ### 🚛 Logística y Mercado Envíos
 - [x] Bypass de autenticación para portal externo (Sesión Dual)
@@ -66,4 +67,4 @@ Desarrollar un ERP/CRM web en Next.js (escalable a la nube) para la gestión mul
 - [ ] **IA Content Generator**: Usar el MCP de ML para generar descripciones y títulos que cumplan al 100% con las políticas vigentes.
 
 ---
-*Última actualización: 2026-05-10 - Lanzamiento de Consola de Auditoría Inteligente y Ecosistema MCP.*
+*Última actualización: 2026-05-22 - Ampliación de grilla Sniper y exportación a Excel.*

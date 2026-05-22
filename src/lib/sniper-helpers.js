@@ -98,6 +98,23 @@ export function processSnapshot(item, detail, description, meta) {
     const deliveryMethods = extractDeliveryMethods(item.title, description);
     const spamWords = detectSpamWords(item.title);
 
+    // Encontrar SKU o Número de pieza
+    const skuAttr = detail.attributes?.find(a => 
+        a.id === 'SELLER_ITEM_EXTRA_INFO' || 
+        a.id === 'SKU' || 
+        a.id === 'PART_NUMBER' || 
+        a.name?.toLowerCase().includes('sku') || 
+        a.name?.toLowerCase().includes('número de pieza')
+    );
+    const sku = skuAttr ? skuAttr.value_name : null;
+
+    // Encontrar Marca
+    const brandAttr = detail.attributes?.find(a => 
+        a.id === 'BRAND' || 
+        a.name?.toLowerCase().includes('marca')
+    );
+    const brand = brandAttr ? brandAttr.value_name : null;
+
     return {
         snapshot_batch_id: meta.batchId,
         search_query: meta.query,
@@ -106,23 +123,34 @@ export function processSnapshot(item, detail, description, meta) {
 
         ml_item_id: item.id,
         title: item.title,
+        sku: sku || null,
+        brand: brand || null,
         price_usd: item.price,
+        original_price_usd: item.original_price || detail.original_price || null,
         available_quantity: item.available_quantity,
         sold_quantity: item.sold_quantity || detail.sold_quantity || 0,
         sold_since: detail.date_created ? detail.date_created.split("T")[0] : null,
         condition: item.condition,
         listing_type_id: item.listing_type_id,
-        permalink: item.permalink,
+        permalink: detail.permalink || item.permalink || null,
 
-        seller_id: item.seller?.id?.toString() || null,
-        seller_nickname: item.seller?.nickname || null,
+        seller_id: detail.seller_id?.toString() || item.seller?.id?.toString() || null,
+        seller_nickname: item.seller?.nickname || item.seller_nickname || null,
         seller_reputation_level: item.seller?.seller_reputation?.level_id || null,
         seller_power_seller: item.seller?.seller_reputation?.power_seller_status || null,
+
+        thumbnail: item.thumbnail || null,
 
         health_score: detail.health_score || null,
         health_level: detail.health_level || null,
         pictures_count: detail.pictures?.length || 0,
+        video_id: detail.video_id || null,
+        first_picture_size: detail.pictures && detail.pictures.length > 0 ? (detail.pictures[0].max_size || detail.pictures[0].size || null) : null,
+        
         attributes_count: detail.attributes?.length || 0,
+        attributes_primary: detail.attributes?.filter(a => a.attribute_group_id === 'MAIN') || [],
+        attributes_other: detail.attributes?.filter(a => a.attribute_group_id !== 'MAIN') || [],
+        
         has_description: description.length > 100,
         description_text: description.substring(0, 500),
 
@@ -249,9 +277,9 @@ export function suggestTitleExpansion(title = "", metadata = {}) {
         keywords.push(metadata.oem);
     }
 
-    // 3. Añadir "Original" o "Generico"
-    if (!currentTitle.toLowerCase().includes("original") && !currentTitle.toLowerCase().includes("generico")) {
-        keywords.push(metadata.isOriginal ? "Original" : "Generico");
+    // 3. Añadir "Original" si es aplicable
+    if (metadata.isOriginal && !currentTitle.toLowerCase().includes("original")) {
+        keywords.push("Original");
     }
 
     // 4. Intentar rellenar

@@ -9,14 +9,15 @@ export default function SpamAlert({ words }) {
     if (!words || words.length === 0) return null;
 
     return (
-        <div className="bg-red-900/30 border border-red-700 p-3 rounded-lg mb-4">
-            <div className="flex items-center gap-2 text-red-400 font-semibold text-sm">
-                <AlertTriangle className="w-4 h-4" />
+        <div className="spam-alert-box">
+            <div className="spam-alert-header">
+                <AlertTriangle size={16} />
                 <span>Palabras penalizadas detectadas</span>
             </div>
-            <p className="text-xs text-red-300 mt-1">
-                Elimina del título: <span className="font-bold">{words.join(", ")}</span>. MLV penaliza términos de urgencia.
+            <p className="spam-alert-desc">
+                Elimina del título: <span style={{ fontWeight: 800 }}>{words.join(", ")}</span>. MLV penaliza términos de urgencia.
             </p>
         </div>
     );
 }
+

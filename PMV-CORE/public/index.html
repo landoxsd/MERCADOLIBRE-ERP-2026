@@ -133,26 +133,58 @@
         });
 
         socket.on('new_payment', (data) => {
+            addAiLog(data);
+        });
+
+        socket.on('new_movement', (data) => {
+            addBankLog(data);
+        });
+
+        socket.on('refresh_bank_data', () => {
+            console.log("🔄 Actualizando datos desde el servidor...");
+            loadInitialData();
+        });
+
+        function addAiLog(data) {
             const container = document.getElementById('ai-logs');
             const item = document.createElement('div');
             item.className = 'log-item';
             item.innerHTML = `
-                <span>Ref: <span class="ref">${data.reference}</span></span>
-                <span class="amount">Bs. ${data.amount}</span>
+                <span>Ref: <span class="ref">${data.reference || data.extracted_reference}</span></span>
+                <span class="amount">Bs. ${data.amount || data.extracted_amount}</span>
             `;
             container.prepend(item);
-        });
+        }
 
-        socket.on('new_movement', (data) => {
+        function addBankLog(data) {
             const container = document.getElementById('bank-logs');
             const item = document.createElement('div');
             item.className = 'log-item';
             item.innerHTML = `
-                <span>${data.description}</span>
+                <span>Ref: <span class="ref">${data.reference_number}</span></span>
                 <span class="amount">Bs. ${data.amount}</span>
             `;
             container.prepend(item);
-        });
+        }
+
+        async function loadInitialData() {
+            // Cargar movimientos bancarios
+            const resMov = await fetch('/movements');
+            const movements = await resMov.json();
+            const bankContainer = document.getElementById('bank-logs');
+            bankContainer.innerHTML = '';
+            movements.forEach(addBankLog);
+
+            // Cargar intentos de pago (IA)
+            const resAtt = await fetch('/attempts');
+            const attempts = await resAtt.json();
+            const aiContainer = document.getElementById('ai-logs');
+            aiContainer.innerHTML = '';
+            attempts.forEach(addAiLog);
+        }
+
+        // Cargar todo al iniciar
+        loadInitialData();
     </script>
 </body>
 </html>

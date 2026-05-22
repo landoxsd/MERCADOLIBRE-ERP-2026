@@ -29,9 +29,9 @@ export default function ScoreChart({ score, label }) {
     const theme = getTheme();
 
     return (
-        <div className="flex flex-col items-center group">
-            <div className="relative">
-                <svg width="80" height="80" viewBox="0 0 80 80" className="-rotate-90">
+        <div className="score-chart-container">
+            <div className="score-chart-circle-wrap">
+                <svg width="80" height="80" viewBox="0 0 80 80" className="score-chart-svg">
                     {/* Anillo de fondo */}
                     <circle cx="40" cy="40" r={radius} fill="none" stroke="#0f172a" strokeWidth="8" />
                     <circle cx="40" cy="40" r={radius} fill="none" stroke="#1e293b" strokeWidth="8" strokeDasharray="4 6" />
@@ -49,11 +49,12 @@ export default function ScoreChart({ score, label }) {
                     />
                 </svg>
                 {/* Texto central */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-white font-black text-lg">{normalizedScore}</span>
+                <div className="score-chart-text-overlay">
+                    <span className="score-chart-value">{normalizedScore}</span>
                 </div>
             </div>
-            <span className="text-xs font-semibold text-slate-400 mt-2 text-center uppercase tracking-wider group-hover:text-slate-300 transition-colors line-clamp-2">{label}</span>
+            <span className="score-chart-label">{label}</span>
         </div>
     );
 }
+

@@ -1,0 +1,44 @@
+# Ignore Excel worksheets (massive sizes)
+*.xlsx
+*.xls
+*.csv
+
+# Ignore local publisher and backups
+ML_Desktop_Publisher/
+ML_Desktop_Publisher.zip
+/Nueva carpeta/
+backup*/
+
+# Ignore logs and media screenshots
+*.log
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+
+# Ignore local payment verifier and other local-only scripts
+PMV-CORE/
+
+# Ignore workspace configurations
+.agents/
+.codex/
+.cursor/
+.vscode/
+.zed/
+.gemini/
+.git/
+.github/
+.clinerules
+.clineskills
+.audit_cache*
+.erp_settings.json
+*.xlsx
+*.xlsx_LLENADO.xlsx
+*.xlsx_*
+
+# Ignore dev directories
+node_modules/
+.next/
+out/
+build/

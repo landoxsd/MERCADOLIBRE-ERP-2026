@@ -362,3 +362,15 @@ Para asegurar la continuidad eterna del proyecto, se seguirán estas reglas:
   4. `mcp_config_BACKUP.json` (Copia local)
   5. `claude_desktop_config_snippet.json` (Copia en el proyecto)
 - **Estado de Preparación**: El sistema se encuentra 100% actualizado y listo para usar.
+
+---
+
+## 🚦 CHECKPOINT DE IMPLEMENTACIÓN (Sesión 2026-05-22 — LISTING SNIPER AMPLIADO)
+
+**Estado:** Grilla competitiva de Listing Sniper expandida con herramientas analíticas avanzadas.
+**Logros Clave:**
+- **Extracción de SKU y Marca:** El sistema ahora parsea los atributos SKU, PART_NUMBER, BRAND de la API de Mercado Libre para ofrecer un contexto técnico directo en la tabla.
+- **Top 25 y Reposición Dinámica:** Se amplió la capacidad de análisis de 10 a 25 competidores. Al eliminar un competidor, el sistema repone dinámicamente la tabla garantizando que el usuario siempre vea la cantidad seleccionada.
+- **Filtros Multi-Zona y Estadísticas Reales:** Implementación de filtrado por múltiples estados con recalculado automático de promedios, máximos y mínimos basado única y exclusivamente en los competidores activos/visibles.
+- **Exportación a Excel:** Integración de exportación a CSV (BOM UTF-8) directamente desde el frontend.
+- **Correcciones Logísticas y Multimedia:** Aislamiento de la métrica de fotos y corrección absoluta en la resolución de seller_id y permalink para un rastreo preciso de los competidores.
