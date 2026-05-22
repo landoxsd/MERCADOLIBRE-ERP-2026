@@ -83,14 +83,14 @@ Para dominar el mercado de autopartes:
 
 - `src/app/dashboard/intelligence/page.js` — Panel principal
   - 3 inputs: query, SKU interno, ML Item ID
-  - Botón ANALIZAR activo si cualquiera de los 3 tiene valor (`canAnalyze`)
-  - Error 403 resuelto con el scraper Playwright
-- `src/components/intelligence/CompetitorGrid.js` — Grid de competidores
+  - Filtros multi-zona y selector de top (10 a 25)
+  - Cálculos de mercado dinámicos
+- `src/components/intelligence/CompetitorGrid.js` — Grid de competidores con Extracción de SKU/Marca y exportación a Excel
 - `src/components/intelligence/AnalysisModeBadge.js` — Badge de modo
 - `src/components/intelligence/SpamAlert.js` — Alerta de spam/saturación
 - `src/components/intelligence/ActionPlan.js` — Plan de acciones
 
 ## Supabase Tables
 
-- `intelligence_snapshots` — historial de análisis guardados
-- `meli_accounts` — tokens de acceso ML (sin campo `client_id`)
+- `mlv_market_snapshots` — historial de análisis guardados
+- `meli_accounts` — tokens de acceso ML
