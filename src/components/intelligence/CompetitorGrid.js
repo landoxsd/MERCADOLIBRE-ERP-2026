@@ -1,13 +1,15 @@
 'use client';
 
-import { ExternalLink, Camera, Hash, Trophy, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Download } from "lucide-react";
+import { ExternalLink, Camera, Hash, Trophy, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Download, Eye } from "lucide-react";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 /**
  * CompetitorGrid — Tabla de competidores Top 10
  */
 export default function CompetitorGrid({ competitors, leaderId, onDelete }) {
     const [sortConfig, setSortConfig] = useState({ key: 'sold_quantity', direction: 'desc' });
+    const router = useRouter();
 
     if (!competitors || competitors.length === 0) return null;
 
@@ -175,16 +177,38 @@ export default function CompetitorGrid({ competitors, leaderId, onDelete }) {
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                             <div className="competitor-name-wrap">
                                                 {c.seller_id && c.seller_id !== "0" ? (
-                                                    <a 
-                                                        href={`https://listado.mercadolibre.com.ve/_CustId_${c.seller_id}`}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="competitor-name hover:text-cyan-400"
-                                                        title="Ver catálogo del vendedor"
-                                                        style={{ textDecoration: 'none' }}
-                                                    >
-                                                        {c.seller_nickname || "—"} <ExternalLink size={10} style={{display: 'inline', marginLeft: '2px'}}/>
-                                                    </a>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                        <a 
+                                                            href={`https://listado.mercadolibre.com.ve/_CustId_${c.seller_id}`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="competitor-name hover:text-cyan-400"
+                                                            title="Ver catálogo del vendedor"
+                                                            style={{ textDecoration: 'none' }}
+                                                        >
+                                                            {c.seller_nickname || "—"} <ExternalLink size={10} style={{display: 'inline', marginLeft: '2px'}}/>
+                                                        </a>
+                                                        <button
+                                                            onClick={() => router.push(`/dashboard/spy/${c.seller_id}`)}
+                                                            title="Espiar cuenta completa del vendedor"
+                                                            style={{
+                                                                background: 'rgba(6,182,212,0.12)',
+                                                                border: '1px solid rgba(6,182,212,0.3)',
+                                                                borderRadius: '5px',
+                                                                padding: '2px 7px',
+                                                                cursor: 'pointer',
+                                                                fontSize: '11px',
+                                                                color: '#06b6d4',
+                                                                fontWeight: 600,
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                gap: '3px',
+                                                                whiteSpace: 'nowrap',
+                                                            }}
+                                                        >
+                                                            <Eye size={10} /> Espiar
+                                                        </button>
+                                                    </div>
                                                 ) : (
                                                     <div className="competitor-name" title={c.seller_nickname}>
                                                         {c.seller_nickname || "—"}

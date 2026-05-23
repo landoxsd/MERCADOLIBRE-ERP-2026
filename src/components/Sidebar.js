@@ -15,7 +15,11 @@ const NAV_ITEMS = [
   { href: '/dashboard/customers', label: 'Clientes CRM', icon: '👥' },
   { href: '/dashboard/whatsapp', label: 'WhatsApp', icon: '📱' },
   { href: '/dashboard/analytics', label: 'Analíticas', icon: '📈' },
-  { href: '/dashboard/intelligence', label: 'Inteligencia de Mercado', icon: '🎯' },
+  { href: '/dashboard/intelligence', label: 'Listing Sniper', icon: '🎯' },
+  { href: '/dashboard/spy', label: 'Seller Spy 🕵️', icon: '👁️' },
+  { href: '/dashboard/radar', label: 'Radar Nichos', icon: '📡' },
+  { href: '/dashboard/keywords', label: 'Keywords', icon: '🔑' },
+  { href: '/dashboard/export', label: 'Big Data Export', icon: '📤' },
 ];
 
 export default function Sidebar({ accounts = [], activeAccountId }) {
