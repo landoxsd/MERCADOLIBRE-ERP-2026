@@ -430,3 +430,19 @@ Para asegurar la continuidad eterna del proyecto, se seguirán estas reglas:
   - SellerLogisticsMatrix: Porcentajes de catálogo con envío gratis y gold, con comparación vs tu cuenta.
   - SellerCatalogTable: Tabla paginada completa con barra de Market Share visual, ordenable por cualquier métrica y exportación directa a CSV.
 - **Navegación y UX**: Se añadió el botón 👁️ Espiar al lado de cada vendedor en el Listing Sniper actual, conectando el flujo hacia el Spy. Se añadieron los 4 nuevos módulos al Sidebar.
+
+
+---
+
+## 🚦 CHECKPOINT DE IMPLEMENTACIÓN (Sesión 2026-05-23 — SPRINT 2: RADAR DE CATEGORÍAS)
+
+**Estado:** Sprint 2 Completado exitosamente.
+
+**Logros Clave:**
+- **Categoría Scanner API (/api/tools/radar/category)**: Extrae una muestra representativa de hasta 500 ítems de cualquier categoría, estima volumen del mercado (Revenue y unidades vendidas) extrapolando con regla de 3 hacia el total real, calcula precio promedio y cuenta número de competidores.
+- **Detección de Tendencias y Snapshots**: Los datos se guardan en la tabla category_radar_snapshots y se compara el volumen de ventas con el snapshot inmediato anterior para determinar tendencias: 🔥 Hot, 📈 Growing, 📉 Declining o ⚖️ Stable.
+- **Bento Grid UI (/dashboard/radar)**: Una interfaz moderna y dinámica que permite:
+  - Añadir categorías a monitorear insertando su ID (ej. MLV1500).
+  - Visualizar semáforos de temperatura de mercado con colores adaptativos basados en 	rend_label (Rojo/Verde/Amarillo).
+  - Gráficos "Sparklines" (minigráficos de área) de fondo creados con Recharts que ilustran el historial de tamaño del mercado.
+  - Formateadores numéricos automáticos (k, M) para facilitar lectura rápida de miles y millones de dólares.

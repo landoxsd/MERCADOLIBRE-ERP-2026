@@ -69,7 +69,7 @@ Desarrollar un ERP/CRM web en Next.js (escalable a la nube) para la gestión mul
 | Sprint | Módulo | Estado |
 |--------|--------|--------|
 | 1 | **Seller Spy** — Rayos X de cuenta completa de competidor (toda la paginación, gráficos, cache, descarga) | ✅ Completado |
-| 2 | **Radar de Categorías** — Semáforos de nichos 🔥📈⚖️📉 | ⬜ Pendiente |
+| 2 | **Radar de Categorías** — Semáforos de nichos 🔥📈⚖️📉 | ✅ Completado |
 | 3 | **Top 20 Ganadores** — Billboard de productos que más dinero mueven | ⬜ Pendiente |
 | 4 | **Keywords Inverso** — Lo que buscan vs lo que compran | ⬜ Pendiente |
 | 5 | **Big Data Export** — Fusión de múltiples competidores → catálogo maestro | ⬜ Pendiente |
