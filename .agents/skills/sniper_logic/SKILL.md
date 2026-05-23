@@ -1,6 +1,6 @@
 ---
 name: sniper_logic
-description: Inteligencia de mercado y algoritmos de comparación competitiva para el sector autopartes en MLV.
+description: Inteligencia de mercado y algoritmos de comparación competitiva para el sector autopartes en MLV. Incluye Seller Spy (rayos X de cuentas de competidores), Radar de Categorías (semáforos de nichos), Top 20 Ganadores, Keywords Inverso y Big Data Export.
 ---
 
 # sniper_logic
@@ -14,6 +14,9 @@ Use esta habilidad cuando necesite:
 - Calcular puntajes de competitividad (Sniper Score).
 - Detectar zonas de pickup estratégicas en la competencia.
 - Generar un plan de acción basado en SEO, precio y fotos.
+- **Espiar la cuenta completa de un competidor** (Seller Spy): escanear todo su catálogo, calcular ingresos, Market Share por producto y matriz logística.
+- **Radar de Categorías**: detectar si un nicho está creciendo o muriendo con semáforos visuales.
+- **Búsqueda por IDs directos**: pegar IDs tipo `MLV818066302` o URLs en el buscador para modo quirúrgico.
 
 ## Arquitectura del Sistema (2026)
 
@@ -85,12 +88,30 @@ Para dominar el mercado de autopartes:
   - 3 inputs: query, SKU interno, ML Item ID
   - Filtros multi-zona y selector de top (10 a 25)
   - Cálculos de mercado dinámicos
-- `src/components/intelligence/CompetitorGrid.js` — Grid de competidores con Extracción de SKU/Marca y exportación a Excel
+  - **Modo Quirúrgico**: detecta IDs `MLV...` en el input y los procesa directamente
+- `src/components/intelligence/CompetitorGrid.js` — Grid de competidores
+  - Extrae SKU, Marca, Fotos, Ventas
+  - Botón `🕵️ Espiar` al lado del nombre de cada vendedor → `/dashboard/spy/{seller_id}`
+  - Exportación a CSV con atributos pivotados dinámicamente
 - `src/components/intelligence/AnalysisModeBadge.js` — Badge de modo
 - `src/components/intelligence/SpamAlert.js` — Alerta de spam/saturación
 - `src/components/intelligence/ActionPlan.js` — Plan de acciones
 
+## Módulos en Desarrollo (Radar de Mercado)
+
+| Módulo | Ruta Frontend | Ruta API | Estado |
+|--------|--------------|----------|--------|
+| Seller Spy | `/dashboard/spy/[seller_id]` | `/api/tools/sniper/seller` | 🔜 Sprint 1 |
+| Radar Categorías | `/dashboard/radar` | `/api/tools/radar/category` | ⬜ Sprint 2 |
+| Top 20 Ganadores | `/dashboard/radar` (sub-vista) | `/api/tools/radar/top-products` | ⬜ Sprint 3 |
+| Keywords Inverso | `/dashboard/keywords` | `/api/tools/keywords` | ⬜ Sprint 4 |
+| Big Data Export | `/dashboard/export` | `/api/tools/export/combined` | ⬜ Sprint 5 |
+
 ## Supabase Tables
 
-- `mlv_market_snapshots` — historial de análisis guardados
+- `mlv_market_snapshots` — historial de análisis de búsquedas guardados
 - `meli_accounts` — tokens de acceso ML
+- `seller_spy_sessions` — sesiones de espionaje de cuentas completas (cache 6h)
+- `seller_spy_items` — publicaciones individuales por sesión espiada
+- `category_radar_snapshots` — snapshots de categorías para semáforos de tendencia
+- `category_keywords` — keywords por categoría con volumen y conversión

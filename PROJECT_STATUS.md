@@ -61,10 +61,31 @@ Desarrollar un ERP/CRM web en Next.js (escalable a la nube) para la gestión mul
   - **Mercado Libre MCP**: Acceso a documentación y programación oficial de ML en tiempo real.
   - **Agent Skills (V2)**: Instalación de guías expertas de Postgres y Supabase para desarrollo seguro.
 
-### Próxima Fase: Optimización & Expansión (Sniper V4)
-- [ ] **Background Sync**: Migrar la sincronización masiva a Workers para evitar límites de tiempo en Vercel.
-- [ ] **Análisis de Oportunidad**: Detectar productos con muchas visitas pero pocas ventas para sugerir cambios de precio.
-- [ ] **IA Content Generator**: Usar el MCP de ML para generar descripciones y títulos que cumplan al 100% con las políticas vigentes.
+### 🚀 Fase Inteligencia Avanzada — Radar de Mercado (El Real Trends de Venezuela)
+- **Estado:** 🔄 En Planificación — Sprint 1 Aprobado
+- **Objetivo:** Transformar el Listing Sniper en un sistema completo de Inteligencia de Mercado.
+- **5 Sprints Planificados:**
+
+| Sprint | Módulo | Estado |
+|--------|--------|--------|
+| 1 | **Seller Spy** — Rayos X de cuenta completa de competidor (toda la paginación, gráficos, cache, descarga) | 🔜 Próximo |
+| 2 | **Radar de Categorías** — Semáforos de nichos 🔥📈⚖️📉 | ⬜ Pendiente |
+| 3 | **Top 20 Ganadores** — Billboard de productos que más dinero mueven | ⬜ Pendiente |
+| 4 | **Keywords Inverso** — Lo que buscan vs lo que compran | ⬜ Pendiente |
+| 5 | **Big Data Export** — Fusión de múltiples competidores → catálogo maestro | ⬜ Pendiente |
+
+- **Nuevas Tablas BD (Supabase):** `seller_spy_sessions`, `seller_spy_items`, `category_radar_snapshots`, `category_keywords`
+- **Plan grabado en:** `FUTURE_IMPROVEMENTS.md` + artefacto `implementation_plan.md`
+
+### Sniper V3 — Mejoras Recientes (2026-05-22)
+- **Estado:** ✅ Completado
+- **Hitos:**
+  - **Sniper Quirúrgico**: Búsqueda directa por IDs `MLV...` o URLs pegados en el buscador.
+  - **Atributos Dinámicos en Excel**: El CSV exportado incluye una columna por cada atributo detectado (Número de pieza, Marca, etc.), pivotado automáticamente.
+  - **processSnapshot Robusto**: Ahora usa `detail.*` como fallback si `item.*` viene vacío (modo búsqueda directa por ID).
+  - **Extracción de SKU y Marca:** Parseo de atributos PART_NUMBER, SKU, BRAND de la API.
+  - **Top 25 y Reposición Dinámica:** Capacidad ampliada de 10 a 25 competidores con reposición automática.
+  - **Exportación a Excel Enriquecida:** CSV BOM UTF-8 con atributos pivotados.
 
 ---
-*Última actualización: 2026-05-22 - Ampliación de grilla Sniper y exportación a Excel.*
+*Última actualización: 2026-05-23 — Plan Maestro "Radar de Mercado" definido. Sprint 1 (Seller Spy) listo para ejecución.*

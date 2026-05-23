@@ -374,3 +374,40 @@ Para asegurar la continuidad eterna del proyecto, se seguirán estas reglas:
 - **Filtros Multi-Zona y Estadísticas Reales:** Implementación de filtrado por múltiples estados con recalculado automático de promedios, máximos y mínimos basado única y exclusivamente en los competidores activos/visibles.
 - **Exportación a Excel:** Integración de exportación a CSV (BOM UTF-8) directamente desde el frontend.
 - **Correcciones Logísticas y Multimedia:** Aislamiento de la métrica de fotos y corrección absoluta en la resolución de seller_id y permalink para un rastreo preciso de los competidores.
+
+
+---
+
+## 🚦 CHECKPOINT DE PLANIFICACIÓN (Sesión 2026-05-23 — PLAN MAESTRO RADAR DE MERCADO)
+
+**Estado:** Plan Maestro "Radar de Mercado" definido y aprobado. Sprint 1 listo para ejecutar.
+
+**Inspiración:** Análisis exhaustivo de Real Trends, Administrado y UpSeller para ingeniería inversa de sus superpoderes aplicados a Venezuela (MLV).
+
+**Plan de 5 Sprints:**
+
+| Sprint | Módulo | Entregable Principal |
+|--------|--------|----------------------|
+| 1 | Seller Spy | Página /dashboard/spy/[seller_id] — escaneo catálogo completo, gráficos, cache Supabase, descarga CSV/JSON |
+| 2 | Radar de Categorías | Bento Grid con semáforos 🔥📈⚖️📉 de nichos de autopartes |
+| 3 | Top 20 Ganadores | Billboard animado de productos que más dinero mueven por categoría |
+| 4 | Keywords Inverso | Mapa de burbujas: búsquedas vs compras reales |
+| 5 | Big Data Export | Fusión de múltiples competidores → catálogo maestro CSV/JSON |
+
+**Nuevas Tablas Planificadas para Supabase:**
+- seller_spy_sessions — cache de escaneos de cuentas (TTL 6h)
+- seller_spy_items — items individuales por sesión
+- category_radar_snapshots — snapshots históricos por categoría
+- category_keywords — keywords con volumen y conversión
+
+**Logros de la Sesión Actual (Sniper V3.1):**
+- Sniper Quirúrgico: búsqueda directa por IDs MLV... o URLs pegadas
+- processSnapshot robustecido: usa detail.* como fallback para búsquedas directas
+- Exportación CSV con atributos pivotados dinámicamente (columna por atributo)
+- Test scripts cleanup (test-seller.js, test-seller-token.mjs eliminados tras uso)
+
+**Documentación Actualizada:**
+- PROJECT_STATUS.md ✅
+- .agents/skills/sniper_logic/SKILL.md ✅
+- FUTURE_IMPROVEMENTS.md ✅
+- Artefacto implementation_plan.md ✅ (grabado en disco del agente)
