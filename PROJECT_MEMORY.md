@@ -411,3 +411,22 @@ Para asegurar la continuidad eterna del proyecto, se seguirán estas reglas:
 - .agents/skills/sniper_logic/SKILL.md ✅
 - FUTURE_IMPROVEMENTS.md ✅
 - Artefacto implementation_plan.md ✅ (grabado en disco del agente)
+
+
+---
+
+## 🚦 CHECKPOINT DE IMPLEMENTACIÓN (Sesión 2026-05-23 — SPRINT 1: SELLER SPY)
+
+**Estado:** Sprint 1 Completado exitosamente.
+
+**Logros Clave:**
+- **Seller Spy API Paginada (/api/tools/sniper/seller)**: Escaneo masivo de todo el catálogo de un competidor, superando el límite normal paginando en lotes de 50 (hasta 500 ítems). Enriquecimiento con multiget (/items?ids=) para sacar attributes (Marca, SKU, etc.).
+- **Métricas Avanzadas y Market Share**: Cálculo del Market Share por cada producto, ingresos estimados multiplicando precio x cantidad vendida, y visitas usando el endpoint de visits.
+- **Persistencia y Cache (Supabase)**: Migración SQL creada e integrados endpoints para guardar seller_spy_sessions y seller_spy_items. El sistema recicla datos cacheados por 6 horas para evitar el 403 Forbidden por abuso de API.
+- **Página Dedicada (/dashboard/spy/[seller_id])**: Nueva vista espectacular con 5 componentes modulares:
+  - SellerKpiBar: Tarjetas con íconos para métricas globales.
+  - SellerCategoryDonut: Gráfico de dona (Recharts) de ingresos por nicho.
+  - SellerTopItemsBar: Gráfico de barras horizontales (Recharts) del top 10 ventas.
+  - SellerLogisticsMatrix: Porcentajes de catálogo con envío gratis y gold, con comparación vs tu cuenta.
+  - SellerCatalogTable: Tabla paginada completa con barra de Market Share visual, ordenable por cualquier métrica y exportación directa a CSV.
+- **Navegación y UX**: Se añadió el botón 👁️ Espiar al lado de cada vendedor en el Listing Sniper actual, conectando el flujo hacia el Spy. Se añadieron los 4 nuevos módulos al Sidebar.
