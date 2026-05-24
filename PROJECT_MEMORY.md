@@ -484,16 +484,26 @@ Para asegurar la continuidad eterna del proyecto, se seguirán estas reglas:
 
 ---
 
-## 🚦 CHECKPOINT DE IMPLEMENTACIÓN (Sesión 2026-05-24 — SPRINT 5: BIG DATA EXPORT)
+## 🚦 CHECKPOINT DE IMPLEMENTACIÓN (Sesión 2026-05-24 — SPRINT 5: BIG DATA EXPORT & RESOLVER BYPASSES)
 
-**Estado:** Sprint 5 Completado exitosamente. ¡Plan Maestro Radar de Mercado finalizado al 100%!
+**Estado:** Sprints 1-5 Completados exitosamente. ¡Plan Maestro "Radar de Mercado" finalizado al 100%! 🎉
 
 **Logros Clave:**
 - **Motor de Combinación y Deduplicación (/api/tools/export/combined)**: API backend que recibe un array de IDs de sesiones de espionaje (`seller_spy_sessions`), extrae todos los productos asociados y los deduplica eficientemente por `ml_item_id`. Prioriza la data de la sesión más reciente para ítems que aparecen repetidos en diferentes escaneos de competidores. Inyecta el `seller_nickname` en cada registro para conservar la trazabilidad de la fuente.
 - **Dashboard de Exportación (/dashboard/export)**: Interfaz de usuario intuitiva que lista el historial completo de sesiones de espionaje guardadas. Incluye un selector multi-check con capacidades de "Seleccionar Todos". Presenta KPIs dinámicos basados en la selección (número de vendedores, suma de ítems brutos y sumatoria de revenue estimado).
 - **Formatos de Exportación Dual**: Implementación de descargas directas en el navegador (Blob URLs) soportando **CSV Enriquecido** (BOM UTF-8, estructurado para Excel/Power BI, previniendo errores de parsing en comillas) y **JSON Raw** (con la estructura anidada intacta para procesamiento programático o bases de datos NoSQL).
+- **Resolutor Inteligente de Vendedores (/api/tools/sniper/resolve)**: Bypass definitivo al bloqueo `403 forbidden / PolicyAgent (Akamai)` de Mercado Libre para consultar productos de competidores. Utiliza una cascada inteligente en tres fases:
+  1. *Questions API bypass* (consulta de preguntas con token, totalmente libre de restricciones, extrayendo el `seller_id` en 200ms).
+  2. *Playwright Search list fallback* (búsqueda del título en listados de búsqueda de ML, evadiendo desafíos, para extraer el nickname).
+  3. *Playwright Profile/Store scraper* (carga del perfil o Tienda Oficial y extracción directa del `CustId` del DOM).
+- **Rediseño Premium UI de Seller Spy (/dashboard/spy)**: Reconstrucción total de la landing page con la identidad corporativa oscura de tu ERP (glassmorphism real `.search-panel`, inputs transparentes `.input-glass`, botones iluminados `.btn-glow` y tarjetas `.glass-card` con hover interactivo para el historial).
 
-**Archivos Creados:**
-- `src/app/api/tools/export/combined/route.js`
-- `src/app/dashboard/export/page.js`
+**Archivos Creados / Modificados:**
+- `src/app/api/tools/export/combined/route.js` [NUEVO]
+- `src/app/dashboard/export/page.js` [NUEVO]
+- `src/app/api/tools/sniper/resolve/route.js` [NUEVO]
+- `src/app/dashboard/spy/page.js` [REDISEÑADO]
+- `src/app/api/tools/sniper/seller/history/route.js` [MODIFICADO]
+- `.agents/skills/sniper_logic/SKILL.md` [MODIFICADO]
+- `PROJECT_STATUS.md` / `PROJECT_MEMORY.md` [MODIFICADOS]
 

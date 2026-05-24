@@ -62,7 +62,7 @@ Desarrollar un ERP/CRM web en Next.js (escalable a la nube) para la gestión mul
   - **Agent Skills (V2)**: Instalación de guías expertas de Postgres y Supabase para desarrollo seguro.
 
 ### 🚀 Fase Inteligencia Avanzada — Radar de Mercado (El Real Trends de Venezuela)
-- **Estado:** 🔄 Sprint 3 Completado — Listo para Sprint 4
+- **Estado:** ✅ Sprints 1-5 Completados — ¡Plan Maestro Radar de Mercado finalizado al 100%! 🎉
 - **Objetivo:** Transformar el Listing Sniper en un sistema completo de Inteligencia de Mercado.
 - **5 Sprints Planificados:**
 
@@ -77,10 +77,13 @@ Desarrollar un ERP/CRM web en Next.js (escalable a la nube) para la gestión mul
 - **Nuevas Tablas BD (Supabase):** `seller_spy_sessions`, `seller_spy_items`, `category_radar_snapshots`, `category_keywords`
 - **Plan grabado en:** `FUTURE_IMPROVEMENTS.md` + artefacto `implementation_plan.md`
 
-### Sniper V3 — Mejoras Recientes (2026-05-22)
+### Sniper V3 — Mejoras Recientes (2026-05-24 — Sprints 4 & 5 + Bypasses)
 - **Estado:** ✅ Completado
 - **Hitos:**
-  - **Sniper Quirúrgico**: Búsqueda directa por IDs `MLV...` o URLs pegados en el buscador.
+  - **Bypass Inteligente 403 (PolicyAgent)**: Implementación de resolución de `seller_id` en cascada mediante API de preguntas (`/questions/search`), Playwright title search list y scraping de perfiles oficiales, evadiendo bloqueos de IP y de scopes API.
+  - **Rediseño Premium UI Seller Spy**: Reconstrucción de la landing `/dashboard/spy` con Glassmorphism real, inputs de cristal reactivo (`input-glass`) y tarjetas adaptativas de historial (`glass-card`), logrando una armonía estética al 100%.
+  - **S5: Big Data Export**: Motor de combinación masiva deduplicada con inyección de orígenes y exportación dual (JSON y BOM CSV estructurado).
+  - **S4: Keywords Inverso**: Dashboard de análisis de palabras clave con mapas de calor y mapa de burbujas dinámico.
   - **Atributos Dinámicos en Excel**: El CSV exportado incluye una columna por cada atributo detectado (Número de pieza, Marca, etc.), pivotado automáticamente.
   - **processSnapshot Robusto**: Ahora usa `detail.*` como fallback si `item.*` viene vacío (modo búsqueda directa por ID).
   - **Extracción de SKU y Marca:** Parseo de atributos PART_NUMBER, SKU, BRAND de la API.
