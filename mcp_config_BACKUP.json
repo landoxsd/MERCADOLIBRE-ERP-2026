@@ -6,7 +6,7 @@
     "mercadolibre": {
       "serverUrl": "https://mcp.mercadolibre.com/mcp",
       "headers": {
-        "Authorization": "Bearer APP_USR-2657663366318591-052220-84127e807bf17bece9af80073a1292ef-77327265"
+        "Authorization": "Bearer APP_USR-2657663366318591-052320-5e52cfefb7ca554321fba7bb07df4902-1539376793"
       }
     }
   }

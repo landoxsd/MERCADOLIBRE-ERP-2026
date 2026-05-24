@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Search, Radar, TrendingUp, TrendingDown, Minus, ArrowRight, Loader2, Plus, Zap, AlertTriangle } from "lucide-react";
 import { AreaChart, Area, ResponsiveContainer } from "recharts";
+import Link from "next/link";
 
 export default function RadarPage() {
     const [categories, setCategories] = useState([]);
@@ -179,13 +180,13 @@ export default function RadarPage() {
                                     </div>
                                 </div>
 
-                                <button 
-                                    className="w-full flex items-center justify-center gap-2 bg-black/20 hover:bg-black/40 transition-colors py-2 rounded-lg text-sm font-medium border border-white/10"
-                                    onClick={() => alert('Próximamente: Top 20 Ganadores')}
+                                <Link 
+                                    href={`/dashboard/radar/${snap.category_id}`}
+                                    className="w-full flex items-center justify-center gap-2 bg-black/20 hover:bg-black/40 transition-colors py-2 rounded-lg text-sm font-medium border border-white/10 text-white"
                                 >
                                     Ver Top Productos
                                     <ArrowRight size={16} />
-                                </button>
+                                </Link>
                             </div>
                         </div>
                     );

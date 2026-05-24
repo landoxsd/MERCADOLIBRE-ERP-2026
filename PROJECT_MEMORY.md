@@ -443,6 +443,24 @@ Para asegurar la continuidad eterna del proyecto, se seguirán estas reglas:
 - **Detección de Tendencias y Snapshots**: Los datos se guardan en la tabla category_radar_snapshots y se compara el volumen de ventas con el snapshot inmediato anterior para determinar tendencias: 🔥 Hot, 📈 Growing, 📉 Declining o ⚖️ Stable.
 - **Bento Grid UI (/dashboard/radar)**: Una interfaz moderna y dinámica que permite:
   - Añadir categorías a monitorear insertando su ID (ej. MLV1500).
-  - Visualizar semáforos de temperatura de mercado con colores adaptativos basados en 	rend_label (Rojo/Verde/Amarillo).
+  - Visualizar semáforos de temperatura de mercado con colores adaptativos basados en trend_label (Rojo/Verde/Amarillo).
   - Gráficos "Sparklines" (minigráficos de área) de fondo creados con Recharts que ilustran el historial de tamaño del mercado.
   - Formateadores numéricos automáticos (k, M) para facilitar lectura rápida de miles y millones de dólares.
+
+---
+
+## 🚦 CHECKPOINT DE IMPLEMENTACIÓN (Sesión 2026-05-23 — SPRINT 3: TOP 20 GANADORES)
+
+**Estado:** Sprint 3 Completado exitosamente.
+
+**Logros Clave:**
+- **Top 20 Billboard API (/api/tools/radar/top-products)**: Escanea a fondo la categoría de forma inteligente, calcula métricas globales en base a una muestra representativa (hasta 250 productos) y devuelve el Top 20 ordenado por volumen de ventas.
+- **Market Share & Monopoly Detection**: Calcula de forma automática la cuota de mercado en ingresos (%) y unidades (%) para cada producto de la lista, detectando de forma instantánea si existe un monopolio de vendedor o producto (>30% de dominancia).
+- **Componente Visual Premium (TopProductsTable)**: Dashboard analítico e interactivo que incluye:
+  - Resumen KPI con widgets de volumen total escaneado, unidades, precio promedio y listados activos.
+  - Alerta analítica de Monopolio y widget de distribución del Top 5 de vendedores con barra de progreso.
+  - Filtros interactivos por búsqueda de texto y envíos gratis.
+  - Tabla paginada de ranking animada (#1, #2, #3 con medallas destacadas), thumbnails en alta definición e indicador visual del porcentaje de participación.
+  - Botón integrado "Espiar Vendedor" que conecta directamente cada ítem del top con el módulo Seller Spy (Sprint 1) a través de la ruta `/dashboard/spy/[seller_id]`.
+- **Vista de Categoría Dinámica (/dashboard/radar/[category_id])**: Implementado el enrutamiento dinámico completo con animaciones de carga fluidas, breadcrumbs intuitivos de regreso y manejo robusto de errores de red.
+
