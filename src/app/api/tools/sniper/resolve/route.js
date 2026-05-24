@@ -53,12 +53,28 @@ export async function POST(request) {
         }
 
         const trimmed = query.trim();
+        let accessToken = null;
+
+        // Intentar obtener un access token de alguna cuenta vinculada del ERP
+        try {
+            const { data: accounts } = await accountsTable().select("id").limit(1);
+            if (accounts && accounts.length > 0) {
+                accessToken = await getValidAccessToken(accounts[0].id);
+            }
+        } catch (authErr) {
+            console.error("Error al obtener token para resolver:", authErr.message);
+        }
+
+        const headers = {};
+        if (accessToken) {
+            headers["Authorization"] = `Bearer ${accessToken}`;
+        }
 
         // 1. Intentar resolver por ID de publicación o Link de producto
         const itemId = extractItemId(trimmed);
         if (itemId) {
             console.log(`Resolviendo por ítem ID: ${itemId}`);
-            const itemRes = await fetch(`https://api.mercadolibre.com/items/${itemId}`);
+            const itemRes = await fetch(`https://api.mercadolibre.com/items/${itemId}`, { headers });
             if (itemRes.ok) {
                 const itemData = await itemRes.json();
                 if (itemData.seller_id) {
@@ -69,21 +85,22 @@ export async function POST(request) {
                         item_title: itemData.title
                     });
                 }
+            } else {
+                console.error(`Error al consultar ítem ${itemId}: ${itemRes.status}`);
             }
         }
 
         // 2. Intentar resolver por Link de perfil de vendedor
         let nickname = extractNicknameFromUrl(trimmed);
         if (!nickname && !trimmed.includes("http")) {
-            // Si no es URL, es el nickname directamente
             nickname = trimmed;
         }
 
         if (nickname) {
             console.log(`Resolviendo por nickname: ${nickname}`);
             
-            // Intentar buscar de forma pública primero usando search por nickname
-            const searchRes = await fetch(`https://api.mercadolibre.com/sites/MLV/search?nickname=${encodeURIComponent(nickname)}`);
+            // Intentar buscar de forma pública/autenticada usando search por nickname
+            const searchRes = await fetch(`https://api.mercadolibre.com/sites/MLV/search?nickname=${encodeURIComponent(nickname)}`, { headers });
             if (searchRes.ok) {
                 const searchData = await searchRes.json();
                 if (searchData.results && searchData.results.length > 0 && searchData.results[0].seller) {
@@ -96,14 +113,11 @@ export async function POST(request) {
                 }
             }
 
-            // Fallback: Usar la API de usuarios de Mercado Libre con nuestro token del ERP
-            // para encontrar al usuario por nickname directamente.
-            const { data: accounts } = await accountsTable().select("id").limit(1);
-            if (accounts && accounts.length > 0) {
+            // Fallback: Usar la API de usuarios de Mercado Libre con token
+            if (accessToken) {
                 try {
-                    const token = await getValidAccessToken(accounts[0].id);
                     const userRes = await fetch(`https://api.mercadolibre.com/users/search?nickname=${encodeURIComponent(nickname)}`, {
-                        headers: { "Authorization": `Bearer ${token}` }
+                        headers: { "Authorization": `Bearer ${accessToken}` }
                     });
                     if (userRes.ok) {
                         const userData = await userRes.json();
@@ -117,7 +131,7 @@ export async function POST(request) {
                         }
                     }
                 } catch (err) {
-                    console.error("Error al usar token para resolver usuario:", err.message);
+                    console.error("Error en búsqueda por usuario con token:", err.message);
                 }
             }
         }
