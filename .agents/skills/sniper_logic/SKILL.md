@@ -48,22 +48,22 @@ INPUT: query (texto) | sku (interno) | ourItemId (MLV...)
 
 ### Fuentes de datos de competidores
 
-1. **Primaria**: Playwright scraper sobre `listado.mercadolibre.com.ve/{query}`
-   - El endpoint `api.mercadolibre.com/sites/MLV/search` está bloqueado (403 permanente)
-   - Playwright usa Chromium real → pasa Akamai → descarga HTML completo
-   - Extrae IDs MLV del HTML, luego enriches via multiget con token
+1. **Primaria**: Playwright scraper sobre `listado.mercadolibre.com.ve/{query}` o `GET /sites/MLV/search?seller_id=...` con fallback híbrido.
+   - El endpoint `api.mercadolibre.com/sites/MLV/search` a nivel general está bloqueado (403 permanente) sin token.
+   - Playwright usa Chromium real → pasa Akamai → descarga HTML completo en background.
+   - Extrae IDs MLV del HTML, luego enriches via multiget con token de administración.
 
-2. **Secundaria**: Si el usuario ingresa `ourItemId` (MLV...)
-   - El sistema extrae la categoría del ítem propio
-   - Busca otros ítems del mismo vendedor para comparar
+2. **Secundaria**: Si el usuario ingresa `ourItemId` (MLV...) en Listing Sniper
+   - El sistema extrae la categoría del ítem propio y busca otros ítems del mismo vendedor para comparar.
 
-## Steps
+## Steps de Espionaje
 
-1. **Búsqueda**: Playwright scraper extrae los 10-20 primeros resultados del listado.
-2. **Enriquecimiento**: Multiget `/items?ids=...` con token para obtener `sold_quantity`, fotos, atributos.
-3. **Gap Analysis**: Comparar Título, Precio, Fotos, Atributos y Logística.
-4. **Scoring**: Aplicar pesos (30% Precio, 25% SEO, 20% Fotos, 15% Atributos, 10% Logística).
-5. **Recomendación**: Generar lista de acciones prioritarias (ActionPlan).
+1. **Resolución**: `/api/tools/sniper/resolve` analiza la cadena ingresada. Extrae IDs si son links, busca al usuario si es nickname y devuelve el `seller_id` limpio.
+2. **Búsqueda**: Playwright scraper extrae los items de la tienda o catálogo del vendedor.
+3. **Enriquecimiento**: Multiget `/items?ids=...` con token para obtener `sold_quantity`, fotos, atributos.
+4. **Gap Analysis**: Comparar Título, Precio, Fotos, Atributos y Logística contra la cuenta del ERP vinculada.
+5. **Scoring**: Aplicar pesos (30% Precio, 25% SEO, 20% Fotos, 15% Atributos, 10% Logística).
+6. **Recomendación**: Generar lista de acciones prioritarias (ActionPlan).
 
 ## Segmentación por Modelos (Vehicle Split)
 
@@ -84,28 +84,30 @@ Para dominar el mercado de autopartes:
 
 ## Componentes del Frontend
 
-- `src/app/dashboard/intelligence/page.js` — Panel principal
+- `src/app/dashboard/intelligence/page.js` — Panel de comparación (Listing Sniper)
   - 3 inputs: query, SKU interno, ML Item ID
   - Filtros multi-zona y selector de top (10 a 25)
   - Cálculos de mercado dinámicos
   - **Modo Quirúrgico**: detecta IDs `MLV...` en el input y los procesa directamente
+- `src/app/dashboard/spy/page.js` — Landing Page de Seller Spy
+  - Buscador inteligente multi-entrada (links, nicknames, IDs, publicaciones).
+  - Panel de historial de escaneos guardados en base a componentes `.glass-card`.
+- `src/app/dashboard/spy/[seller_id]/page.js` — Dashboard individual de espionaje
+  - KPI bars, Donut charts por categorías de competidores y Matriz Logística.
+  - Tabla interactiva con opción de exportación CSV enriquecida y atributos pivotados.
 - `src/components/intelligence/CompetitorGrid.js` — Grid de competidores
   - Extrae SKU, Marca, Fotos, Ventas
   - Botón `🕵️ Espiar` al lado del nombre de cada vendedor → `/dashboard/spy/{seller_id}`
-  - Exportación a CSV con atributos pivotados dinámicamente
-- `src/components/intelligence/AnalysisModeBadge.js` — Badge de modo
-- `src/components/intelligence/SpamAlert.js` — Alerta de spam/saturación
-- `src/components/intelligence/ActionPlan.js` — Plan de acciones
 
-## Módulos en Desarrollo (Radar de Mercado)
+## Módulos de Inteligencia (Radar de Mercado)
 
 | Módulo | Ruta Frontend | Ruta API | Estado |
 |--------|--------------|----------|--------|
-| Seller Spy | `/dashboard/spy/[seller_id]` | `/api/tools/sniper/seller` | 🔜 Sprint 1 |
-| Radar Categorías | `/dashboard/radar` | `/api/tools/radar/category` | ⬜ Sprint 2 |
-| Top 20 Ganadores | `/dashboard/radar` (sub-vista) | `/api/tools/radar/top-products` | ⬜ Sprint 3 |
-| Keywords Inverso | `/dashboard/keywords` | `/api/tools/keywords` | ⬜ Sprint 4 |
-| Big Data Export | `/dashboard/export` | `/api/tools/export/combined` | ⬜ Sprint 5 |
+| Seller Spy | `/dashboard/spy/[seller_id]` | `/api/tools/sniper/seller` | ✅ Completado |
+| Radar Categorías | `/dashboard/radar` | `/api/tools/radar/category` | ✅ Completado |
+| Top 20 Ganadores | `/dashboard/radar/[category_id]` | `/api/tools/radar/top-products` | ✅ Completado |
+| Keywords Inverso | `/dashboard/keywords` | `/api/tools/keywords` | ✅ Completado |
+| Big Data Export | `/dashboard/export` | `/api/tools/export/combined` | ✅ Completado |
 
 ## Supabase Tables
 
