@@ -71,7 +71,7 @@ Desarrollar un ERP/CRM web en Next.js (escalable a la nube) para la gestión mul
 | 1 | **Seller Spy** — Rayos X de cuenta completa de competidor (toda la paginación, gráficos, cache, descarga) | ✅ Completado |
 | 2 | **Radar de Categorías** — Semáforos de nichos 🔥📈⚖️📉 | ✅ Completado |
 | 3 | **Top 20 Ganadores** — Billboard de productos que más dinero mueven por categoría | ✅ Completado |
-| 4 | **Keywords Inverso** — Lo que buscan vs lo que compran | ⬜ Pendiente |
+| 4 | **Keywords Inverso** — Tabla heatmap + mapa de burbujas de conversión real | ✅ Completado |
 | 5 | **Big Data Export** — Fusión de múltiples competidores → catálogo maestro | ⬜ Pendiente |
 
 - **Nuevas Tablas BD (Supabase):** `seller_spy_sessions`, `seller_spy_items`, `category_radar_snapshots`, `category_keywords`
@@ -88,4 +88,4 @@ Desarrollar un ERP/CRM web en Next.js (escalable a la nube) para la gestión mul
   - **Exportación a Excel Enriquecida:** CSV BOM UTF-8 con atributos pivotados.
 
 ---
-*Última actualización: 2026-05-23 — Sprint 3 (Top 20 Ganadores) completado y listo para Sprint 4 (Keywords Inverso).*
+*Última actualización: 2026-05-23 — Sprint 4 (Keywords Inverso) completado. 4/5 Sprints del Plan Maestro Radar de Mercado completos.*

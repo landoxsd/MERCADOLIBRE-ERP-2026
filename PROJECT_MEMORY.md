@@ -464,3 +464,21 @@ Para asegurar la continuidad eterna del proyecto, se seguirán estas reglas:
   - Botón integrado "Espiar Vendedor" que conecta directamente cada ítem del top con el módulo Seller Spy (Sprint 1) a través de la ruta `/dashboard/spy/[seller_id]`.
 - **Vista de Categoría Dinámica (/dashboard/radar/[category_id])**: Implementado el enrutamiento dinámico completo con animaciones de carga fluidas, breadcrumbs intuitivos de regreso y manejo robusto de errores de red.
 
+---
+
+## 🚦 CHECKPOINT DE IMPLEMENTACIÓN (Sesión 2026-05-23 — SPRINT 4: KEYWORDS INVERSO)
+
+**Estado:** Sprint 4 Completado exitosamente.
+
+**Logros Clave:**
+- **Motor de Keywords Inverso (/api/tools/keywords)**: API inteligente de triple fuente que combina: (1) tokenización n-gram de los títulos del catálogo propio en Supabase (unigrams + bigrams por frecuencia), (2) variaciones generadas desde la keyword semilla del usuario, y (3) keywords históricas guardadas en la tabla `category_keywords`. Por cada keyword candidata realiza un análisis de mercado real (API oficial → fallback Playwright scraper) calculando: competidores, precios, ventas totales, ingresos estimados y `conversion_score` (ventas/ítem). Normaliza el `conversion_heat` (0–100%) para alimentar el heatmap visual.
+- **Componente KeywordHeatmapTable**: Tabla interactiva con celdas coloreadas dinámicamente (verde → rojo) por el valor de cada métrica, badges automáticos de Oportunidad/Hot/Saturado, ordenación por cualquier columna, exportación directa a CSV BOM UTF-8 y botón Espiar por keyword (redirige al Listing Sniper).
+- **Componente KeywordBubbleChart**: Mapa de burbujas interactivo (Recharts ScatterChart) con X = densidad de competidores, Y = conversión (ventas/ítem), Z = tamaño de burbuja (ingresos estimados). Incluye líneas de referencia de medianas del mercado y guía de cuadrantes (Ideal / Potencial / Explorar / Evitar).
+- **Dashboard /dashboard/keywords**: Formulario dual (keyword semilla + ID de categoría), 4 KPI cards (keywords analizadas, keyword top, revenue total de la muestra, oportunidades detectadas) y vista tabbed entre Tabla Heatmap y Mapa de Burbujas.
+
+**Archivos Creados:**
+- `src/app/api/tools/keywords/route.js`
+- `src/components/keywords/KeywordHeatmapTable.js`
+- `src/components/keywords/KeywordBubbleChart.js`
+- `src/app/dashboard/keywords/page.js`
+
