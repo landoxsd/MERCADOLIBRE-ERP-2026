@@ -72,7 +72,7 @@ Desarrollar un ERP/CRM web en Next.js (escalable a la nube) para la gestión mul
 | 2 | **Radar de Categorías** — Semáforos de nichos 🔥📈⚖️📉 | ✅ Completado |
 | 3 | **Top 20 Ganadores** — Billboard de productos que más dinero mueven por categoría | ✅ Completado |
 | 4 | **Keywords Inverso** — Tabla heatmap + mapa de burbujas de conversión real | ✅ Completado |
-| 5 | **Big Data Export** — Fusión de múltiples competidores → catálogo maestro | ⬜ Pendiente |
+| 5 | **Big Data Export** — Fusión de múltiples competidores → catálogo maestro | ✅ Completado |
 
 - **Nuevas Tablas BD (Supabase):** `seller_spy_sessions`, `seller_spy_items`, `category_radar_snapshots`, `category_keywords`
 - **Plan grabado en:** `FUTURE_IMPROVEMENTS.md` + artefacto `implementation_plan.md`
@@ -88,4 +88,4 @@ Desarrollar un ERP/CRM web en Next.js (escalable a la nube) para la gestión mul
   - **Exportación a Excel Enriquecida:** CSV BOM UTF-8 con atributos pivotados.
 
 ---
-*Última actualización: 2026-05-23 — Sprint 4 (Keywords Inverso) completado. 4/5 Sprints del Plan Maestro Radar de Mercado completos.*
+*Última actualización: 2026-05-24 — Sprint 5 (Big Data Export) completado. El Plan Maestro "Radar de Mercado" ha sido finalizado con éxito (5/5 Sprints).*

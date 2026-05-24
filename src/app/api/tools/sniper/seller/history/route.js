@@ -10,16 +10,17 @@ export async function GET(request) {
         const { searchParams } = new URL(request.url);
         const seller_id = searchParams.get("seller_id");
 
-        if (!seller_id) {
-            return NextResponse.json({ error: "seller_id requerido" }, { status: 400 });
-        }
-
-        const { data: sessions, error } = await supabaseAdmin
+        let query = supabaseAdmin
             .from("seller_spy_sessions")
             .select("id, seller_id, seller_nickname, scanned_at, total_items, total_sold_qty, total_revenue_usd, avg_price, avg_conversion, pct_free_shipping")
-            .eq("seller_id", seller_id)
             .order("scanned_at", { ascending: false })
-            .limit(20);
+            .limit(100);
+
+        if (seller_id) {
+            query = query.eq("seller_id", seller_id);
+        }
+
+        const { data: sessions, error } = await query;
 
         if (error) throw error;
 

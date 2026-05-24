@@ -482,3 +482,18 @@ Para asegurar la continuidad eterna del proyecto, se seguirán estas reglas:
 - `src/components/keywords/KeywordBubbleChart.js`
 - `src/app/dashboard/keywords/page.js`
 
+---
+
+## 🚦 CHECKPOINT DE IMPLEMENTACIÓN (Sesión 2026-05-24 — SPRINT 5: BIG DATA EXPORT)
+
+**Estado:** Sprint 5 Completado exitosamente. ¡Plan Maestro Radar de Mercado finalizado al 100%!
+
+**Logros Clave:**
+- **Motor de Combinación y Deduplicación (/api/tools/export/combined)**: API backend que recibe un array de IDs de sesiones de espionaje (`seller_spy_sessions`), extrae todos los productos asociados y los deduplica eficientemente por `ml_item_id`. Prioriza la data de la sesión más reciente para ítems que aparecen repetidos en diferentes escaneos de competidores. Inyecta el `seller_nickname` en cada registro para conservar la trazabilidad de la fuente.
+- **Dashboard de Exportación (/dashboard/export)**: Interfaz de usuario intuitiva que lista el historial completo de sesiones de espionaje guardadas. Incluye un selector multi-check con capacidades de "Seleccionar Todos". Presenta KPIs dinámicos basados en la selección (número de vendedores, suma de ítems brutos y sumatoria de revenue estimado).
+- **Formatos de Exportación Dual**: Implementación de descargas directas en el navegador (Blob URLs) soportando **CSV Enriquecido** (BOM UTF-8, estructurado para Excel/Power BI, previniendo errores de parsing en comillas) y **JSON Raw** (con la estructura anidada intacta para procesamiento programático o bases de datos NoSQL).
+
+**Archivos Creados:**
+- `src/app/api/tools/export/combined/route.js`
+- `src/app/dashboard/export/page.js`
+
