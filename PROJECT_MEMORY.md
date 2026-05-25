@@ -542,3 +542,5 @@ Para asegurar la continuidad eterna del proyecto, se seguirÃ¡n estas reglas:
 - src/app/api/tools/optimizer/analyze/route.js [NUEVO]
 - src/app/dashboard/optimizer/page.js [NUEVO]
 - src/components/Sidebar.js [MODIFICADO]
+
+- **Actualización Image Hunter (Alta Resolución):** Refactor de la recolección de URLs para evadir el Captcha de DuckDuckGo y saltar los thumbnails cacheados de Yahoo/Bing. Se utiliza Extracción por Regex del HTML nativo para obtener y decodificar el _url directo_ de la imagen en alta calidad. Además, se añadió en la UI la capacidad de hacer clic sobre la miniatura para abrir la fuente HD en una pestaña nueva.

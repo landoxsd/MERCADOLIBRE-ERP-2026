@@ -9,40 +9,99 @@ export const maxDuration = 60;
 // Reutiliza la page ya abierta (evita re-abrir browser)
 // ─────────────────────────────────────────────
 async function scrapeImages(page, query, limit, strategyName) {
-    const fullQuery = `${query} autopart catalog white background`;
+    // Si la query es muy corta o parece solo un SKU, le damos algo de contexto, pero no demasiado
+    const isPureSku = /^[A-Z0-9-]+$/i.test(query) && query.length < 15;
+    const fullQuery = isPureSku ? `${query} autopart` : query;
     const encodedQuery = encodeURIComponent(fullQuery);
 
     await page.goto(
-        `https://duckduckgo.com/?q=${encodedQuery}&t=h_&iar=images&iax=images&ia=images`,
+        `https://images.search.yahoo.com/search/images?p=${encodedQuery}`,
         { waitUntil: 'networkidle', timeout: 25000 }
     );
-    await page.waitForSelector('[data-id]', { timeout: 8000 }).catch(() => {});
+    await page.waitForTimeout(2000); // Espera explicita por carga dinamica de Yahoo
 
-    const images = await page.evaluate((maxResults) => {
-        const tiles = document.querySelectorAll('[data-id]');
+    const html = await page.content();
+    
+    // Yahoo guarda la url original en la URL de redireccion y en metadata json embebido
+    // Extraemos todas las URLs validas de imagenes en el codigo fuente
+    const urlRegex = /https?:\/\/[^\s"'<>]+?(?:\.jpg|\.jpeg|\.png|\.webp)/gi;
+    const matches = [...html.matchAll(urlRegex)].map(m => m[0]);
+    
+    // Limpiamos dominios basura o de thumbnails de buscadores
+    const cleanUrls = matches.filter(u => 
+        !u.includes('yahoo.com') && 
+        !u.includes('yimg.com') && 
+        !u.includes('bing.net') && 
+        !u.includes('tse') &&
+        !u.includes('w3.org')
+    ).map(u => {
+        try { return decodeURIComponent(u); } catch(e) { return u; }
+    });
+
+    // Removemos duplicados
+    const uniqueImages = [...new Set(cleanUrls)].slice(0, limit);
+
+    const formattedImages = uniqueImages.map(src => {
+        let domain = '';
+        try { domain = new URL(src).hostname.replace('www.', ''); } catch(e) {}
+        return {
+            hd_url: src,
+            thumbnail: src,
+            width: 800, // asumiendo HD
+            height: 800,
+            title: query,
+            domain: domain,
+            is_hd: true,
+            strategy: strategyName
+        };
+    });
+
+    return formattedImages;
+}
+
+// ─────────────────────────────────────────────
+// Helper: buscar en Mercado Libre directamente
+// Extrae la imagen en HD reemplazando -I por -O
+// ─────────────────────────────────────────────
+async function searchMercadoLibre(query, limit, accessToken) {
+    try {
+        const headers = {};
+        if (accessToken) {
+            headers['Authorization'] = `Bearer ${accessToken}`;
+        }
+        
+        const res = await fetch(`https://api.mercadolibre.com/sites/MLV/search?q=${encodeURIComponent(query)}&limit=${limit}`, {
+            headers
+        });
+        
+        if (!res.ok) {
+            console.error("ML API Error in Search:", await res.text());
+            return [];
+        }
+        const data = await res.json();
         const results = [];
-        for (let i = 0; i < Math.min(tiles.length, maxResults); i++) {
-            const tile = tiles[i];
-            try {
-                const rawDataId = tile.getAttribute('data-id');
-                if (!rawDataId) continue;
-                const parsed = JSON.parse(decodeURIComponent(rawDataId));
-                const hdUrl = parsed.image || parsed.url || null;
-                const thumbUrl = parsed.thumbnail || null;
-                const width = parsed.width || 0;
-                const height = parsed.height || 0;
-                const title = parsed.title || '';
-                let domain = '';
-                try { if (hdUrl) domain = new URL(hdUrl).hostname.replace('www.', ''); } catch(e) {}
-                if (hdUrl) {
-                    results.push({ hd_url: hdUrl, thumbnail: thumbUrl || hdUrl, width, height, title, domain, is_hd: width >= 800 || height >= 800 });
-                }
-            } catch(e) { continue; }
+        for (const item of (data.results || [])) {
+            if (!item.thumbnail) continue;
+            // thumbnail: "http://http2.mlstatic.com/D_711610-MLV72363694956_102023-I.jpg"
+            const thumbUrl = item.thumbnail.replace('http://', 'https://');
+            const hdUrl = thumbUrl.replace('-I.jpg', '-O.jpg').replace('-I.webp', '-O.webp');
+            
+            results.push({
+                hd_url: hdUrl,
+                thumbnail: thumbUrl,
+                width: 1000,
+                height: 1000,
+                title: item.title,
+                domain: 'mercadolibre.com.ve',
+                is_hd: true,
+                strategy: 'mercadolibre_global'
+            });
         }
         return results;
-    }, limit);
-
-    return images.map(img => ({ ...img, strategy: strategyName }));
+    } catch(e) {
+        console.error("Error en fallback de ML:", e);
+        return [];
+    }
 }
 
 // IDs exactos de atributos en la API de MercadoLibre Venezuela
@@ -196,7 +255,7 @@ export async function GET(request) {
                 } else if (productData.marca || productData.modelo) {
                     // ── ESTRATEGIA 4 alternativa: Marca + Modelo ──────────
                     strategies_tried.push('tipo_generico');
-                    const genericQuery = [productData.titulo?.split(' ').slice(0,3).join(' '), productData.marca, productData.modelo]
+                    const genericQuery = [productData.title?.split(' ').slice(0,3).join(' '), productData.marca, productData.modelo]
                         .filter(Boolean).join(' ');
                     const genericImages = await scrapeImages(page, genericQuery, limit, 'tipo_generico');
                     images = [...images, ...genericImages];
@@ -206,6 +265,39 @@ export async function GET(request) {
                 }
             } else if (images.length > 0) {
                 strategy_used = 'sku_directo';
+            }
+        }
+
+        // ── ESTRATEGIA 5: MercadoLibre Global API (ULTIMATE FALLBACK) ──
+        // Si no tenemos suficientes imagenes y el SKU es puro o numerico (como 92100961), ML siempre tiene la razon.
+        const currentHdCount = images.filter(i => i.is_hd).length;
+        if (currentHdCount < MIN_HD_RESULTS) {
+            strategies_tried.push('mercadolibre_global');
+            // Buscar por SKU + descripcion corta si la tenemos
+            let mlQuery = q;
+            if (productData && productData.title) {
+                 // Tomar el SKU + las primeras 5 palabras de la descripcion para no saturar el buscador de ML
+                 const shortDesc = productData.title
+                     .replace(new RegExp(sku, 'gi'), '')
+                     .trim()
+                     .split(' ')
+                     .slice(0, 5)
+                     .join(' ');
+                 mlQuery = `${q} ${shortDesc}`.trim();
+            }
+
+            // Obtener token para la API de ML
+            const { data: accounts } = await supabaseAdmin
+                .from('meli_accounts')
+                .select('access_token')
+                .not('access_token', 'is', null)
+                .limit(1);
+            const token = accounts?.[0]?.access_token;
+
+            const mlImages = await searchMercadoLibre(mlQuery, limit, token);
+            if (mlImages.length > 0) {
+                images = [...images, ...mlImages];
+                strategy_used = 'mercadolibre_global';
             }
         }
 

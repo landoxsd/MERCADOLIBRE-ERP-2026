@@ -256,13 +256,15 @@ export default function ImageHunterPage() {
                                     {activeResult.images.map((img, idx) => (
                                         <div key={idx} style={styles.imgCard}>
                                             <div style={styles.imgWrap}>
-                                                <img
-                                                    src={img.thumbnail || img.hd_url}
-                                                    alt={img.title || activeResult.sku}
-                                                    style={styles.imgPreview}
-                                                    loading="lazy"
-                                                    onError={e => { e.target.style.display='none'; }}
-                                                />
+                                                <a href={img.hd_url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', width: '100%', height: '100%' }} title="Ver imagen en alta resolución">
+                                                    <img
+                                                        src={img.thumbnail || img.hd_url}
+                                                        alt={img.title || activeResult.sku}
+                                                        style={styles.imgPreview}
+                                                        loading="lazy"
+                                                        onError={e => { e.target.style.display='none'; }}
+                                                    />
+                                                </a>
                                             </div>
                                             <div style={styles.imgMeta}>
                                                 <span style={img.is_hd ? styles.badgeGreen : styles.badgeYellow}>

@@ -216,3 +216,8 @@ Listing Optimizer (con OPENAI_API_KEY):
 
 ---
 Handoff preparado por ANTIGRAVITY · 2026-05-24
+
+
+## CHECKPOINT ALCANZADO (25 MAYO 2026)
+- **Módulo 1 (Image Hunter) COMPLETADO**: Se resolvieron los problemas de captchas de buscadores migrando a Regex sobre Yahoo Images y se agregaron previsualizaciones clickeables en alta resolución.
+- **Módulo 2 (Listing Optimizer)**: Listo para iniciar su implementación en la próxima sesión.
