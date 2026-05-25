@@ -116,3 +116,14 @@ Para dominar el mercado de autopartes:
 - `seller_spy_items` â€” publicaciones individuales por sesiÃ³n espiada
 - `category_radar_snapshots` â€” snapshots de categorÃ­as para semÃ¡foros de tendencia
 - `category_keywords` â€” keywords por categorÃ­a con volumen y conversiÃ³n
+
+
+## Extracción de Imágenes Anti-Bot (Image Hunter)
+
+Para evadir los bloqueos estrictos (Bot Protection / Captchas) impuestos por DuckDuckGo y los sistemas de carga perezosa (lazy-loading) de Yahoo/Bing, **no se debe usar parseo del DOM** (\page.eval\) para extraer imágenes.
+
+**Estrategia Obligatoria (Regex HD):**
+1. Renderizar la página con Playwright y obtener el HTML puro (\page.content()\).
+2. Aplicar Expresiones Regulares sobre el código fuente para extraer los URLs directos en alta resolución que suelen estar ocultos en JSONs o atributos de redirección.
+   - Ejemplo de Regex: \/https?:\/\/[^\s"'<>]+?(?:\.jpg|\.jpeg|\.png|\.webp)/gi\`n3. Filtrar y decodificar (\decodeURIComponent\) las URLs, excluyendo dominios de thumbnails (ej. \yimg.com\, \	se\, \ing.net\).
+4. Enviar los enlaces \hd_url\ limpios al cliente para garantizar descargas sin pérdida de resolución.
