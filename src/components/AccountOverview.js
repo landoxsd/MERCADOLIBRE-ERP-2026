@@ -32,10 +32,20 @@ export default function AccountOverview({ accountId }) {
         <div className={`${styles.billingAlert} ${billing.isUpToDate ? styles.green : styles.red}`}>
           <span className={styles.alertIcon}>{billing.isUpToDate ? '✅' : '🚨'}</span>
           <div>
-            <strong>{billing.isUpToDate ? '¡Estás al día con tus pagos!' : 'Tienes deuda pendiente con ML'}</strong>
-            {!billing.isUpToDate && (
+            <strong>
+              {billing.isUpToDate 
+                ? '¡Estás al día con tus pagos!' 
+                : (billing.isSuspended ? '¡Cuenta Suspendida por Deuda!' : 'Tienes deuda pendiente con ML')}
+            </strong>
+            
+            {!billing.isUpToDate && billing.isSuspended && (
+              <p style={{ color: '#ffbaba', marginTop: '0.2rem' }}>{billing.note}</p>
+            )}
+
+            {!billing.isUpToDate && !billing.isSuspended && (
               <p>Deuda estimada: <b>{billing.currency} {billing.estimatedDebt.toFixed(2)}</b> — Puede afectar tu posicionamiento</p>
             )}
+            
             {billing.isUpToDate && billing.totalCharges > 0 && (
               <p>Cargos del mes: {billing.currency} {billing.totalCharges.toFixed(2)}</p>
             )}

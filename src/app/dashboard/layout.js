@@ -9,7 +9,12 @@ export const metadata = {
 
 export default async function DashboardLayout({ children }) {
   // 1. Obtener todas las cuentas vinculadas
-  const { data: accounts = [] } = await accountsTable().select('id, nickname, site_id').order('nickname');
+  const { data, error } = await accountsTable().select('id, nickname, site_id').order('nickname');
+  const accounts = data || [];
+
+  if (error) {
+    console.error("Error cargando cuentas en el layout:", error);
+  }
 
   // 2. Obtener la cuenta activa de las cookies
   const cookieStore = await cookies();

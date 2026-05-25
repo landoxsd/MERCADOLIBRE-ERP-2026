@@ -148,6 +148,7 @@ export async function getSellerReputation(userId, accessToken) {
       }
     },
     siteStatus: profile.site_status || "unknown",
+    statusDetails: profile.status || null,
     permalink: profile.permalink || null, // URL de "Mi Página"
     thumbnail: profile.thumbnail || null,
     points: profile.points || 0,
@@ -256,9 +257,25 @@ export async function getAccountOverview(userId, accessToken) {
     getSalesSummary(userId, accessToken, 30),
   ]);
 
+  const repData = reputation.status === "fulfilled" ? reputation.value : null;
+  const billData = billing.status === "fulfilled" ? billing.value : null;
+
+  // OVERRIDE billing info si la API de perfil indica que hay una deuda pendiente o cuenta suspendida
+  if (repData && billData && repData.statusDetails) {
+    const st = repData.statusDetails;
+    const hasDebtCode = st.sell?.codes?.includes('debt') || st.list?.codes?.includes('debt') || st.billing?.codes?.includes('debt');
+    const isSuspended = repData.siteStatus === 'deactive' || repData.siteStatus === 'suspended';
+
+    if (hasDebtCode || (isSuspended && !st.sell?.allow)) {
+      billData.isUpToDate = false;
+      billData.isSuspended = true; // Flag adicional para la UI
+      billData.note = "Tu cuenta tiene publicaciones suspendidas por facturas vencidas.";
+    }
+  }
+
   return {
-    reputation: reputation.status === "fulfilled" ? reputation.value : null,
-    billing: billing.status === "fulfilled" ? billing.value : null,
+    reputation: repData,
+    billing: billData,
     sales7d: sales7d.status === "fulfilled" ? sales7d.value : null,
     sales30d: sales30d.status === "fulfilled" ? sales30d.value : null,
   };

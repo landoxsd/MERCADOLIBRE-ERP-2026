@@ -507,3 +507,38 @@ Para asegurar la continuidad eterna del proyecto, se seguirÃ¡n estas reglas:
 - `.agents/skills/sniper_logic/SKILL.md` [MODIFICADO]
 - `PROJECT_STATUS.md` / `PROJECT_MEMORY.md` [MODIFICADOS]
 
+---
+
+## ?? CHECKPOINT DE PLANIFICACIÓN (Sesión 2026-05-24 — SPRINT 6: IMAGE HUNTER & LISTING SNIPER)
+
+**Estado:** Planificación y Backend de Fase 1 Completados.
+
+**Logros Clave:**
+- **Definición de Arquitectura a Costo Cero:** Se estableció la hoja de ruta para crear dos módulos vitales: El *Optimizador de Publicaciones* (analiza tu producto vs top 5 competidores usando IA) y el *Cazador de Imágenes* (busca fotos faltantes en Google/Amazon).
+- **Motor de Imágenes 1500x1500 (Sharp):** Se migró la lógica de un script en Python (Pillow) directamente a Node.js usando la librería sharp. El endpoint /api/images/process/route.js descarga la foto, le pone lienzo blanco 1500x1500px y mejora la nitidez (sharpen).
+- **Evasión de Scraping en Amazon:** En lugar de intentar escrapear Amazon directamente (y ser bloqueados), el endpoint /api/images/hunt/route.js usa Playwright invisible para buscar a través de DuckDuckGo Images.
+- **Formato PROFIT Strict:** Todas las imágenes procesadas se guardan estrictamente con el formato [SKU]-0.jpg, [SKU]-1.jpg, garantizando compatibilidad nativa con la vista local /dashboard/image-bank y el software PROFIT.
+- **Motor de Exportación ZIP:** Se creó el endpoint /api/images/export-zip/route.js (usando rchiver) para empaquetar toda la Bandeja de Aprobados en un ZIP descargable.
+
+**Próximos Pasos (Para la siguiente IA):**
+1. Construir la UI del Cazador de Imágenes en /dashboard/images/hunter/page.js (Formulario batch, grilla de resultados, y Bandeja de Aprobados).
+2. Construir la API y la UI del Módulo 2: Optimizador de Publicaciones (Listing Sniper) integrando GPT-4o para el cruce de datos y exportación a formato Integraly.
+---
+
+## ?? CHECKPOINT DE IMPLEMENTACIÓN (Sesión 2026-05-24/25 — SPRINT 6: IMAGE HUNTER & LISTING SNIPER)
+
+**Estado:** Sprint 6 Completado exitosamente.
+
+**Logros Clave:**
+- **Módulo Inteligente Multi-Estrategia (Image Hunter):** API avanzada /api/images/hunt capaz de hacer fallback a internal_inventory (inventario maestro local) para SKUs inéditos en ML. Búsqueda en cascada: (1) SKU directo, (2) Descripción real del producto, (3) Equivalencias OEM extraídas (como BP4N-39-070C), (4) Tipo Genérico.
+- **Integración con Banco de Imágenes (Auditoría):** Botón 'Cargar Faltantes del Banco' que consulta automáticamente /api/image-bank/pending y permite filtrar las descargas de imágenes faltantes según tengan o no stock.
+- **Evacuación a PROFIT:** Endpoint para recolectar el sandbox y empaquetarlo en un .zip nativo compatible para importación en Profit.
+- **Módulo Listing Optimizer:** Creadas rutas para análisis cruzados con competidores usando IA Groq (llama-3.3-70b-versatile), dictámenes inteligentes y exportación CSV con formato compatible para Integraly/Profit Plus.
+
+**Archivos Creados / Modificados:**
+- src/app/api/images/hunt/route.js [REFACTOR MULTI-ESTRATEGIA]
+- src/app/dashboard/images/hunter/page.js [NUEVO]
+- src/app/api/images/export-zip/route.js [MODIFICADO]
+- src/app/api/tools/optimizer/analyze/route.js [NUEVO]
+- src/app/dashboard/optimizer/page.js [NUEVO]
+- src/components/Sidebar.js [MODIFICADO]

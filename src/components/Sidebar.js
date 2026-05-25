@@ -20,6 +20,8 @@ const NAV_ITEMS = [
   { href: '/dashboard/radar', label: 'Radar Nichos', icon: '📡' },
   { href: '/dashboard/keywords', label: 'Keywords', icon: '🔑' },
   { href: '/dashboard/export', label: 'Big Data Export', icon: '📤' },
+  { href: '/dashboard/images/hunter', label: 'Image Hunter', icon: '📸' },
+  { href: '/dashboard/optimizer', label: 'Listing Optimizer', icon: '⚡' },
 ];
 
 export default function Sidebar({ accounts = [], activeAccountId }) {

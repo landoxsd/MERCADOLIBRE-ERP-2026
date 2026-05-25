@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { accountsTable, getValidAccessToken } from "../../account/publications/route.js"; // any file that imports these
+import { accountsTable } from "@/lib/supabase-admin";
+import { getValidAccessToken } from "@/lib/meli-auth-helper";
 
 export async function GET(request) {
     const { searchParams } = new URL(request.url);

@@ -105,6 +105,14 @@ export default function ImageBankPage() {
             <option value="inStock">✅ Con Stock Disponible</option>
             <option value="noStock">❌ Sin Stock (Agotados)</option>
           </select>
+          <a 
+            href={`/api/image-bank/pending?stock=${stockFilter}`} 
+            download
+            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 1.5rem', borderRadius: '12px', background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', fontWeight: 'bold', textDecoration: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}
+            title="Descargar listado de SKUs que NO tienen imágenes (Pendientes)"
+          >
+            📥 SKUs Faltantes
+          </a>
         </div>
       </div>
 
