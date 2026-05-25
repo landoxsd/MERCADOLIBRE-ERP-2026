@@ -87,12 +87,12 @@ export async function POST(request) {
         // 2. PAGINACIÓN COMPLETA del catálogo del vendedor VIA PLAYWRIGHT
         // ----------------------------------------------------------------
         console.log(`🔍 Iniciando escaneo completo del vendedor ${seller_id}...`);
-        let allItemIds = new Set();
+        let allItemsMap = new Map();
         let offset = 0;
         let sellerNickname = null;
         let sellerLevel = null;
         
-        while (allItemIds.size < MAX_ITEMS) {
+        while (allItemsMap.size < MAX_ITEMS) {
             let query = `_CustId_${seller_id}`;
             if (offset > 0) {
                 query = `_Desde_${offset + 1}_CustId_${seller_id}_NoIndex_True`;
@@ -110,8 +110,8 @@ export async function POST(request) {
 
             let newItemsCount = 0;
             for (const item of pageItems) {
-                if (!allItemIds.has(item.id)) {
-                    allItemIds.add(item.id);
+                if (!allItemsMap.has(item.id)) {
+                    allItemsMap.set(item.id, item);
                     newItemsCount++;
                 }
             }
@@ -122,10 +122,10 @@ export async function POST(request) {
             }
 
             offset += PAGE_SIZE;
-            console.log(`📄 Página ${Math.ceil(offset / PAGE_SIZE)} procesada. Items únicos hasta ahora: ${allItemIds.size}`);
+            console.log(`📄 Página ${Math.ceil(offset / PAGE_SIZE)} procesada. Items únicos hasta ahora: ${allItemsMap.size}`);
         }
 
-        const allItemIdsArray = Array.from(allItemIds);
+        const allItemIdsArray = Array.from(allItemsMap.keys());
         console.log(`✅ IDs recolectados: ${allItemIdsArray.length} totales`);
 
         if (allItemIdsArray.length === 0) {
@@ -138,18 +138,42 @@ export async function POST(request) {
         const WANTED_ATTRS = "id,title,price,sold_quantity,available_quantity,thumbnail,permalink,health,shipping,listing_type_id,attributes,category_id,date_created,status";
         const itemChunks = chunkArray(allItemIdsArray, MULTIGET_SIZE);
         let enrichedItems = [];
+        let apiEnrichedCount = 0;
 
         for (const chunk of itemChunks) {
             const url = `${MELI_BASE_URL}/items?ids=${chunk.join(",")}&attributes=${WANTED_ATTRS}`;
             const res = await fetch(url, { headers });
-            if (!res.ok) continue;
-            const data = await res.json();
-            const valid = data.filter(r => r.code === 200).map(r => r.body);
-            enrichedItems.push(...valid);
+            if (res.ok) {
+                const data = await res.json();
+                const valid = data.filter(r => r.code === 200).map(r => r.body);
+                apiEnrichedCount += valid.length;
+                
+                // Mezclar con los datos extraídos de Playwright (por si la API oculta ventas)
+                for (const item of valid) {
+                    const pwData = allItemsMap.get(item.id) || {};
+                    enrichedItems.push({
+                        ...pwData,
+                        ...item, // La API sobrescribe Playwright si tiene éxito
+                    });
+                }
+
+                // Identificar los bloqueados por la política (403)
+                const blocked = data.filter(r => r.code !== 200).map(r => r.body?.id || r.id);
+                for (const blockedId of blocked) {
+                    if (blockedId && allItemsMap.has(blockedId)) {
+                        enrichedItems.push(allItemsMap.get(blockedId)); // Usar SOLO Playwright
+                    }
+                }
+            } else {
+                // Si la petición falla entera, usamos Playwright para todos
+                for (const id of chunk) {
+                    if (allItemsMap.has(id)) enrichedItems.push(allItemsMap.get(id));
+                }
+            }
             await new Promise(r => setTimeout(r, 100));
         }
 
-        console.log(`✅ Multiget: ${enrichedItems.length} items enriquecidos`);
+        console.log(`✅ Multiget: ${enrichedItems.length} items enriquecidos (${apiEnrichedCount} desde API)`);
 
         // ----------------------------------------------------------------
         // 4. VISITAS por lotes

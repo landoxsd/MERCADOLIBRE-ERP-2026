@@ -23,6 +23,84 @@ export default function SellerSpyPage() {
     const [history, setHistory] = useState([]);
     const [accountId, setAccountId] = useState("");
     const [cached, setCached] = useState(false);
+    const [hydratingItems, setHydratingItems] = useState({});
+
+    // ─── EFECTO DE HIDRATACIÓN PROGRESIVA ───
+    useEffect(() => {
+        if (!items || items.length === 0 || loading) return;
+
+        // Buscar ítems que aún no han sido hidratados
+        // Verificamos si no está en hydratingItems. Si ya se procesó (done o error), no se vuelve a intentar.
+        // Asumimos que los que necesitan hidratarse son los que no tienen status en hydratingItems 
+        // Y cuyo sold_quantity vino en 0 o undefined desde la lista inicial (asumiendo que la lista inicial no trae ventas)
+        const pendingItems = items.filter(i => 
+            (i.sold_quantity === 0 || i.sold_quantity == null) && 
+            !hydratingItems[i.id]
+        );
+        if (pendingItems.length === 0) return;
+
+        // Limitar la concurrencia a 2 (para no saturar Vercel/Playwright)
+        const inFlight = Object.values(hydratingItems).filter(status => status === 'pending').length;
+        if (inFlight >= 2) return;
+
+        const toHydrate = pendingItems.slice(0, 2 - inFlight);
+
+        if (toHydrate.length > 0) {
+            setHydratingItems(prev => {
+                const next = { ...prev };
+                toHydrate.forEach(item => next[item.id] = 'pending');
+                return next;
+            });
+
+            toHydrate.forEach(async (item) => {
+                try {
+                    const priceParam = item.price_usd || item.price || 0;
+                    const res = await fetch(`/api/tools/sniper/item-detail?url=${encodeURIComponent(item.permalink)}&session_id=${session?.id || ''}&item_id=${item.ml_item_id || item.id}&price=${priceParam}`);
+                    const data = await res.json();
+                    
+                    setItems(prevItems => {
+                        return prevItems.map(prev => {
+                            if (prev.id === item.id) {
+                                const sold_quantity = data.sold_quantity || prev.sold_quantity || 0;
+                                const category_name = data.category_name || prev.category_name;
+                                const revenue_usd = sold_quantity * (prev.price_usd || prev.price || 0);
+                                return { ...prev, sold_quantity, category_name, revenue_usd };
+                            }
+                            return prev;
+                        });
+                    });
+                    
+                    setHydratingItems(prev => ({ ...prev, [item.id]: 'done' }));
+                } catch (err) {
+                    console.error("Hydration error", err);
+                    setHydratingItems(prev => ({ ...prev, [item.id]: 'error' }));
+                }
+            });
+        }
+    }, [items, hydratingItems, loading]);
+
+    // ─── EFECTO PARA RECALCULAR TOTALES DINÁMICOS ───
+    useEffect(() => {
+        if (!items || items.length === 0) return;
+        
+        let totalRevenue = 0;
+        let totalSold = 0;
+        
+        items.forEach(it => {
+            totalSold += (it.sold_quantity || 0);
+            totalRevenue += (it.revenue_usd || 0);
+        });
+
+        setSession(prev => {
+            if (!prev) return prev;
+            if (prev.total_revenue_usd === totalRevenue && prev.sold_quantity_total === totalSold) return prev;
+            return {
+                ...prev,
+                total_revenue_usd: totalRevenue,
+                sold_quantity_total: totalSold
+            };
+        });
+    }, [items]);
 
     useEffect(() => {
         const match = document.cookie.match(/meli_erp_account=([^;]+)/);
@@ -68,6 +146,7 @@ export default function SellerSpyPage() {
             setSession(data.session);
             setItems(data.items || []);
             setCached(data.cached || false);
+            setHydratingItems({}); // Reset hidratación
         } catch (err) {
             setError(err.message);
         } finally {
@@ -113,6 +192,11 @@ export default function SellerSpyPage() {
             </span>
         );
     };
+
+    // Calcular progreso de hidratación
+    const totalToHydrate = items?.length || 0;
+    const hydratedCount = Object.keys(hydratingItems).filter(k => hydratingItems[k] === 'done' || hydratingItems[k] === 'error').length;
+    const isHydrating = hydratedCount < totalToHydrate && items?.some(i => i.sold_quantity === 0 || i.sold_quantity == null);
 
     return (
         <div style={{
@@ -224,7 +308,18 @@ export default function SellerSpyPage() {
                             </div>
 
                             {/* Botones de Acción */}
-                            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+                                {isHydrating && (
+                                    <div style={{
+                                        display: "flex", alignItems: "center", gap: "8px",
+                                        background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.3)",
+                                        borderRadius: "8px", padding: "8px 14px", color: "#f59e0b",
+                                        fontSize: "12px", fontWeight: 600
+                                    }}>
+                                        <div style={{ width: "12px", height: "12px", border: "2px solid rgba(245,158,11,0.3)", borderTop: "2px solid #f59e0b", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
+                                        Buscando ventas ({hydratedCount}/{totalToHydrate})...
+                                    </div>
+                                )}
                                 <button
                                     onClick={() => loadSpy(true)}
                                     style={{

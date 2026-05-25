@@ -29,3 +29,29 @@ export async function GET(request) {
         return NextResponse.json({ error: err.message }, { status: 500 });
     }
 }
+
+export async function DELETE(req) {
+    try {
+        const { searchParams } = new URL(req.url);
+        const seller_id = searchParams.get("seller_id");
+
+        if (seller_id) {
+            const { error } = await supabaseAdmin
+                .from("seller_spy_sessions")
+                .delete()
+                .eq("seller_id", seller_id);
+            if (error) throw error;
+        } else {
+            const { error } = await supabaseAdmin
+                .from("seller_spy_sessions")
+                .delete()
+                .neq("id", "00000000-0000-0000-0000-000000000000"); // Delete all
+            if (error) throw error;
+        }
+
+        return NextResponse.json({ success: true, message: "Historial borrado correctamente" });
+    } catch (err) {
+        console.error("❌ Error borrando historial:", err);
+        return NextResponse.json({ error: err.message }, { status: 500 });
+    }
+}

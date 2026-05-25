@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Search, History, ChevronRight, UserX, Loader2, AlertTriangle, Info } from "lucide-react";
+import { Search, History, ChevronRight, UserX, Loader2, AlertTriangle, Info, Trash2 } from "lucide-react";
 
 export default function SellerSpyLandingPage() {
     const router = useRouter();
@@ -10,25 +10,47 @@ export default function SellerSpyLandingPage() {
     const [history, setHistory] = useState([]);
     const [loadingHistory, setLoadingHistory] = useState(true);
     const [resolving, setResolving] = useState(false);
+    const [deleting, setDeleting] = useState(false);
     const [error, setError] = useState(null);
+
+    const fetchHistory = async () => {
+        setLoadingHistory(true);
+        try {
+            const res = await fetch("/api/tools/sniper/seller/history");
+            const data = await res.json();
+            if (res.ok) {
+                setHistory(data.sessions || []);
+            }
+        } catch (err) {
+            console.error("Error al cargar historial:", err);
+        } finally {
+            setLoadingHistory(false);
+        }
+    };
 
     // Cargar historial de sesiones
     useEffect(() => {
-        const fetchHistory = async () => {
-            try {
-                const res = await fetch("/api/tools/sniper/seller/history");
-                const data = await res.json();
-                if (res.ok) {
-                    setHistory(data.sessions || []);
-                }
-            } catch (err) {
-                console.error("Error al cargar historial:", err);
-            } finally {
-                setLoadingHistory(false);
-            }
-        };
         fetchHistory();
     }, []);
+
+    const handleDeleteHistory = async () => {
+        if (!confirm("¿Estás seguro de que quieres borrar todo el historial de búsquedas de Seller Spy? Esta acción no se puede deshacer.")) return;
+        
+        setDeleting(true);
+        try {
+            const res = await fetch("/api/tools/sniper/seller/history", { method: "DELETE" });
+            if (res.ok) {
+                setHistory([]);
+            } else {
+                const data = await res.json();
+                setError(data.error || "Error al borrar el historial");
+            }
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setDeleting(false);
+        }
+    };
 
     const handleSearch = async (e) => {
         e.preventDefault();
@@ -128,10 +150,22 @@ export default function SellerSpyLandingPage() {
 
             {/* Historial de Espionaje */}
             <div className="space-y-4 max-w-4xl">
-                <h3 className="text-slate-300 font-bold flex items-center gap-2 text-sm uppercase tracking-wider">
-                    <History size={16} className="text-blue-400" />
-                    Historial de Escaneos
-                </h3>
+                <div className="flex items-center justify-between">
+                    <h3 className="text-slate-300 font-bold flex items-center gap-2 text-sm uppercase tracking-wider">
+                        <History size={16} className="text-blue-400" />
+                        Historial de Escaneos
+                    </h3>
+                    {history.length > 0 && (
+                        <button 
+                            onClick={handleDeleteHistory}
+                            disabled={deleting}
+                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-red-500/20 text-red-400 hover:bg-red-500/10 transition-colors text-xs font-semibold"
+                        >
+                            {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                            {deleting ? "Borrando..." : "Borrar Búsquedas"}
+                        </button>
+                    )}
+                </div>
 
                 {loadingHistory ? (
                     <div className="flex flex-col items-center justify-center p-12 text-slate-500 bg-slate-900/20 border border-slate-800 rounded-2xl">

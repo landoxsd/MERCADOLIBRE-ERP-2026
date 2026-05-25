@@ -210,3 +210,76 @@ export async function scrapeMeliSearch(query, { maxItems = 20, timeout = 35000 }
         return [];
     }
 }
+
+/**
+ * Función para raspar individualmente una página de producto (Detalle).
+ * Esto es necesario porque la API multiget está bloqueada y la lista no tiene ventas.
+ * Retorna Ventas (+50 vendidos) y Categoría.
+ */
+export async function scrapeItemDetail(url) {
+    console.log(`[Playwright Detail] Iniciando scraper para: ${url}`);
+    let browser = null;
+
+    try {
+        browser = await launchBrowser();
+        const context = await browser.newContext({
+            userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            locale: "es-VE",
+            timezoneId: "America/Caracas",
+        });
+
+        // Ocultar webdriver
+        await context.addInitScript(() => {
+            Object.defineProperty(navigator, "webdriver", { get: () => undefined });
+        });
+
+        const page = await context.newPage();
+        
+        await page.goto(url, { waitUntil: "domcontentloaded", timeout: 35000 });
+        
+        try {
+            await page.waitForSelector('.ui-pdp-subtitle', { timeout: 15000 });
+        } catch {
+            console.log(`[Playwright Detail] Timeout esperando selector principal, procediendo con evaluación del DOM actual...`);
+        }
+
+        // Evaluar datos de ventas
+        const subtitle = await page.evaluate(() => {
+            const el = document.querySelector('.ui-pdp-subtitle');
+            return el ? el.innerText : null;
+        });
+
+        let soldQuantity = 0;
+        if (subtitle) {
+            const soldMatch = subtitle.match(/(?:más de|\+)?\s*(\d+)\s*(?:productos\s+)?vendidos/i);
+            if (soldMatch && soldMatch[1]) {
+                soldQuantity = parseInt(soldMatch[1], 10);
+            }
+        }
+
+        // Evaluar breadcrumbs para categorías
+        const category = await page.evaluate(() => {
+            const links = Array.from(document.querySelectorAll('.andes-breadcrumb__link'));
+            if (links.length === 0) return null;
+            return links.map(l => l.innerText).join(" > ");
+        });
+
+        await browser.close();
+        browser = null;
+
+        console.log(`[Playwright Detail] ✅ Éxito: Ventas=${soldQuantity}, Categoria=${category}`);
+
+        return {
+            sold_quantity: soldQuantity,
+            category_name: category,
+            category_id: null // No tenemos el ID interno exacto, solo el nombre
+        };
+
+    } catch (err) {
+        console.error(`[Playwright Detail] ❌ Error en scraper individual:`, err.message);
+        if (browser) {
+            await browser.close().catch(() => {});
+        }
+        return { sold_quantity: 0, category_name: null };
+    }
+}

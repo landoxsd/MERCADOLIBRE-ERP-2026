@@ -50,6 +50,23 @@ function OpportunityBadge({ keyword }) {
     return null;
 }
 
+const SortIcon = ({ field, sortField, sortDir }) => {
+    if (sortField !== field) return <ArrowUpDown size={12} className="opacity-30" />;
+    return sortDir === "desc" ? <TrendingDown size={12} className="text-indigo-400" /> : <TrendingUp size={12} className="text-indigo-400" />;
+};
+
+const SortableHeader = ({ field, sortField, sortDir, toggleSort, children, className = "" }) => (
+    <th
+        className={`p-3 cursor-pointer select-none hover:text-white transition-colors ${className}`}
+        onClick={() => toggleSort(field)}
+    >
+        <div className="flex items-center gap-1.5">
+            {children}
+            <SortIcon field={field} sortField={sortField} sortDir={sortDir} />
+        </div>
+    </th>
+);
+
 export default function KeywordHeatmapTable({ keywords, onKeywordSearch }) {
     const [sortField, setSortField] = useState("conversion_score");
     const [sortDir, setSortDir] = useState("desc");
@@ -99,23 +116,6 @@ export default function KeywordHeatmapTable({ keywords, onKeywordSearch }) {
         URL.revokeObjectURL(url);
     };
 
-    const SortIcon = ({ field }) => {
-        if (sortField !== field) return <ArrowUpDown size={12} className="opacity-30" />;
-        return sortDir === "desc" ? <TrendingDown size={12} className="text-indigo-400" /> : <TrendingUp size={12} className="text-indigo-400" />;
-    };
-
-    const SortableHeader = ({ field, children, className = "" }) => (
-        <th
-            className={`p-3 cursor-pointer select-none hover:text-white transition-colors ${className}`}
-            onClick={() => toggleSort(field)}
-        >
-            <div className="flex items-center gap-1.5">
-                {children}
-                <SortIcon field={field} />
-            </div>
-        </th>
-    );
-
     return (
         <div className="space-y-4">
             {/* Search + Download */}
@@ -143,11 +143,11 @@ export default function KeywordHeatmapTable({ keywords, onKeywordSearch }) {
                         <tr className="bg-slate-900/60 text-slate-400 font-semibold border-b border-slate-800">
                             <th className="p-3 w-8 text-center">#</th>
                             <th className="p-3">Keyword</th>
-                            <SortableHeader field="competitors">Competidores</SortableHeader>
-                            <SortableHeader field="conversion_score" className="text-right">Conv. (ventas/ítem)</SortableHeader>
-                            <SortableHeader field="avg_price" className="text-right">Precio Prom.</SortableHeader>
-                            <SortableHeader field="estimated_revenue" className="text-right">Rev. Estimado</SortableHeader>
-                            <SortableHeader field="free_shipping_pct" className="text-center">Env. Gratis</SortableHeader>
+                            <SortableHeader field="competitors" sortField={sortField} sortDir={sortDir} toggleSort={toggleSort}>Competidores</SortableHeader>
+                            <SortableHeader field="conversion_score" sortField={sortField} sortDir={sortDir} toggleSort={toggleSort} className="text-right">Conv. (ventas/ítem)</SortableHeader>
+                            <SortableHeader field="avg_price" sortField={sortField} sortDir={sortDir} toggleSort={toggleSort} className="text-right">Precio Prom.</SortableHeader>
+                            <SortableHeader field="estimated_revenue" sortField={sortField} sortDir={sortDir} toggleSort={toggleSort} className="text-right">Rev. Estimado</SortableHeader>
+                            <SortableHeader field="free_shipping_pct" sortField={sortField} sortDir={sortDir} toggleSort={toggleSort} className="text-center">Env. Gratis</SortableHeader>
                             <th className="p-3 text-center">Calor</th>
                             <th className="p-3 text-center">Acción</th>
                         </tr>
