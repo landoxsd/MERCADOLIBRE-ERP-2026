@@ -44,8 +44,8 @@ function parseQueryInput(query) {
     return { itemId, titleSlug };
 }
 
-// Resolves CustId using Playwright Search + Questions API (Bypass 403 Profiles)
-async function resolveCustIdFromNickname(nickname) {
+// Resolves CustId using Playwright Search + Items API (Bypass 403 Profiles)
+async function resolveCustIdFromNickname(nickname, accessToken) {
     try {
         console.log(`[Resolver] Buscando nickname en listado: "${nickname}"`);
         const searchResults = await scrapeMeliSearch(nickname, { maxItems: 10 });
@@ -56,12 +56,33 @@ async function resolveCustIdFromNickname(nickname) {
             for (const item of targets.slice(0, 5)) {
                 const itemId = item.id;
                 console.log(`[Resolver] Consultando item ${itemId} para extraer seller_id...`);
+                
+                // Estrategia 1: API de ítems usando multiget y Token (Funciona a través de Akamai)
+                if (accessToken) {
+                    try {
+                        const iRes = await fetch(`https://api.mercadolibre.com/items?ids=${itemId}&attributes=seller_id`, {
+                            headers: { "Authorization": `Bearer ${accessToken}`, "Accept": "application/json" }
+                        });
+                        if (iRes.ok) {
+                            const iData = await iRes.json();
+                            if (iData && iData.length > 0 && iData[0].code === 200 && iData[0].body && iData[0].body.seller_id) {
+                                const sellerId = String(iData[0].body.seller_id);
+                                console.log(`[Resolver] 🎉 CustId resuelto usando Items API en item ${itemId}: ${sellerId}`);
+                                return sellerId;
+                            }
+                        }
+                    } catch (iErr) {
+                        console.error("[Resolver] Falló la API de Items en resolve:", iErr.message);
+                    }
+                }
+
+                // Estrategia 2: Fallback API de Preguntas (Pública)
                 const qRes = await fetch(`https://api.mercadolibre.com/questions/search?item=${itemId}`, { headers: { "Accept": "application/json" } });
                 if (qRes.ok) {
                     const qData = await qRes.json();
                     if (qData.questions && qData.questions.length > 0 && qData.questions[0].seller_id) {
                         const sellerId = String(qData.questions[0].seller_id);
-                        console.log(`[Resolver] 🎉 CustId resuelto usando item ${itemId}: ${sellerId}`);
+                        console.log(`[Resolver] 🎉 CustId resuelto usando Questions API en item ${itemId}: ${sellerId}`);
                         return sellerId;
                     }
                 }
@@ -103,7 +124,30 @@ export async function POST(request) {
         if (itemId) {
             console.log(`[Resolver] Intentando resolver publicación: ${itemId}`);
             
-            // MÉTODO A: Bypass de questions/search (INFALIBLE SI HAY PREGUNTAS)
+            // MÉTODO A.1: Items API con token (Infalible y rápido)
+            if (accessToken) {
+                try {
+                    const iRes = await fetch(`https://api.mercadolibre.com/items?ids=${itemId}&attributes=seller_id`, {
+                        headers: { "Authorization": `Bearer ${accessToken}`, "Accept": "application/json" }
+                    });
+                    if (iRes.ok) {
+                        const iData = await iRes.json();
+                        if (iData && iData.length > 0 && iData[0].code === 200 && iData[0].body && iData[0].body.seller_id) {
+                            const sellerId = String(iData[0].body.seller_id);
+                            console.log(`[Resolver] 🎉 Seller ID resuelto vía Items API: ${sellerId}`);
+                            return NextResponse.json({
+                                success: true,
+                                seller_id: sellerId,
+                                resolved_via: "items_api"
+                            });
+                        }
+                    }
+                } catch (iErr) {
+                    console.error("[Resolver] Error en Items API:", iErr.message);
+                }
+            }
+
+            // MÉTODO A.2: Bypass de questions/search (Fallback público)
             try {
                 const qRes = await fetch(`https://api.mercadolibre.com/questions/search?item=${itemId}`, { headers: { "Accept": "application/json" } }); // No Authorization header
                 if (qRes.ok) {
@@ -133,12 +177,12 @@ export async function POST(request) {
                         console.log(`[Resolver] Encontrado nickname del vendedor en listado: "${nickname}"`);
                         
                         // Traducir nickname a seller_id usando Playwright Perfil
-                        const sellerId = await resolveCustIdFromNickname(nickname);
+                        const sellerId = await resolveCustIdFromNickname(nickname, accessToken);
                         if (sellerId) {
                             return NextResponse.json({
                                 success: true,
                                 seller_id: sellerId,
-                                resolved_via: "playwright_search_and_questions",
+                                resolved_via: "playwright_search_and_items",
                                 nickname
                             });
                         }
@@ -155,12 +199,12 @@ export async function POST(request) {
         if (isNotUrl && isNotId) {
             const nickname = query.trim();
             console.log(`[Resolver] Resolviendo nickname directo: "${nickname}"`);
-            const sellerId = await resolveCustIdFromNickname(nickname);
+            const sellerId = await resolveCustIdFromNickname(nickname, accessToken);
             if (sellerId) {
                 return NextResponse.json({
                     success: true,
                     seller_id: sellerId,
-                    resolved_via: "playwright_questions_direct",
+                    resolved_via: "playwright_items_direct",
                     nickname
                 });
             }
