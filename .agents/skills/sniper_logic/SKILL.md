@@ -48,10 +48,9 @@ INPUT: query (texto) | sku (interno) | ourItemId (MLV...)
 
 ### Fuentes de datos de competidores
 
-1. **Primaria**: Playwright scraper sobre `listado.mercadolibre.com.ve/{query}` o `GET /sites/MLV/search?seller_id=...` con fallback híbrido.
-   - El endpoint `api.mercadolibre.com/sites/MLV/search` a nivel general está bloqueado (403 permanente) sin token.
-   - Playwright usa Chromium real → pasa Akamai → descarga HTML completo en background.
-   - Extrae IDs MLV del HTML, luego enriches via multiget con token de administración.
+1. **Primaria**: Playwright scraper sobre `listado.mercadolibre.com.ve/_CustId_...` o `/nombre-vendedor`
+   - El endpoint `api.mercadolibre.com/sites/MLV/search?seller_id=` está completamente bloqueado (403 permanente) por Akamai y políticas de privacidad para tokens de competidores.
+   - Seller Spy y Radar ahora usan **Playwright (Chromium real)** para paginar `_CustId_{id}` y descargar IDs del catálogo saltando a Akamai, y luego los enriquece usando multiget.
 
 2. **Secundaria**: Si el usuario ingresa `ourItemId` (MLV...) en Listing Sniper
    - El sistema extrae la categoría del ítem propio y busca otros ítems del mismo vendedor para comparar.

@@ -76,56 +76,72 @@ export default function RadarPage() {
     };
 
     return (
-        <div className="p-6 max-w-7xl mx-auto space-y-6">
-            {/* Header */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-900/50 p-6 rounded-2xl border border-slate-800 backdrop-blur-xl">
-                <div>
-                    <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-                        <Radar className="text-indigo-400" size={28} />
-                        Radar de Nichos
-                    </h1>
-                    <p className="text-slate-400 mt-1">Escanea categorías completas para detectar tendencias y volumen de mercado.</p>
+        <div className="dashboard-wrapper">
+            {/* Cabecera Premium */}
+            <div className="dashboard-title-container">
+                <h1 className="dashboard-title">
+                    <span><Radar className="inline-block text-indigo-400 mb-1" size={32} /></span> Radar de Nichos
+                </h1>
+                <p className="dashboard-subtitle">
+                    Escanea categorías completas o palabras clave para detectar tendencias y volumen de mercado.
+                </p>
+            </div>
+
+            {/* Error Banner */}
+            {error && (
+                <div className="error-banner mb-6">
+                    <AlertTriangle size={16} className="text-red-400" />
+                    <span>{error}</span>
                 </div>
-                
-                <form onSubmit={handleScanCategory} className="flex w-full md:w-auto gap-2">
-                    <div className="relative flex-1 md:w-64">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <Search className="h-4 w-4 text-slate-500" />
+            )}
+
+            {/* Panel de Búsqueda Inteligente */}
+            <div className="search-panel">
+                <form onSubmit={handleScanCategory} className="search-panel-row">
+                    <div className="search-input-group">
+                        <div className="search-input-label-row">
+                            <div className="search-input-icon-bg icon-indigo">
+                                <Search size={12} />
+                            </div>
+                            <span className="search-input-label">Explorador de Categorías</span>
                         </div>
                         <input
                             type="text"
                             value={newCategoryId}
                             onChange={(e) => setNewCategoryId(e.target.value)}
-                            placeholder="ID Categoría (Ej: MLV1500)"
-                            className="block w-full pl-10 pr-3 py-2 border border-slate-700 rounded-lg leading-5 bg-slate-900 text-slate-300 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            placeholder="Escribe un rubro (Ej: Mesetas) o ID (Ej: MLV1500)"
+                            className="input-glass"
                             disabled={loading}
                         />
                     </div>
+
                     <button
                         type="submit"
                         disabled={loading || !newCategoryId}
-                        className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-800 disabled:text-slate-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                        className="btn-glow bg-indigo-600/80 hover:bg-indigo-500 border border-indigo-500/50 shadow-[0_0_15px_rgba(79,70,229,0.3)] text-white"
                     >
-                        {loading ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-                        Escanear
+                        {loading ? (
+                            <>
+                                <Loader2 className="animate-spin" size={16} />
+                                Escaneando...
+                            </>
+                        ) : (
+                            <>
+                                <Plus size={16} />
+                                Escanear Nicho
+                            </>
+                        )}
                     </button>
                 </form>
             </div>
 
-            {error && (
-                <div className="p-4 bg-red-900/30 border border-red-800 rounded-xl text-red-200 flex items-center gap-3">
-                    <AlertTriangle size={20} className="text-red-400" />
-                    {error}
-                </div>
-            )}
-
-            {/* Bento Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Grid de Resultados (Bento Grid) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
                 {categories.length === 0 && !loading && (
-                    <div className="col-span-full py-20 text-center border-2 border-dashed border-slate-800 rounded-2xl">
-                        <Radar className="mx-auto h-12 w-12 text-slate-600 mb-3" />
-                        <h3 className="text-lg font-medium text-slate-300">Ninguna categoría rastreada</h3>
-                        <p className="text-slate-500 mt-1">Ingresa el ID de una categoría (Ej: MLV1500) para comenzar.</p>
+                    <div className="col-span-full flex flex-col items-center justify-center p-12 text-slate-500 bg-slate-900/20 border border-slate-800 rounded-2xl text-center">
+                        <Radar size={40} className="mb-4 opacity-20 text-slate-400" />
+                        <h4 className="text-slate-300 font-semibold mb-1">Ningún nicho rastreado</h4>
+                        <p className="text-xs text-slate-500 max-w-sm">Ingresa una palabra clave o el ID de una categoría para comenzar el análisis macro.</p>
                     </div>
                 )}
 
@@ -135,7 +151,7 @@ export default function RadarPage() {
                     const chartData = history.length > 1 ? history.map(h => ({ val: h.total_revenue_usd })) : [{val: snap.total_revenue_usd}, {val: snap.total_revenue_usd}];
                     
                     return (
-                        <div key={snap.category_id} className={`relative overflow-hidden bg-gradient-to-br border rounded-2xl p-5 ${getTrendColor(snap.trend_label)}`}>
+                        <div key={snap.category_id} className={`glass-card relative overflow-hidden flex flex-col ${getTrendColor(snap.trend_label)} hover:-translate-y-1 transition-transform`}>
                             {/* Background Sparkline */}
                             <div className="absolute bottom-0 left-0 right-0 h-24 opacity-20 pointer-events-none">
                                 <ResponsiveContainer width="100%" height="100%">
@@ -145,44 +161,46 @@ export default function RadarPage() {
                                 </ResponsiveContainer>
                             </div>
 
-                            <div className="relative z-10">
+                            <div className="relative z-10 flex-1">
                                 <div className="flex justify-between items-start mb-4">
                                     <div>
                                         <h3 className="text-lg font-bold text-white truncate max-w-[200px]" title={snap.category_name}>
                                             {snap.category_name}
                                         </h3>
-                                        <span className="text-xs opacity-70 font-mono">{snap.category_id}</span>
+                                        <span className="text-xs opacity-70 font-mono text-indigo-300">{snap.category_id}</span>
                                     </div>
-                                    <div className="flex items-center gap-1 bg-black/20 px-2 py-1 rounded-md">
+                                    <div className="flex items-center gap-1 bg-black/40 border border-white/5 px-2 py-1 rounded-md backdrop-blur-md shadow-lg">
                                         {getTrendIcon(snap.trend_label)}
-                                        <span className="text-xs font-bold">
+                                        <span className="text-xs font-bold text-white">
                                             {snap.trend_pct > 0 ? '+' : ''}{snap.trend_pct}%
                                         </span>
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-4 mb-5">
-                                    <div>
-                                        <div className="text-xs opacity-70 uppercase tracking-wider mb-1">Volumen USD</div>
-                                        <div className="text-2xl font-bold text-white">{formatMoney(snap.total_revenue_usd)}</div>
+                                <div className="grid grid-cols-2 gap-4 mb-6">
+                                    <div className="bg-slate-900/40 p-3 rounded-xl border border-white/5">
+                                        <div className="text-[10px] opacity-70 uppercase tracking-wider mb-1 text-slate-400">Volumen USD</div>
+                                        <div className="text-xl font-bold text-white">{formatMoney(snap.total_revenue_usd)}</div>
                                     </div>
-                                    <div>
-                                        <div className="text-xs opacity-70 uppercase tracking-wider mb-1">Items Vendidos</div>
-                                        <div className="text-xl font-semibold text-white/90">{formatNumber(snap.total_sold_qty)}</div>
+                                    <div className="bg-slate-900/40 p-3 rounded-xl border border-white/5">
+                                        <div className="text-[10px] opacity-70 uppercase tracking-wider mb-1 text-slate-400">Items Vendidos</div>
+                                        <div className="text-lg font-semibold text-white/90">{formatNumber(snap.total_sold_qty)}</div>
                                     </div>
-                                    <div>
-                                        <div className="text-xs opacity-70 uppercase tracking-wider mb-1">Competidores</div>
+                                    <div className="bg-slate-900/40 p-3 rounded-xl border border-white/5">
+                                        <div className="text-[10px] opacity-70 uppercase tracking-wider mb-1 text-slate-400">Competidores</div>
                                         <div className="text-lg font-medium text-white/80">{formatNumber(snap.total_sellers)}</div>
                                     </div>
-                                    <div>
-                                        <div className="text-xs opacity-70 uppercase tracking-wider mb-1">Precio Prom.</div>
+                                    <div className="bg-slate-900/40 p-3 rounded-xl border border-white/5">
+                                        <div className="text-[10px] opacity-70 uppercase tracking-wider mb-1 text-slate-400">Precio Prom.</div>
                                         <div className="text-lg font-medium text-white/80">{formatMoney(snap.avg_price)}</div>
                                     </div>
                                 </div>
-
+                            </div>
+                            
+                            <div className="relative z-10 mt-auto">
                                 <Link 
                                     href={`/dashboard/radar/${snap.category_id}`}
-                                    className="w-full flex items-center justify-center gap-2 bg-black/20 hover:bg-black/40 transition-colors py-2 rounded-lg text-sm font-medium border border-white/10 text-white"
+                                    className="w-full flex items-center justify-center gap-2 bg-indigo-600/20 hover:bg-indigo-600/40 transition-colors py-3 rounded-xl text-sm font-medium border border-indigo-500/30 text-indigo-100 backdrop-blur-sm"
                                 >
                                     Ver Top Productos
                                     <ArrowRight size={16} />

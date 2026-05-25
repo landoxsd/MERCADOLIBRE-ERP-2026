@@ -33,7 +33,7 @@ function parseQueryInput(query) {
                 // E.g., MLV-722271126-spark-matiz-wagon-r...
                 const parts = pdpPart.split("-");
                 if (parts.length > 2) {
-                    titleSlug = parts.slice(2).join(" ");
+                    titleSlug = parts.slice(2).join("-");
                 }
             }
         }
@@ -44,82 +44,32 @@ function parseQueryInput(query) {
     return { itemId, titleSlug };
 }
 
-// Scrape a profile or Tienda Oficial using Playwright to get the CustId
-async function resolveCustIdFromProfile(nickname) {
-    const slug = nickname.toLowerCase().trim().replace(/ /g, "-");
-    const urls = [
-        `https://www.mercadolibre.com.ve/tienda/${slug}`,
-        `https://perfil.mercadolibre.com.ve/vendedor/${slug}`,
-        `https://perfil.mercadolibre.com.ve/${slug}`
-    ];
-
-    console.log(`[Playwright] Intentando resolver CustId para el nickname: "${nickname}"...`);
-    let browser = null;
-
+// Resolves CustId using Playwright Search + Questions API (Bypass 403 Profiles)
+async function resolveCustIdFromNickname(nickname) {
     try {
-        const IS_PRODUCTION = process.env.NODE_ENV === "production" || process.env.VERCEL;
-        if (IS_PRODUCTION) {
-            const chromiumServerless = (await import("@sparticuz/chromium-min")).default;
-            const { chromium: playwrightChromium } = await import("playwright-core");
-            const executablePath = await chromiumServerless.executablePath(
-                `https://github.com/Sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar`
-            );
-            browser = await playwrightChromium.launch({
-                args: chromiumServerless.args,
-                executablePath,
-                headless: chromiumServerless.headless,
-            });
-        } else {
-            browser = await chromium.launch({
-                headless: true,
-                args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
-            });
-        }
+        console.log(`[Resolver] Buscando nickname en listado: "${nickname}"`);
+        const searchResults = await scrapeMeliSearch(nickname, { maxItems: 10 });
+        if (searchResults && searchResults.length > 0) {
+            const items = searchResults.filter(r => !nickname || (r.seller_nickname && r.seller_nickname.toLowerCase() === nickname.toLowerCase()));
+            const targets = items.length > 0 ? items : searchResults;
 
-        for (const url of urls) {
-            const context = await browser.newContext({
-                userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-                locale: "es-VE",
-                timezoneId: "America/Caracas",
-                viewport: { width: 1280, height: 900 }
-            });
-            await context.addInitScript(() => {
-                Object.defineProperty(navigator, "webdriver", { get: () => undefined });
-            });
-            const page = await context.newPage();
-            
-            try {
-                console.log(`[Playwright] Accediendo a: ${url}`);
-                const res = await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15000 });
-                const text = await page.evaluate(() => document.body.innerText);
-                const isError = text.includes("Hubo un error") || text.includes("Página no encontrada") || text.includes("error accediendo");
-                
-                if (res.status() === 200 && !isError) {
-                    const html = await page.content();
-                    const custIdMatch = html.match(/_CustId_(\d+)/i) || 
-                                        html.match(/custId=(\d+)/i) || 
-                                        html.match(/cust_id\s*[:=]\s*["']?(\d+)["']?/i) ||
-                                        html.match(/"seller_id"\s*:\s*(\d+)/i) ||
-                                        html.match(/"official_store_id"\s*:\s*(\d+)/i);
-                                        
-                    if (custIdMatch && custIdMatch[1]) {
-                        console.log(`[Playwright] 🎉 CustId resuelto para "${nickname}": ${custIdMatch[1]}`);
-                        await browser.close();
-                        return custIdMatch[1];
+            for (const item of targets.slice(0, 5)) {
+                const itemId = item.id;
+                console.log(`[Resolver] Consultando item ${itemId} para extraer seller_id...`);
+                const qRes = await fetch(`https://api.mercadolibre.com/questions/search?item=${itemId}`, { headers: { "Accept": "application/json" } });
+                if (qRes.ok) {
+                    const qData = await qRes.json();
+                    if (qData.questions && qData.questions.length > 0 && qData.questions[0].seller_id) {
+                        const sellerId = String(qData.questions[0].seller_id);
+                        console.log(`[Resolver] 🎉 CustId resuelto usando item ${itemId}: ${sellerId}`);
+                        return sellerId;
                     }
                 }
-            } catch (err) {
-                console.warn(`[Playwright] Falló consulta a ${url}: ${err.message}`);
-            } finally {
-                await page.close();
             }
         }
-        if (browser) await browser.close();
-    } catch (e) {
-        console.error("[Playwright] Error global en resolveCustIdFromProfile:", e.message);
-        if (browser) await browser.close().catch(() => {});
+    } catch (err) {
+        console.error("[Resolver] Error en resolveCustIdFromNickname:", err.message);
     }
-
     return null;
 }
 
@@ -155,7 +105,7 @@ export async function POST(request) {
             
             // MÉTODO A: Bypass de questions/search (INFALIBLE SI HAY PREGUNTAS)
             try {
-                const qRes = await fetch(`https://api.mercadolibre.com/questions/search?item=${itemId}`, { headers });
+                const qRes = await fetch(`https://api.mercadolibre.com/questions/search?item=${itemId}`, { headers: { "Accept": "application/json" } }); // No Authorization header
                 if (qRes.ok) {
                     const qData = await qRes.json();
                     if (qData.questions && qData.questions.length > 0 && qData.questions[0].seller_id) {
@@ -183,12 +133,12 @@ export async function POST(request) {
                         console.log(`[Resolver] Encontrado nickname del vendedor en listado: "${nickname}"`);
                         
                         // Traducir nickname a seller_id usando Playwright Perfil
-                        const sellerId = await resolveCustIdFromProfile(nickname);
+                        const sellerId = await resolveCustIdFromNickname(nickname);
                         if (sellerId) {
                             return NextResponse.json({
                                 success: true,
                                 seller_id: sellerId,
-                                resolved_via: "playwright_search_and_profile",
+                                resolved_via: "playwright_search_and_questions",
                                 nickname
                             });
                         }
@@ -205,12 +155,12 @@ export async function POST(request) {
         if (isNotUrl && isNotId) {
             const nickname = query.trim();
             console.log(`[Resolver] Resolviendo nickname directo: "${nickname}"`);
-            const sellerId = await resolveCustIdFromProfile(nickname);
+            const sellerId = await resolveCustIdFromNickname(nickname);
             if (sellerId) {
                 return NextResponse.json({
                     success: true,
                     seller_id: sellerId,
-                    resolved_via: "playwright_profile_direct",
+                    resolved_via: "playwright_questions_direct",
                     nickname
                 });
             }

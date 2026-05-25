@@ -12,11 +12,33 @@ const PAGE_SIZE = 50;
 
 export async function POST(request) {
     try {
-        const { category_id, account_id } = await request.json();
+        let { category_id, account_id } = await request.json();
 
         if (!category_id) {
-            return NextResponse.json({ error: "category_id requerido" }, { status: 400 });
+            return NextResponse.json({ error: "category_id o palabra clave requerida" }, { status: 400 });
         }
+
+        category_id = category_id.trim();
+
+        // Si el usuario escribe una palabra clave (ej: "Mesetas") en lugar del ID, la resolvemos:
+        if (!/^MLV\d+$/i.test(category_id)) {
+            try {
+                const domRes = await fetch(`https://api.mercadolibre.com/sites/MLV/domain_discovery/search?limit=1&q=${encodeURIComponent(category_id)}`);
+                if (domRes.ok) {
+                    const domData = await domRes.json();
+                    if (domData && domData.length > 0 && domData[0].category_id) {
+                        console.log(`[Radar] Palabra clave "${category_id}" resuelta a categoría: ${domData[0].category_id}`);
+                        category_id = domData[0].category_id;
+                    } else {
+                        return NextResponse.json({ error: `No se encontró ninguna categoría para "${category_id}". Intenta con otra palabra.` }, { status: 404 });
+                    }
+                }
+            } catch (e) {
+                console.warn("[Radar] Falló el domain discovery:", e.message);
+            }
+        }
+
+        category_id = category_id.toUpperCase();
 
         // 1. Token
         let accessToken = null;

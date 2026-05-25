@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getValidAccessToken } from "@/lib/meli-auth-helper";
 import { chunkArray } from "@/lib/sniper-helpers";
+import { scrapeMeliSearch } from "@/lib/mlv-playwright-scraper";
 
 const MELI_BASE_URL = "https://api.mercadolibre.com";
 const CACHE_TTL_HOURS = 6;
@@ -54,7 +55,7 @@ export async function POST(request) {
         }
 
         // ----------------------------------------------------------------
-        // 1. OBTENER TOKEN
+        // 1. OBTENER TOKEN PARA MULTIGET (El token no se usará en búsqueda, solo en multiget)
         // ----------------------------------------------------------------
         let accessToken = null;
         let resolvedAccountId = account_id;
@@ -83,49 +84,51 @@ export async function POST(request) {
         if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
 
         // ----------------------------------------------------------------
-        // 2. PAGINACIÓN COMPLETA del catálogo del vendedor
+        // 2. PAGINACIÓN COMPLETA del catálogo del vendedor VIA PLAYWRIGHT
         // ----------------------------------------------------------------
         console.log(`🔍 Iniciando escaneo completo del vendedor ${seller_id}...`);
-        let allItemIds = [];
+        let allItemIds = new Set();
         let offset = 0;
-        let total = Infinity;
         let sellerNickname = null;
         let sellerLevel = null;
+        
+        while (allItemIds.size < MAX_ITEMS) {
+            let query = `_CustId_${seller_id}`;
+            if (offset > 0) {
+                query = `_Desde_${offset + 1}_CustId_${seller_id}_NoIndex_True`;
+            }
 
-        while (offset < total && allItemIds.length < MAX_ITEMS) {
-            const url = `${MELI_BASE_URL}/sites/MLV/search?seller_id=${seller_id}&limit=${PAGE_SIZE}&offset=${offset}`;
-            const res = await fetch(url, { headers });
+            const pageItems = await scrapeMeliSearch(query, { maxItems: PAGE_SIZE });
 
-            if (!res.ok) {
-                console.error(`❌ Search falló en offset ${offset}: ${res.status}`);
+            if (!pageItems || pageItems.length === 0) {
                 break;
             }
 
-            const data = await res.json();
-            total = data.paging?.total ?? 0;
-
-            // Capturar datos del vendedor del primer resultado
-            if (offset === 0 && data.results?.length > 0) {
-                const firstSeller = data.results[0].seller;
-                sellerNickname = firstSeller?.nickname || null;
-                sellerLevel = firstSeller?.seller_reputation?.level_id || null;
+            if (offset === 0) {
+                sellerNickname = pageItems[0].seller_nickname || seller_id;
             }
 
-            const pageIds = (data.results || []).map(r => r.id);
-            allItemIds.push(...pageIds);
+            let newItemsCount = 0;
+            for (const item of pageItems) {
+                if (!allItemIds.has(item.id)) {
+                    allItemIds.add(item.id);
+                    newItemsCount++;
+                }
+            }
+
+            // Si MercadoLibre nos devuelve la misma página (0 items nuevos), llegamos al final del catálogo
+            if (newItemsCount === 0) {
+                break;
+            }
+
             offset += PAGE_SIZE;
-
-            console.log(`📄 Página ${Math.ceil(offset / PAGE_SIZE)}: ${pageIds.length} items (total: ${allItemIds.length}/${total})`);
-
-            // Pequeña pausa para no saturar la API
-            if (offset < total && allItemIds.length < MAX_ITEMS) {
-                await new Promise(r => setTimeout(r, 150));
-            }
+            console.log(`📄 Página ${Math.ceil(offset / PAGE_SIZE)} procesada. Items únicos hasta ahora: ${allItemIds.size}`);
         }
 
-        console.log(`✅ IDs recolectados: ${allItemIds.length} de ${total} totales`);
+        const allItemIdsArray = Array.from(allItemIds);
+        console.log(`✅ IDs recolectados: ${allItemIdsArray.length} totales`);
 
-        if (allItemIds.length === 0) {
+        if (allItemIdsArray.length === 0) {
             return NextResponse.json({ error: "No se encontraron publicaciones para este vendedor" }, { status: 404 });
         }
 
@@ -133,7 +136,7 @@ export async function POST(request) {
         // 3. MULTIGET — enriquecer cada item
         // ----------------------------------------------------------------
         const WANTED_ATTRS = "id,title,price,sold_quantity,available_quantity,thumbnail,permalink,health,shipping,listing_type_id,attributes,category_id,date_created,status";
-        const itemChunks = chunkArray(allItemIds, MULTIGET_SIZE);
+        const itemChunks = chunkArray(allItemIdsArray, MULTIGET_SIZE);
         let enrichedItems = [];
 
         for (const chunk of itemChunks) {
