@@ -10,7 +10,7 @@ import { chunkArray } from "@/lib/sniper-helpers";
 import { scrapeMeliSearch } from "@/lib/mlv-playwright-scraper";
 
 const MELI_BASE_URL = "https://api.mercadolibre.com";
-const CACHE_TTL_HOURS = 6;
+const CACHE_TTL_HOURS = 24;
 const MAX_ITEMS = 500;
 const PAGE_SIZE = 50;
 const MULTIGET_SIZE = 20;
@@ -98,7 +98,7 @@ export async function POST(request) {
                 query = `_Desde_${offset + 1}_CustId_${seller_id}_NoIndex_True`;
             }
 
-            const pageItems = await scrapeMeliSearch(query, { maxItems: PAGE_SIZE });
+            const pageItems = await scrapeMeliSearch(query, { maxItems: PAGE_SIZE, accessToken });
 
             if (!pageItems || pageItems.length === 0) {
                 break;

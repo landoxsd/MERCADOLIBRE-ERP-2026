@@ -56,7 +56,7 @@ async function launchBrowser() {
  * @param {number} [options.timeout=35000] - Timeout máximo en ms
  * @returns {Promise<Array>} - Array de objetos {id, title, price, currency, permalink, free_shipping}
  */
-export async function scrapeMeliSearch(query, { maxItems = 20, timeout = 35000 } = {}) {
+export async function scrapeMeliSearch(query, { maxItems = 20, timeout = 35000, accessToken = null } = {}) {
     const slug = encodeURIComponent(query.trim()).replace(/%20/g, "-");
     const url = `https://listado.mercadolibre.com.ve/${slug}`;
 
@@ -89,27 +89,53 @@ export async function scrapeMeliSearch(query, { maxItems = 20, timeout = 35000 }
 
         const page = await context.newPage();
 
-        // Navegar a la URL de búsqueda
-        await page.goto(url, {
-            waitUntil: "domcontentloaded",
-            timeout,
-        });
+        // NOTA SEGURIDAD: NO inyectar access_token como cookie.
+        // Hacerlo crea riesgo de ban de cuenta al asociar actividad de bot con una cuenta real.
+        // El scraping debe ser siempre como visitante anónimo.
 
-        // Estrategia de espera: intentar con selector específico de ML,
-        // o caer al networkidle si no aparece en 12s
-        try {
-            await page.waitForSelector(
-                ".ui-search-results, .poly-card, [class*='search-result'], [class*='polycard']",
-                { timeout: 12000 }
-            );
-            console.log(`[Playwright] ✅ Resultados cargados via selector`);
-        } catch {
-            console.log(`[Playwright] ⏳ Selector no encontrado, esperando networkidle...`);
-            await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
+        // Navegar a la URL de búsqueda — ML ahora lanza un challenge PoW (Anubis)
+        // antes de redirigir al listado real. Hay que esperar la navegación completa.
+        await page.goto(url, {
+            waitUntil: "networkidle",
+            timeout,
+        }).catch(() => {}); // Si hay timeout, continuar y ver qué hay en el DOM
+
+        // Detectar si estamos en la página de challenge (micro-landing con sha256 PoW)
+        const pageTitle = await page.title();
+        const isChallengeOrEmpty = !pageTitle.includes('vendidos') && 
+            !pageTitle.includes('publicaciones') &&
+            !pageTitle.includes('resultados');
+        
+        const challengeVisible = await page.locator('#continue-button').count();
+        
+        if (challengeVisible > 0) {
+            console.log(`[Playwright] 🔐 Challenge PoW detectado. Esperando resolución automática...`);
+            // El challenge se resuelve automáticamente via JS (sha256) en ~3-5 segundos
+            // y luego ejecuta window.location.href para redirigir al listado real
+            await page.waitForNavigation({ waitUntil: 'networkidle', timeout: 30000 }).catch(() => {});
+            await page.waitForTimeout(2000); // Dar tiempo al hydration de React
+            console.log(`[Playwright] 🌐 URL después de challenge: ${page.url()}`);
         }
 
-        // Pequeño delay para permitir hydration JS
-        await page.waitForTimeout(1500);
+        // Estrategia de espera para los resultados reales
+        const RESULTS_SELECTOR = [
+            'li.ui-search-layout__item',
+            '.poly-card',
+            '[data-testid="polycard"]',
+            '.ui-search-result__wrapper',
+            '[class*="polycard"]'
+        ].join(', ');
+
+        try {
+            await page.waitForSelector(RESULTS_SELECTOR, { timeout: 15000 });
+            console.log(`[Playwright] ✅ Resultados cargados via selector`);
+        } catch {
+            console.log(`[Playwright] ⏳ Resultados aún no visibles, esperando networkidle...`);
+            await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
+        }
+
+        // Pequeño delay para permitir hydration JS completo
+        await page.waitForTimeout(2000);
 
         // Extraer datos directamente del DOM con page.evaluate()
         const items = await page.evaluate(() => {
