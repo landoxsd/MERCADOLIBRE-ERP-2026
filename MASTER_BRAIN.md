@@ -129,7 +129,7 @@
 
 | Archivo | Estado | Notas |
 |---|---|---|
-| /api/images/hunt/route.js | Creado con bug | Extrae thumbnails no URLs HD. Parsear data-id. |
+| /api/images/hunt/route.js | Investigación Bloqueada | DuckDuckGo y Yahoo devuelven solo miniaturas baja resolución o bloquean headless. Se evaluará buscar alternativas (API de pago, Google Custom Search o Scraper APIs). |
 | /api/images/process/route.js | Funcional | Sharp 1500x1500, fondo blanco, JPEG 95%. OK. |
 | /api/images/export-zip/route.js | Creado con bug | TransformStream duplicado. Fix pendiente. |
 | /api/images/sandbox/route.js | TODO | Listar y eliminar de /public/hunter-sandbox/ |
@@ -142,7 +142,8 @@
 GROQ_API_KEY=gsk_...   ← RECOMENDADA para Listing Optimizer (Motor Llama 3 70B/8B, súper rápido y gratuito).
 Alternativa: OPENAI_API_KEY o Google Gemini.
 
-### Fixes Críticos (Sesión Actual)
+### Fixes Críticos y Limitaciones (Sesión Actual)
+- **Bloqueo Anubis (Seller Spy)**: ML activó `snoopy-script.js` con PoW Challenge en URLs públicas (`_CustId_`). Headless browser bloqueado. Mitigado extendiendo el caché de Supabase a 24h. Si se requiere bypass real, usar Proxy Residencial.
 - **Supabase Null Data Bug**: Se corrigió el layout.js que crasheaba cuando Supabase devolvía `data: null` (por timeouts o caídas de red), reemplazando `{ data: accounts = [] }` por `const accounts = data || []`.
 - **IPv6 Timeout**: Node 18+ prioriza IPv6, lo que a veces causa timeouts (`ENOTFOUND`) conectando a la API de Supabase en Windows locales. Se recomienda revivir el proyecto en Supabase Dashboard o correr Node con `--dns-result-order=ipv4first`.
 - **Falso Positivo Facturación ML**: Si una cuenta es suspendida por deuda antigua, la API de facturación del mes actual reporta $0, engañando al ERP. Se parchó `AccountOverview.js` y `meli.js` para leer `profile.status.sell.allow` y `codes: ['debt']`, forzando la alerta roja real.
@@ -161,7 +162,7 @@ Fuentes: Amazon, eBay, Walmart, RockAuto, ML Mexico, ML Brasil, MLV
 - [ ] Panel de Ventas en Vivo — polling 30s desde webhook orders_v2
 - [ ] Alerta de Stock Critico — available_qty < umbral configurable
 - [ ] Detector Publicacion Pausada por ML — webhook items detecta pausa automatica
-- [ ] COMPLETAR Sprint 6 — Image Hunter UI + Listing Optimizer IA
+- [ ] COMPLETAR Sprint 6 — Image Hunter UI (requiere proxy o Google API) + Listing Optimizer IA
 
 ### MEDIA — Esfuerzo moderado, gran valor
 - [ ] Tracker de Precio Historico — tabla price_history, grafica de lineas
@@ -203,8 +204,8 @@ category_radar_snapshots · category_keywords (Sprints 2-4)
 mlv_market_snapshots · mlv_competitive_analysis · mlv_position_history · competitor_image_refs (Sniper V3)
 
 ### Patrones de Evasion ML
-PROBLEMA: ML bloquea catalogo de competidores 403 Akamai
-SOLUCION Sprint 5: Questions API bypass -> Playwright Search fallback -> Playwright Profile scraper
+PROBLEMA: ML bloquea catalogo de competidores 403 Akamai y activa Anubis PoW JS Challenge
+SOLUCION Sprint 5 / 6: Questions API bypass -> Playwright Search fallback -> Caché Supabase 24h extendido para proteger la cuenta. No intentar inyección de session cookies.
 
 PROBLEMA: Scraping directo Vercel = 403
 SOLUCION: Playwright + User-Agent real + --disable-blink-features=AutomationControlled
@@ -216,4 +217,4 @@ SOLUCION: getValidAccessToken() refresca automaticamente con margen 5 min
 54.88.218.97 · 18.215.140.160 · 18.213.114.129 · 18.206.34.84
 
 ---
-Ultima actualizacion: 2026-05-24 · Sprint 5 completado · Sprint 6 en construccion
+Ultima actualizacion: 2026-05-25 · Sprint 5 completado · Sprint 6 en construccion (Image Hunter / Anubis mitigado)
