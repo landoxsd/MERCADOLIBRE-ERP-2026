@@ -1,19 +1,75 @@
 // ================================================================
 // POST /api/tools/sniper/seller
 // Escaneo COMPLETO de la cuenta de un competidor (paginación total)
-// Cache inteligente: si existe sesión < 6h, devuelve desde Supabase
+// Cache inteligente: si existe sesión < 24h, devuelve desde Supabase
+//
+// ANTI-ANUBIS: No usa scraping web. Usa API oficial de ML:
+//   GET /sites/MLV/search?seller_id={id}&limit=50&offset=0
+// El endpoint es JSON puro → Anubis no existe en la capa API.
 // ================================================================
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getValidAccessToken } from "@/lib/meli-auth-helper";
 import { chunkArray } from "@/lib/sniper-helpers";
-import { scrapeMeliSearch } from "@/lib/mlv-playwright-scraper";
 
 const MELI_BASE_URL = "https://api.mercadolibre.com";
 const CACHE_TTL_HOURS = 24;
 const MAX_ITEMS = 500;
 const PAGE_SIZE = 50;
 const MULTIGET_SIZE = 20;
+
+// ----------------------------------------------------------------
+// Función core: obtener IDs del vendedor via API oficial (sin Anubis)
+// ----------------------------------------------------------------
+async function getSellerItemsFromAPI(seller_id, accessToken) {
+    const allIds = [];
+    let offset = 0;
+    let totalAvailable = null;
+
+    const headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Accept": "application/json",
+    };
+    if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
+
+    while (allIds.length < MAX_ITEMS) {
+        const url = `${MELI_BASE_URL}/sites/MLV/search?seller_id=${seller_id}&limit=${PAGE_SIZE}&offset=${offset}&attributes=id,title,price,sold_quantity,available_quantity,thumbnail,permalink,shipping,listing_type_id,status`;
+
+        console.log(`[API] Paginando vendedor ${seller_id} offset=${offset}...`);
+        const res = await fetch(url, { headers });
+
+        if (!res.ok) {
+            console.warn(`[API] Error HTTP ${res.status} en offset ${offset}`);
+            break;
+        }
+
+        const data = await res.json();
+
+        // En la primera página obtenemos el total
+        if (totalAvailable === null) {
+            totalAvailable = data.paging?.total || 0;
+            console.log(`[API] Total publicaciones del vendedor: ${totalAvailable}`);
+        }
+
+        const results = data.results || [];
+        if (results.length === 0) break;
+
+        for (const item of results) {
+            if (item.id) allIds.push(item.id);
+        }
+
+        offset += PAGE_SIZE;
+
+        // Si ya descargamos todo, parar
+        if (offset >= Math.min(totalAvailable, MAX_ITEMS)) break;
+
+        // Pequeño delay para no golpear el rate limit
+        await new Promise(r => setTimeout(r, 150));
+    }
+
+    console.log(`[API] ✅ ${allIds.length} IDs recolectados del vendedor ${seller_id}`);
+    return allIds;
+}
 
 export async function POST(request) {
     try {
@@ -24,7 +80,7 @@ export async function POST(request) {
         }
 
         // ----------------------------------------------------------------
-        // 0. VERIFICAR CACHE (< 6 horas)
+        // 0. VERIFICAR CACHE (< 24 horas)
         // ----------------------------------------------------------------
         if (!force_refresh) {
             const cutoff = new Date(Date.now() - CACHE_TTL_HOURS * 3600 * 1000).toISOString();
@@ -55,7 +111,7 @@ export async function POST(request) {
         }
 
         // ----------------------------------------------------------------
-        // 1. OBTENER TOKEN PARA MULTIGET (El token no se usará en búsqueda, solo en multiget)
+        // 1. OBTENER TOKEN
         // ----------------------------------------------------------------
         let accessToken = null;
         let resolvedAccountId = account_id;
@@ -84,58 +140,36 @@ export async function POST(request) {
         if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
 
         // ----------------------------------------------------------------
-        // 2. PAGINACIÓN COMPLETA del catálogo del vendedor VIA PLAYWRIGHT
+        // 2. RECOLECTAR IDs via API oficial (SIN Playwright, SIN Anubis)
         // ----------------------------------------------------------------
-        console.log(`🔍 Iniciando escaneo completo del vendedor ${seller_id}...`);
-        let allItemsMap = new Map();
-        let offset = 0;
-        let sellerNickname = null;
-        let sellerLevel = null;
-        
-        while (allItemsMap.size < MAX_ITEMS) {
-            let query = `_CustId_${seller_id}`;
-            if (offset > 0) {
-                query = `_Desde_${offset + 1}_CustId_${seller_id}_NoIndex_True`;
-            }
-
-            const pageItems = await scrapeMeliSearch(query, { maxItems: PAGE_SIZE, accessToken });
-
-            if (!pageItems || pageItems.length === 0) {
-                break;
-            }
-
-            if (offset === 0) {
-                sellerNickname = pageItems[0].seller_nickname || seller_id;
-            }
-
-            let newItemsCount = 0;
-            for (const item of pageItems) {
-                if (!allItemsMap.has(item.id)) {
-                    allItemsMap.set(item.id, item);
-                    newItemsCount++;
-                }
-            }
-
-            // Si MercadoLibre nos devuelve la misma página (0 items nuevos), llegamos al final del catálogo
-            if (newItemsCount === 0) {
-                break;
-            }
-
-            offset += PAGE_SIZE;
-            console.log(`📄 Página ${Math.ceil(offset / PAGE_SIZE)} procesada. Items únicos hasta ahora: ${allItemsMap.size}`);
-        }
-
-        const allItemIdsArray = Array.from(allItemsMap.keys());
-        console.log(`✅ IDs recolectados: ${allItemIdsArray.length} totales`);
+        console.log(`🔍 Iniciando escaneo via API oficial del vendedor ${seller_id}...`);
+        const allItemIdsArray = await getSellerItemsFromAPI(seller_id, accessToken);
 
         if (allItemIdsArray.length === 0) {
-            return NextResponse.json({ error: "No se encontraron publicaciones para este vendedor" }, { status: 404 });
+            return NextResponse.json(
+                { error: "No se encontraron publicaciones para este vendedor. Verifica que el seller_id sea correcto." },
+                { status: 404 }
+            );
         }
 
         // ----------------------------------------------------------------
-        // 3. MULTIGET — enriquecer cada item
+        // 3. OBTENER NICKNAME DEL VENDEDOR
         // ----------------------------------------------------------------
-        const WANTED_ATTRS = "id,title,price,sold_quantity,available_quantity,thumbnail,permalink,health,shipping,listing_type_id,attributes,category_id,date_created,status";
+        let sellerNickname = seller_id;
+        let sellerLevel = null;
+        try {
+            const userRes = await fetch(`${MELI_BASE_URL}/users/${seller_id}`, { headers });
+            if (userRes.ok) {
+                const userData = await userRes.json();
+                sellerNickname = userData.nickname || seller_id;
+                sellerLevel = userData.seller_reputation?.level_id || null;
+            }
+        } catch { /* silencioso */ }
+
+        // ----------------------------------------------------------------
+        // 4. MULTIGET — enriquecer cada item con datos completos
+        // ----------------------------------------------------------------
+        const WANTED_ATTRS = "id,title,price,sold_quantity,available_quantity,thumbnail,permalink,health,shipping,listing_type_id,attributes,category_id,date_created,status,pictures";
         const itemChunks = chunkArray(allItemIdsArray, MULTIGET_SIZE);
         let enrichedItems = [];
         let apiEnrichedCount = 0;
@@ -147,28 +181,9 @@ export async function POST(request) {
                 const data = await res.json();
                 const valid = data.filter(r => r.code === 200).map(r => r.body);
                 apiEnrichedCount += valid.length;
-                
-                // Mezclar con los datos extraídos de Playwright (por si la API oculta ventas)
-                for (const item of valid) {
-                    const pwData = allItemsMap.get(item.id) || {};
-                    enrichedItems.push({
-                        ...pwData,
-                        ...item, // La API sobrescribe Playwright si tiene éxito
-                    });
-                }
-
-                // Identificar los bloqueados por la política (403)
-                const blocked = data.filter(r => r.code !== 200).map(r => r.body?.id || r.id);
-                for (const blockedId of blocked) {
-                    if (blockedId && allItemsMap.has(blockedId)) {
-                        enrichedItems.push(allItemsMap.get(blockedId)); // Usar SOLO Playwright
-                    }
-                }
+                enrichedItems.push(...valid);
             } else {
-                // Si la petición falla entera, usamos Playwright para todos
-                for (const id of chunk) {
-                    if (allItemsMap.has(id)) enrichedItems.push(allItemsMap.get(id));
-                }
+                console.warn(`[Multiget] Error HTTP ${res.status} en chunk`);
             }
             await new Promise(r => setTimeout(r, 100));
         }
@@ -176,7 +191,7 @@ export async function POST(request) {
         console.log(`✅ Multiget: ${enrichedItems.length} items enriquecidos (${apiEnrichedCount} desde API)`);
 
         // ----------------------------------------------------------------
-        // 4. VISITAS por lotes
+        // 5. VISITAS por lotes
         // ----------------------------------------------------------------
         const visitsMap = {};
         const visitChunks = chunkArray(enrichedItems.map(i => i.id), 20);
@@ -193,7 +208,7 @@ export async function POST(request) {
         }
 
         // ----------------------------------------------------------------
-        // 5. RESOLVER NOMBRES DE CATEGORÍAS
+        // 6. RESOLVER NOMBRES DE CATEGORÍAS
         // ----------------------------------------------------------------
         const uniqueCategoryIds = [...new Set(enrichedItems.map(i => i.category_id).filter(Boolean))];
         const categoryNameMap = {};
@@ -208,7 +223,7 @@ export async function POST(request) {
         }
 
         // ----------------------------------------------------------------
-        // 6. PROCESAR Y CALCULAR MÉTRICAS
+        // 7. PROCESAR Y CALCULAR MÉTRICAS
         // ----------------------------------------------------------------
         const processedItems = enrichedItems.map(item => {
             const visits = visitsMap[item.id] || 0;
@@ -286,7 +301,7 @@ export async function POST(request) {
             ? processedItems.reduce((s, i) => s + (i.health_score || 0), 0) / totalItems : 0;
 
         // ----------------------------------------------------------------
-        // 7. GUARDAR EN SUPABASE
+        // 8. GUARDAR EN SUPABASE
         // ----------------------------------------------------------------
         const sessionData = {
             seller_id,
@@ -302,7 +317,7 @@ export async function POST(request) {
             pct_free_shipping: parseFloat(pctFreeShipping.toFixed(2)),
             pct_local_pickup: parseFloat(pctLocalPickup.toFixed(2)),
             pct_gold_listing: parseFloat(pctGold.toFixed(2)),
-            top_category_id: topCategory ? null : null,
+            top_category_id: null,
             top_category_name: topCategory?.name || null,
             categories_json: categoriesJson,
         };
@@ -315,7 +330,6 @@ export async function POST(request) {
 
         if (sessionErr) {
             console.error("❌ Error guardando sesión:", sessionErr);
-            // Continuar igual para devolver datos al frontend
         }
 
         // Insertar items en lotes de 100

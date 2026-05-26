@@ -143,7 +143,7 @@ GROQ_API_KEY=gsk_...   ← RECOMENDADA para Listing Optimizer (Motor Llama 3 70B
 Alternativa: OPENAI_API_KEY o Google Gemini.
 
 ### Fixes Críticos y Limitaciones (Sesión Actual)
-- **Bloqueo Anubis (Seller Spy)**: ML activó `snoopy-script.js` con PoW Challenge en URLs públicas (`_CustId_`). Headless browser bloqueado. Mitigado extendiendo el caché de Supabase a 24h. Si se requiere bypass real, usar Proxy Residencial.
+- **Bloqueo Anubis (Seller Spy) — RESUELTO**: ML activa un PoW JS Challenge en las URLs de listado web (`listado.mercadolibre.com.ve/_CustId_`), bloqueando Playwright headless. **FIX DEFINITIVO**: Se eliminó Playwright del `seller/route.js` y se reemplazó por `GET /sites/MLV/search?seller_id={id}`, el endpoint oficial de API JSON que NO pasa por la capa web donde vive Anubis. El multiget de enriquecimiento y el guardado en Supabase se mantienen intactos.
 - **Supabase Null Data Bug**: Se corrigió el layout.js que crasheaba cuando Supabase devolvía `data: null` (por timeouts o caídas de red), reemplazando `{ data: accounts = [] }` por `const accounts = data || []`.
 - **IPv6 Timeout**: Node 18+ prioriza IPv6, lo que a veces causa timeouts (`ENOTFOUND`) conectando a la API de Supabase en Windows locales. Se recomienda revivir el proyecto en Supabase Dashboard o correr Node con `--dns-result-order=ipv4first`.
 - **Falso Positivo Facturación ML**: Si una cuenta es suspendida por deuda antigua, la API de facturación del mes actual reporta $0, engañando al ERP. Se parchó `AccountOverview.js` y `meli.js` para leer `profile.status.sell.allow` y `codes: ['debt']`, forzando la alerta roja real.
@@ -204,8 +204,11 @@ category_radar_snapshots · category_keywords (Sprints 2-4)
 mlv_market_snapshots · mlv_competitive_analysis · mlv_position_history · competitor_image_refs (Sniper V3)
 
 ### Patrones de Evasion ML
-PROBLEMA: ML bloquea catalogo de competidores 403 Akamai y activa Anubis PoW JS Challenge
-SOLUCION Sprint 5 / 6: Questions API bypass -> Playwright Search fallback -> Caché Supabase 24h extendido para proteger la cuenta. No intentar inyección de session cookies.
+PROBLEMA: ML activa Anubis PoW JS Challenge en URLs de listado web de competidores
+SOLUCION DEFINITIVA: Usar endpoint API oficial `GET /sites/MLV/search?seller_id={id}&limit=50&offset=N`.
+  → Es JSON puro. Anubis solo existe en la capa HTML/web. No necesita Playwright.
+  → Con Authorization Bearer token propio mejora el rate limit.
+  → Playwright se reserva SOLO para páginas de detalle individuales si se requiere.
 
 PROBLEMA: Scraping directo Vercel = 403
 SOLUCION: Playwright + User-Agent real + --disable-blink-features=AutomationControlled
@@ -217,4 +220,4 @@ SOLUCION: getValidAccessToken() refresca automaticamente con margen 5 min
 54.88.218.97 · 18.215.140.160 · 18.213.114.129 · 18.206.34.84
 
 ---
-Ultima actualizacion: 2026-05-25 · Sprint 5 completado · Sprint 6 en construccion (Image Hunter / Anubis mitigado)
+Ultima actualizacion: 2026-05-26 · Sprint 5 completado · Sprint 6 en construccion · Anubis RESUELTO via API search endpoint
