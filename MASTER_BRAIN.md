@@ -1,4 +1,4 @@
-﻿# MASTER BRAIN — MercadoLibre ERP Venezuela 2026
+# MASTER BRAIN — MercadoLibre ERP Venezuela 2026
 ### Documento Maestro Consolidado · Ultima actualizacion: 2026-05-24
 
 > Este documento **reemplaza y consolida** toda la informacion dispersa en:
@@ -138,9 +138,14 @@
 | /api/tools/optimizer/export/route.js | TODO | XLSX formato Integraly con mejoras aceptadas. |
 | /dashboard/optimizer/page.js | TODO | 3 paneles: mis pubs, dictamen IA, competidores. |
 
-### Variable de entorno faltante critica
-OPENAI_API_KEY=sk-...   ← REQUERIDA para Listing Optimizer
-Alternativa gratuita: Google Gemini API Key.
+### Variable de entorno recomendada
+GROQ_API_KEY=gsk_...   ← RECOMENDADA para Listing Optimizer (Motor Llama 3 70B/8B, súper rápido y gratuito).
+Alternativa: OPENAI_API_KEY o Google Gemini.
+
+### Fixes Críticos (Sesión Actual)
+- **Supabase Null Data Bug**: Se corrigió el layout.js que crasheaba cuando Supabase devolvía `data: null` (por timeouts o caídas de red), reemplazando `{ data: accounts = [] }` por `const accounts = data || []`.
+- **IPv6 Timeout**: Node 18+ prioriza IPv6, lo que a veces causa timeouts (`ENOTFOUND`) conectando a la API de Supabase en Windows locales. Se recomienda revivir el proyecto en Supabase Dashboard o correr Node con `--dns-result-order=ipv4first`.
+- **Falso Positivo Facturación ML**: Si una cuenta es suspendida por deuda antigua, la API de facturación del mes actual reporta $0, engañando al ERP. Se parchó `AccountOverview.js` y `meli.js` para leer `profile.status.sell.allow` y `codes: ['debt']`, forzando la alerta roja real.
 
 ### Nomenclatura de imagenes PROFIT (CRITICO — NO cambiar)
 SKU-0.jpg · SKU-1.jpg · SKU-2.jpg · SKU-3.jpg

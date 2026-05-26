@@ -90,5 +90,14 @@ Desarrollar un ERP/CRM web en Next.js (escalable a la nube) para la gestión mul
   - **Top 25 y Reposición Dinámica:** Capacidad ampliada de 10 a 25 competidores con reposición automática.
   - **Exportación a Excel Enriquecida:** CSV BOM UTF-8 con atributos pivotados.
 
+### Mantenimiento de Emergencia (2026-05-25)
+- **Incidencia:** ML activó sistema Anubis (PoW JS Challenge + Fingerprinting) en URLs de búsqueda pública (`_CustId_`) e inhabilitó API search en Venezuela, bloqueando el scraping anónimo headless.
+- **Estado actual:** Mitigado 🛡️
+- **Acciones:**
+  - Extensión de TTL de caché en Supabase a 24h para mantener datos visibles y funcionales en Seller Spy (modo histórico temporal).
+  - Reversión de inyección riesgosa de cookies (access_token) para proteger la cuenta del usuario de bans o suspensiones.
+  - Investigación profunda de Workarounds (Playwright stealth, nlcurl Chrome impersonation) confirmando que el entorno local headless falla la telemetría "snoopy" de Anubis.
+  - Preparado punto de control seguro (GitHub/Vercel) para continuar sin riesgo a la cuenta.
+
 ---
-*Última actualización: 2026-05-24 — Sprint 5 (Big Data Export) completado. El Plan Maestro "Radar de Mercado" ha sido finalizado con éxito (5/5 Sprints).*
+*Última actualización: 2026-05-25 — Diagnóstico Anubis y aseguramiento de sistema (cache extendido a 24h).*
