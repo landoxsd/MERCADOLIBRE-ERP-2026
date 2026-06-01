@@ -2,6 +2,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import styles from './ProductsTable.module.css';
+import QualityScoreBadge from '@/components/optimizer/QualityScoreBadge';
 
 export default function ProductsTable({ accountId }) {
   const [products, setProducts] = useState([]);
@@ -15,6 +16,9 @@ export default function ProductsTable({ accountId }) {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [progress, setProgress] = useState(0);
   const [syncStatus, setSyncStatus] = useState('');
+
+  // SEO Optimizer
+  const [qualityScores, setQualityScores] = useState({});
 
   const fetchProducts = async () => {
     setLoading(true);
@@ -35,6 +39,40 @@ export default function ProductsTable({ accountId }) {
   useEffect(() => {
     if (accountId) fetchProducts();
   }, [accountId, search, filter]);
+
+  // Fetch quality scores for visible products
+  useEffect(() => {
+    if (products.length === 0 || !accountId) return;
+    
+    // Solo pedir scores de ítems que no tenemos en el estado local
+    const itemIdsToFetch = products
+      .map(p => p.meli_item_id)
+      .filter(id => qualityScores[id] === undefined);
+
+    if (itemIdsToFetch.length === 0) return;
+
+    const fetchScores = async () => {
+      try {
+        const batchIds = itemIdsToFetch.slice(0, 20).join(',');
+        const res = await fetch(`/api/tools/optimizer/performance?accountId=${accountId}&itemIds=${batchIds}`);
+        const data = await res.json();
+        
+        if (data.success && data.results) {
+          setQualityScores(prev => {
+            const newScores = { ...prev };
+            data.results.forEach(r => {
+              newScores[r.id] = r;
+            });
+            return newScores;
+          });
+        }
+      } catch (err) {
+        console.error('Error fetching quality scores:', err);
+      }
+    };
+    
+    fetchScores();
+  }, [products, accountId]);
 
   useEffect(() => {
     let interval;
@@ -155,15 +193,16 @@ export default function ProductsTable({ accountId }) {
               <th className={styles.th}>SKU / SISTEMA</th>
               <th className={styles.th}>ESTADO</th>
               <th className={styles.th}>STOCK</th>
+              <th className={styles.th}>CALIDAD</th>
               <th className={styles.th}>PRECIO</th>
               <th className={styles.th}>ACCIONES</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan="6" className={styles.emptyState}>Cargando catálogo...</td></tr>
+              <tr><td colSpan="7" className={styles.emptyState}>Cargando catálogo...</td></tr>
             ) : products.length === 0 ? (
-              <tr><td colSpan="6" className={styles.emptyState}>No hay productos para mostrar.</td></tr>
+              <tr><td colSpan="7" className={styles.emptyState}>No hay productos para mostrar.</td></tr>
             ) : (
               products.map(p => (
                 <tr key={p.id} className={`${styles.tr} ${p.is_orphan ? styles.orphanRow : ''}`}>
@@ -203,6 +242,16 @@ export default function ProductsTable({ accountId }) {
                     <span className={p.available_qty === 0 ? styles.lowStock : ''}>
                       {p.available_qty} uds
                     </span>
+                  </td>
+                  <td className={styles.td}>
+                    {qualityScores[p.meli_item_id] ? (
+                      <QualityScoreBadge 
+                        score={qualityScores[p.meli_item_id].score} 
+                        level={qualityScores[p.meli_item_id].level} 
+                      />
+                    ) : (
+                      <div style={{ display: 'inline-block', width: '60px', height: '24px', backgroundColor: '#e2e8f0', borderRadius: '4px', animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite' }}></div>
+                    )}
                   </td>
                   <td className={styles.td}>
                     <span className={styles.price}>${p.price?.toLocaleString()}</span>
