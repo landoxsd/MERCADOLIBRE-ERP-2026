@@ -64,12 +64,19 @@
 | Big Data Export | /dashboard/export | /api/tools/export/combined | SPRINT 5 |
 | Listing Sniper V3 | /dashboard/intelligence | src/lib/sniper-scoring.js | OPERATIVO |
 
-### Sprint 6 — EN CONSTRUCCION
+### Sprint 6 — OPTIMIZACIÓN ACTIVA (COMPLETADO)
 
 | Modulo | Dashboard | Estado |
 |---|---|---|
 | Image Hunter | /dashboard/images/hunter | Backend parcial, UI pendiente |
-| Listing Optimizer IA | /dashboard/optimizer | TODO |
+| SEO Optimizer (Quirófano) | /dashboard/optimizer | OPERATIVO (Update Atributos via API) |
+| SERP Interconnect | /dashboard/intelligence | OPERATIVO (Ruteo a Spy y Optimizer) |
+
+### Sprint 7 — RADAR DE EVOLUCIÓN (EN PLANIFICACIÓN)
+
+| Modulo | Dashboard | Estado |
+|---|---|---|
+| Seller Watchlist (Timeseries) | /dashboard/spy | Diseño DB Aprobado |
 
 ---
 
