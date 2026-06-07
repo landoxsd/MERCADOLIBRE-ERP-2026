@@ -80,7 +80,7 @@
 
 ---
 
-## 3. Inventario de Skills (31 Battle-Tested)
+## 3. Inventario de Skills (33 Battle-Tested)
 
 ### Core (1-13)
 1. Sync Masiva Multi-Status (scroll API) — src/lib/meli.js getAllItemIds()
@@ -116,10 +116,12 @@
 27. Interoperabilidad Mapeos via Excel
 28. Exportacion Masiva Vista Plana y Auditoria
 
-### Inteligencia Competitiva (29-31)
+### Inteligencia Competitiva (29-33)
 29. Listing Sniper V3 — src/lib/sniper-scoring.js + src/lib/sniper-helpers.js
 30. Dashboard Inteligencia Mercado Dark Premium — src/app/dashboard/intelligence/ + src/components/intelligence/
 31. Snapshots Mercado Batch Tracking — supabase/migration_sniper_2026-05-06.sql
+32. Scrapling Anti-Bot Bypass (Anubis) — .agents/skills/scrapling_antibot/SKILL.md
+33. Guardado Activo Fichas Técnicas (Quirófano PUT) — .agents/skills/meli_seo_optimizer/SKILL.md
 
 ---
 
