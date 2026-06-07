@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { RefreshCw, Download, ArrowLeft, Clock, AlertCircle } from "lucide-react";
+import { RefreshCw, Download, ArrowLeft, Clock, AlertCircle, Star } from "lucide-react";
 
 import SellerKpiBar from "@/components/spy/SellerKpiBar";
 import SellerCategoryDonut from "@/components/spy/SellerCategoryDonut";
@@ -24,6 +24,7 @@ export default function SellerSpyPage() {
     const [accountId, setAccountId] = useState("");
     const [cached, setCached] = useState(false);
     const [hydratingItems, setHydratingItems] = useState({});
+    const [isSavingWatchlist, setIsSavingWatchlist] = useState(false);
 
     // ─── EFECTO DE HIDRATACIÓN PROGRESIVA ───
     useEffect(() => {
@@ -178,6 +179,54 @@ export default function SellerSpyPage() {
         a.click();
     };
 
+    const handleAddToWatchlist = async () => {
+        if (!session) return;
+        setIsSavingWatchlist(true);
+        try {
+            const topProducts = items
+                .sort((a, b) => (b.revenue_usd || 0) - (a.revenue_usd || 0))
+                .slice(0, 5)
+                .map(it => ({ id: it.id, title: it.title, revenue: it.revenue_usd }));
+            
+            const categoryDist = {};
+            items.forEach(it => {
+                if (it.category_name) {
+                    categoryDist[it.category_name] = (categoryDist[it.category_name] || 0) + (it.revenue_usd || 0);
+                }
+            });
+
+            const res = await fetch("/api/tools/sniper/watchlist", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    accountId: accountId || 1,
+                    sellerId: sellerId,
+                    sellerNickname: session.seller_nickname || sellerId,
+                    permalink: `https://perfil.mercadolibre.com.ve/${session.seller_nickname}`,
+                    snapshotData: {
+                        total_items: session.total_items,
+                        total_revenue_usd: session.total_revenue_usd,
+                        avg_price: session.avg_price,
+                        pct_free_shipping: session.pct_free_shipping,
+                        power_seller_status: session.seller_level,
+                        top_products: topProducts,
+                        category_distribution: categoryDist
+                    }
+                })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                alert("⭐ Competidor guardado exitosamente en tu Directorio (Watchlist)");
+            } else {
+                alert(data.error || "Error al guardar competidor");
+            }
+        } catch (err) {
+            alert(err.message);
+        } finally {
+            setIsSavingWatchlist(false);
+        }
+    };
+
     const getReputationBadge = (level) => {
         if (!level) return null;
         const badges = {
@@ -320,6 +369,19 @@ export default function SellerSpyPage() {
                                         Buscando ventas ({hydratedCount}/{totalToHydrate})...
                                     </div>
                                 )}
+                                <button
+                                    onClick={handleAddToWatchlist}
+                                    disabled={isSavingWatchlist}
+                                    style={{
+                                        display: "flex", alignItems: "center", gap: "6px",
+                                        background: "rgba(234,179,8,0.15)", border: "1px solid rgba(234,179,8,0.4)",
+                                        borderRadius: "8px", padding: "9px 16px", color: "#eab308",
+                                        cursor: isSavingWatchlist ? "not-allowed" : "pointer", fontSize: "13px", fontWeight: 600,
+                                        opacity: isSavingWatchlist ? 0.7 : 1
+                                    }}
+                                >
+                                    <Star size={14} className={isSavingWatchlist ? "animate-pulse" : ""} /> {isSavingWatchlist ? "Guardando..." : "Guardar ⭐"}
+                                </button>
                                 <button
                                     onClick={() => loadSpy(true)}
                                     style={{

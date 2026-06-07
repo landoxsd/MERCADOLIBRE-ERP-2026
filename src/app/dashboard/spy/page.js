@@ -2,16 +2,19 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Search, History, ChevronRight, UserX, Loader2, AlertTriangle, Info, Trash2 } from "lucide-react";
+import { Search, History, ChevronRight, UserX, Loader2, AlertTriangle, Info, Trash2, Star, TrendingUp } from "lucide-react";
 
 export default function SellerSpyLandingPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const [searchInput, setSearchInput] = useState("");
     const [history, setHistory] = useState([]);
+    const [watchlist, setWatchlist] = useState([]);
     const [loadingHistory, setLoadingHistory] = useState(true);
+    const [loadingWatchlist, setLoadingWatchlist] = useState(true);
     const [resolving, setResolving] = useState(false);
     const [deleting, setDeleting] = useState(false);
+    const [activeTab, setActiveTab] = useState("history"); // 'history' | 'watchlist'
     const [error, setError] = useState(null);
     const hasAutoSearched = useRef(false);
 
@@ -20,15 +23,31 @@ export default function SellerSpyLandingPage() {
         try {
             const res = await fetch("/api/tools/sniper/seller/history");
             const data = await res.json();
-            if (res.ok) {
-                setHistory(data.sessions || []);
-            }
+            if (res.ok) setHistory(data.sessions || []);
         } catch (err) {
             console.error("Error al cargar historial:", err);
         } finally {
             setLoadingHistory(false);
         }
     };
+
+    const fetchWatchlist = async () => {
+        setLoadingWatchlist(true);
+        try {
+            const res = await fetch("/api/tools/sniper/watchlist");
+            const data = await res.json();
+            if (res.ok) setWatchlist(data.watchlist || []);
+        } catch (err) {
+            console.error("Error al cargar watchlist:", err);
+        } finally {
+            setLoadingWatchlist(false);
+        }
+    };
+
+    useEffect(() => {
+        if (activeTab === "history") fetchHistory();
+        else fetchWatchlist();
+    }, [activeTab]);
 
     // Auto-search si venimos de otra página con ?query=
     useEffect(() => {
@@ -39,11 +58,6 @@ export default function SellerSpyLandingPage() {
             performSearch(queryParam);
         }
     }, [searchParams]);
-
-    // Cargar historial de sesiones
-    useEffect(() => {
-        fetchHistory();
-    }, []);
 
     const handleDeleteHistory = async () => {
         if (!confirm("¿Estás seguro de que quieres borrar todo el historial de búsquedas de Seller Spy? Esta acción no se puede deshacer.")) return;
@@ -163,24 +177,43 @@ export default function SellerSpyLandingPage() {
                 </div>
             </div>
 
-            {/* Historial de Espionaje */}
+            {/* Tabs Selector */}
+            <div className="flex items-center gap-2 mb-6 border-b border-slate-800">
+                <button 
+                    onClick={() => setActiveTab("history")}
+                    className={`flex items-center gap-2 px-4 py-3 font-semibold text-sm transition-colors border-b-2 ${activeTab === "history" ? "border-blue-500 text-blue-400" : "border-transparent text-slate-400 hover:text-slate-300"}`}
+                >
+                    <History size={16} />
+                    Historial Reciente
+                </button>
+                <button 
+                    onClick={() => setActiveTab("watchlist")}
+                    className={`flex items-center gap-2 px-4 py-3 font-semibold text-sm transition-colors border-b-2 ${activeTab === "watchlist" ? "border-yellow-500 text-yellow-400" : "border-transparent text-slate-400 hover:text-slate-300"}`}
+                >
+                    <Star size={16} className={activeTab === "watchlist" ? "fill-yellow-500" : ""} />
+                    Directorio Watchlist
+                </button>
+            </div>
+
+            {/* Content Area */}
             <div className="space-y-4 max-w-4xl">
-                <div className="flex items-center justify-between">
-                    <h3 className="text-slate-300 font-bold flex items-center gap-2 text-sm uppercase tracking-wider">
-                        <History size={16} className="text-blue-400" />
-                        Historial de Escaneos
-                    </h3>
-                    {history.length > 0 && (
-                        <button 
-                            onClick={handleDeleteHistory}
-                            disabled={deleting}
-                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-red-500/20 text-red-400 hover:bg-red-500/10 transition-colors text-xs font-semibold"
-                        >
-                            {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                            {deleting ? "Borrando..." : "Borrar Búsquedas"}
-                        </button>
-                    )}
-                </div>
+                {activeTab === "history" && (
+                    <>
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-slate-300 font-bold flex items-center gap-2 text-sm uppercase tracking-wider">
+                                Sesiones Anteriores
+                            </h3>
+                            {history.length > 0 && (
+                                <button 
+                                    onClick={handleDeleteHistory}
+                                    disabled={deleting}
+                                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-red-500/20 text-red-400 hover:bg-red-500/10 transition-colors text-xs font-semibold"
+                                >
+                                    {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                                    {deleting ? "Borrando..." : "Borrar Búsquedas"}
+                                </button>
+                            )}
+                        </div>
 
                 {loadingHistory ? (
                     <div className="flex flex-col items-center justify-center p-12 text-slate-500 bg-slate-900/20 border border-slate-800 rounded-2xl">
@@ -229,6 +262,76 @@ export default function SellerSpyLandingPage() {
                             </div>
                         ))}
                     </div>
+                )}
+                    </>
+                )}
+
+                {activeTab === "watchlist" && (
+                    <>
+                        {loadingWatchlist ? (
+                            <div className="flex flex-col items-center justify-center p-12 text-slate-500 bg-slate-900/20 border border-slate-800 rounded-2xl">
+                                <Loader2 size={32} className="animate-spin mb-4 text-yellow-500" />
+                                <span className="text-sm">Cargando directorio...</span>
+                            </div>
+                        ) : watchlist.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center p-12 text-slate-500 bg-slate-900/20 border border-slate-800 rounded-2xl text-center">
+                                <Star size={40} className="mb-4 opacity-20 text-slate-400" />
+                                <h4 className="text-slate-300 font-semibold mb-1">Directorio Vacío</h4>
+                                <p className="text-xs text-slate-500 max-w-sm">No has guardado a ningún competidor. Al escanear a alguien, presiona la estrella ⭐ en la parte superior para agregarlo aquí y seguir su evolución.</p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 gap-4">
+                                {watchlist.map((seller) => {
+                                    const snap = seller.last_snapshot || {};
+                                    return (
+                                        <div
+                                            key={seller.id}
+                                            onClick={() => router.push(`/dashboard/spy/${seller.seller_id}`)}
+                                            className="glass-card flex items-center justify-between cursor-pointer border-l-4 border-l-yellow-500 hover:border-yellow-500/40 hover:-translate-y-1 transition-all group p-5"
+                                        >
+                                            <div className="flex items-center gap-4 w-1/3">
+                                                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-yellow-500/20 to-orange-500/20 border border-yellow-500/30 flex items-center justify-center text-yellow-400 font-bold text-lg shadow-[0_0_15px_rgba(234,179,8,0.1)]">
+                                                    {seller.seller_nickname ? seller.seller_nickname.substring(0, 2).toUpperCase() : "🕵️"}
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-bold text-white text-base group-hover:text-yellow-400 transition-colors flex items-center gap-2">
+                                                        {seller.seller_nickname}
+                                                        {snap.power_seller_status && (
+                                                            <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 text-[9px] uppercase tracking-wider font-bold">
+                                                                {snap.power_seller_status}
+                                                            </span>
+                                                        )}
+                                                    </h4>
+                                                    <p className="text-xs text-slate-400 mt-1 line-clamp-1 italic">
+                                                        {seller.notes || "Sin notas adicionales."}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center justify-around w-2/3 border-l border-slate-800/50 pl-6">
+                                                <div className="text-center">
+                                                    <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Total Ítems</div>
+                                                    <div className="font-mono font-bold text-slate-200 text-lg">{snap.total_items || 0}</div>
+                                                </div>
+                                                <div className="text-center">
+                                                    <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Ventas Estimadas</div>
+                                                    <div className="font-mono font-bold text-emerald-400 text-lg flex items-center gap-1">
+                                                        <TrendingUp size={14} className="opacity-70"/>
+                                                        ${(snap.total_revenue_usd || 0).toLocaleString('en-US')}
+                                                    </div>
+                                                </div>
+                                                <div className="text-center">
+                                                    <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Último Escaneo</div>
+                                                    <div className="text-xs text-slate-400 mt-1">{formatDate(snap.scanned_at || seller.updated_at)}</div>
+                                                </div>
+                                                <ChevronRight size={20} className="text-slate-600 group-hover:text-yellow-400 transition-colors" />
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </>
                 )}
             </div>
         </div>
