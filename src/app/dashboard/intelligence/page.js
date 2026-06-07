@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from "react";
-import { Search, Crosshair, Loader2, BarChart3, Sparkles, Database, CircleDollarSign, Flame, LineChart } from "lucide-react";
+import { Search, Crosshair, Loader2, BarChart3, Sparkles, Database, CircleDollarSign, Flame, LineChart, TrendingUp } from "lucide-react";
 import { suggestTitleExpansion } from "@/lib/sniper-helpers";
 
 // Components
@@ -12,6 +12,7 @@ import LogisticsCard from "@/components/intelligence/LogisticsCard";
 import WinnerCard from "@/components/intelligence/WinnerCard";
 import ActionPlan from "@/components/intelligence/ActionPlan";
 import CompetitorGrid from "@/components/intelligence/CompetitorGrid";
+import SerpPositionPanel from "@/components/intelligence/SerpPositionPanel";
 
 export default function IntelligencePage() {
     const [query, setQuery] = useState("");
@@ -23,6 +24,7 @@ export default function IntelligencePage() {
     const [error, setError] = useState(null);
     const [selectedZones, setSelectedZones] = useState([]);
     const [displayLimit, setDisplayLimit] = useState(10);
+    const [showSerpPanel, setShowSerpPanel] = useState(false);
 
     const [result, setResult] = useState(null);
     const [compareResult, setCompareResult] = useState(null);
@@ -175,6 +177,36 @@ export default function IntelligencePage() {
                 <p className="dashboard-subtitle">
                     Analiza a tus competidores en MLV y descubre por qué te están ganando.
                 </p>
+            </div>
+
+            {/* SERP Position Tracker — panel colapsable */}
+            <div style={{ marginBottom: '8px' }}>
+                <button
+                    onClick={() => setShowSerpPanel(v => !v)}
+                    style={{
+                        display: 'flex', alignItems: 'center', gap: '8px',
+                        padding: '8px 16px', borderRadius: '10px', cursor: 'pointer',
+                        background: showSerpPanel ? 'rgba(139,92,246,0.12)' : 'rgba(15,23,42,0.6)',
+                        border: `1px solid ${showSerpPanel ? 'rgba(139,92,246,0.4)' : 'rgba(51,65,85,0.5)'}`,
+                        color: showSerpPanel ? '#a78bfa' : '#64748b',
+                        fontSize: '12px', fontWeight: '700',
+                        transition: 'all 0.2s',
+                    }}
+                >
+                    <TrendingUp className="w-4 h-4" />
+                    SERP POSITION TRACKER
+                    <span style={{ fontSize: '10px', opacity: 0.7 }}>
+                        {showSerpPanel ? '▲ ocultar' : '▼ abrir'}
+                    </span>
+                </button>
+                {showSerpPanel && (
+                    <div style={{ marginTop: '12px' }}>
+                        <SerpPositionPanel
+                            prefillQuery={query}
+                            prefillItemId={ourItemId}
+                        />
+                    </div>
+                )}
             </div>
 
             {/* Search Panel - Premium Vanilla CSS */}

@@ -13,18 +13,40 @@ export async function POST(request) {
 
         const accessToken = await getValidAccessToken(accountId);
 
-        // Fetch our item and competitor item simultaneously
+        // Fetch our item (autenticado) y el del competidor (puede ser anónimo si auth falla)
         const [ourItemRes, compItemRes] = await Promise.all([
-            fetch(`${MELI_BASE_URL}/items/${ourItemId}`, { headers: { Authorization: `Bearer ${accessToken}` } }),
-            fetch(`${MELI_BASE_URL}/items/${competitorItemId}`, { headers: { Authorization: `Bearer ${accessToken}` } })
+            fetch(`${MELI_BASE_URL}/items/${ourItemId}`, {
+                headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' }
+            }),
+            // El ítem del competidor se intenta primero con auth, pero puede ir sin auth
+            fetch(`${MELI_BASE_URL}/items/${competitorItemId}`, {
+                headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' }
+            })
         ]);
 
-        if (!ourItemRes.ok || !compItemRes.ok) {
-            throw new Error("No se pudieron obtener los datos de los ítems especificados");
+        if (!ourItemRes.ok) {
+            const errBody = await ourItemRes.json().catch(() => ({}));
+            throw new Error(`No se pudo obtener TU ítem (${ourItemId}): ${errBody.message || ourItemRes.status}`);
+        }
+
+        // Si el competidor falla con auth, reintentamos sin token (ítems públicos de ML)
+        let compItemData;
+        if (!compItemRes.ok) {
+            console.warn(`Competidor ${competitorItemId} falló con auth (${compItemRes.status}). Reintentando sin token...`);
+            const retryRes = await fetch(`${MELI_BASE_URL}/items/${competitorItemId}`, {
+                headers: { Accept: 'application/json' }
+            });
+            if (!retryRes.ok) {
+                const errBody = await retryRes.json().catch(() => ({}));
+                throw new Error(`No se pudo obtener el ítem del competidor (${competitorItemId}): ${errBody.message || retryRes.status}`);
+            }
+            compItemData = await retryRes.json();
+        } else {
+            compItemData = await compItemRes.json();
         }
 
         const ourItem = await ourItemRes.json();
-        const compItem = await compItemRes.json();
+        const compItem = compItemData;
 
         // 1. GAP DE ATRIBUTOS
         const ourAttrsIds = ourItem.attributes.map(a => a.id);

@@ -1,0 +1,6 @@
+scrapling==0.4.*
+fastapi>=0.110.0
+uvicorn>=0.29.0
+curl-cffi>=0.7.0
+browserforge>=1.0.0
+camoufox[geoip]>=0.4.0

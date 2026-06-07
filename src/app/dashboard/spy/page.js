@@ -1,17 +1,19 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Search, History, ChevronRight, UserX, Loader2, AlertTriangle, Info, Trash2 } from "lucide-react";
 
 export default function SellerSpyLandingPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const [searchInput, setSearchInput] = useState("");
     const [history, setHistory] = useState([]);
     const [loadingHistory, setLoadingHistory] = useState(true);
     const [resolving, setResolving] = useState(false);
     const [deleting, setDeleting] = useState(false);
     const [error, setError] = useState(null);
+    const hasAutoSearched = useRef(false);
 
     const fetchHistory = async () => {
         setLoadingHistory(true);
@@ -27,6 +29,16 @@ export default function SellerSpyLandingPage() {
             setLoadingHistory(false);
         }
     };
+
+    // Auto-search si venimos de otra página con ?query=
+    useEffect(() => {
+        const queryParam = searchParams.get("query");
+        if (queryParam && !hasAutoSearched.current) {
+            hasAutoSearched.current = true;
+            setSearchInput(queryParam);
+            performSearch(queryParam);
+        }
+    }, [searchParams]);
 
     // Cargar historial de sesiones
     useEffect(() => {
@@ -52,9 +64,8 @@ export default function SellerSpyLandingPage() {
         }
     };
 
-    const handleSearch = async (e) => {
-        e.preventDefault();
-        const query = searchInput.trim();
+    const performSearch = async (queryParam) => {
+        const query = queryParam || searchInput.trim();
         if (!query) return;
 
         setResolving(true);
@@ -78,6 +89,10 @@ export default function SellerSpyLandingPage() {
         }
     };
 
+    const handleSearch = (e) => {
+        e.preventDefault();
+        performSearch();
+    };
     const formatDate = (ds) => {
         return new Intl.DateTimeFormat('es-VE', {
             day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'

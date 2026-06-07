@@ -1,14 +1,18 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Tag, Target, Search, ArrowRight, ArrowLeft, Loader2, Play, CheckCircle, ChevronRight, ExternalLink } from 'lucide-react';
 
 import AttributeGapTable from '@/components/optimizer/AttributeGapTable';
 import PhotoComparisonGrid from '@/components/optimizer/PhotoComparisonGrid';
+import PhotoManager from '@/components/optimizer/PhotoManager';
 import QualityScoreBadge from '@/components/optimizer/QualityScoreBadge';
 import TitleAnalyzer from '@/components/optimizer/TitleAnalyzer';
 import ActionPlanList from '@/components/optimizer/ActionPlanList';
 
 export default function SEOOptimizerPage() {
+    const searchParams = useSearchParams();
+    const hasAutoLoaded = useRef(false);
     const [accountId, setAccountId] = useState('');
     const [activeTab, setActiveTab] = useState(0); // 0: Radar (Inventario), 1: Quirófano (Ejecución)
 
@@ -42,6 +46,17 @@ export default function SEOOptimizerPage() {
         }
     }, []);
 
+    // ─── Auto-Carga desde URL ─────────────────────────────────────────
+    useEffect(() => {
+        const itemId = searchParams.get('itemId');
+        if (itemId && accountId && !hasAutoLoaded.current) {
+            hasAutoLoaded.current = true;
+            setExecutionQueue([{ id: itemId, title: 'Cargando...', price: 0 }]);
+            setCurrentIndex(0);
+            setActiveTab(1); // Ir directo al Quirófano
+        }
+    }, [searchParams, accountId]);
+
     // ─── Cargar Inventario ──────────────────────────────────────────
     const fetchItems = useCallback(async () => {
         if (!accountId) return;
@@ -55,7 +70,8 @@ export default function SEOOptimizerPage() {
                     title: p.title,
                     price: p.price,
                     thumbnail: p.thumbnail,
-                    sku: p.sku
+                    sku: p.sku || null,       // ← incluir SKU para el PhotoManager
+                    category_id: p.category_id
                 })));
             }
         } catch (err) {
@@ -105,38 +121,77 @@ export default function SEOOptimizerPage() {
         setPerformanceData(null);
 
         try {
-            // 1. Obtener Performance (Quality Score)
-            const perfRes = await fetch(`/api/tools/optimizer/performance?accountId=${accountId}&itemIds=${ourItemId}`);
-            const perfData = await perfRes.json();
-            if (perfData.success && perfData.results.length > 0) {
-                setPerformanceData(perfData.results[0]);
+            // 1. Obtener el título real del ítem para usar como query de búsqueda
+            //    Prioridad: estado local (ya cargado) → API de ML directa
+            let searchQuery = items.find(i => i.id === ourItemId)?.title;
+
+            if (!searchQuery) {
+                // Fallback: consultar ML directamente (es rápido, ~200ms)
+                const mlRes = await fetch(`/api/tools/optimizer/item-title?accountId=${accountId}&itemId=${ourItemId}`);
+                const mlData = await mlRes.json();
+                searchQuery = mlData?.title;
             }
 
-            // 2. Ejecutar Sniper V3 para auto-encontrar al competidor líder
+            if (!searchQuery) {
+                throw new Error(`No se pudo obtener el título del ítem ${ourItemId} para buscar competidores.`);
+            }
+
+            // 2. Obtener Performance (Quality Score) en paralelo
+            const perfPromise = fetch(`/api/tools/optimizer/performance?accountId=${accountId}&itemIds=${ourItemId}`)
+                .then(r => r.json())
+                .then(d => { if (d.success && d.results?.length > 0) setPerformanceData(d.results[0]); });
+
+            // 3. Ejecutar Sniper V3: busca por título para encontrar al líder de ventas
             const sniperRes = await fetch('/api/tools/sniper/analyze', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ accountId, ourItemId })
+                body: JSON.stringify({ accountId, ourItemId, query: searchQuery })
             });
             const sniperData = await sniperRes.json();
             
+            await perfPromise; // Esperar que el performance también termine
+            
             if (!sniperData.success || !sniperData.competitors || sniperData.competitors.length === 0) {
-                throw new Error("No se pudo encontrar un competidor válido para comparar.");
+                throw new Error(sniperData.error || "No se pudo encontrar un competidor válido para comparar.");
             }
 
-            // Seleccionamos al competidor más fuerte (el líder, index 0 porque vienen ordenados por ventas/relevancia)
-            const compItemId = sniperData.competitors[0].id;
+            // Filtrar nuestro propio ítem de la lista — el Sniper puede devolvernos a nosotros mismos
+            const externalCompetitors = sniperData.competitors.filter(
+                c => c.ml_item_id !== ourItemId
+            );
 
-            // 3. Comparar nuestra publicación vs la del Líder
-            const compRes = await fetch('/api/tools/optimizer/compare', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ accountId, ourItemId, competitorItemId: compItemId })
-            });
-            const compData = await compRes.json();
-            
-            if (!compData.success) throw new Error(compData.error || "Error al comparar");
-            
+            if (externalCompetitors.length === 0) {
+                throw new Error("Eres el único vendedor de este producto en el mercado. No hay competidor externo para comparar.");
+            }
+
+            // El competidor más fuerte (primer resultado = mayor sold_quantity)
+            // Iteramos en orden hasta encontrar uno que la API de ML nos permita consultar
+            let compData = null;
+            let usedCompId = null;
+            const MAX_ATTEMPTS = Math.min(externalCompetitors.length, 5); // Hasta 5 intentos
+
+            for (let i = 0; i < MAX_ATTEMPTS; i++) {
+                const candidateId = externalCompetitors[i].ml_item_id;
+                const compRes = await fetch('/api/tools/optimizer/compare', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ accountId, ourItemId, competitorItemId: candidateId })
+                });
+                const result = await compRes.json();
+
+                if (result.success) {
+                    compData = result;
+                    usedCompId = candidateId;
+                    break; // Encontramos uno válido ✓
+                }
+
+                console.warn(`Competidor #${i + 1} (${candidateId}) no accesible: ${result.error}. Probando el siguiente...`);
+            }
+
+            if (!compData) {
+                throw new Error(`Ninguno de los ${MAX_ATTEMPTS} competidores encontrados está disponible en la API de ML. Intenta con otro producto.`);
+            }
+
             setAnalysisData(compData);
         } catch (err) {
             setError(err.message);
@@ -160,6 +215,46 @@ export default function SEOOptimizerPage() {
             ourItem: { ...prev.ourItem, title: newTitle },
             analysis: { ...prev.analysis, titleAnalysis: { ...prev.analysis.titleAnalysis, ourTitle: newTitle } }
         }));
+    };
+
+    const handleCompleteAttribute = async (attr) => {
+        const ourItemId = executionQueue[currentIndex]?.id || executionQueue[currentIndex];
+        
+        const valueToSave = window.prompt(`Ingresa el valor para "${attr.name}"\nSugerencia del líder: ${attr.competitorValue}`, attr.competitorValue);
+        if (!valueToSave) return; // Usuario canceló
+
+        try {
+            const res = await fetch('/api/tools/optimizer/update', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    accountId, 
+                    itemId: ourItemId, 
+                    updates: { 
+                        attributes: [ { id: attr.id, value_name: valueToSave } ]
+                    } 
+                })
+            });
+            const data = await res.json();
+            if (!data.success) throw new Error(data.error || "Error al actualizar atributo");
+            
+            alert(`✅ Atributo "${attr.name}" guardado exitosamente en Mercado Libre.`);
+            
+            // Removerlo de la brecha localmente
+            setAnalysisData(prev => ({
+                ...prev,
+                ourItem: {
+                    ...prev.ourItem,
+                    attributes: [...(prev.ourItem.attributes || []), { id: attr.id, name: attr.name, value_name: valueToSave }]
+                },
+                analysis: {
+                    ...prev.analysis,
+                    attrGap: prev.analysis.attrGap.filter(a => a.id !== attr.id)
+                }
+            }));
+        } catch(err) {
+            alert('❌ Error: ' + err.message);
+        }
     };
 
     const goToNext = () => {
@@ -284,9 +379,15 @@ export default function SEOOptimizerPage() {
                     <div style={styles.panel}>
                         {isAnalyzing ? (
                             <div style={styles.loadingBox}>
-                                <Loader2 size={32} className="animate-spin" color="#38bdf8" style={{marginBottom: '16px'}} />
-                                <h3>Analizando el Mercado</h3>
-                                <p>Buscando al competidor líder, evaluando SEO, fotos y atributos de {executionQueue[currentIndex]}...</p>
+                                <div style={{width:'48px',height:'48px',border:'3px solid rgba(56,189,248,0.2)',borderTopColor:'#38bdf8',borderRadius:'50%',animation:'spin 1s linear infinite',margin:'0 auto 20px'}}></div>
+                                <h3 style={{color:'#f8fafc',margin:'0 0 8px 0'}}>Analizando el Mercado</h3>
+                                <p style={{color:'#94a3b8',margin:'0 0 4px 0'}}>
+                                    Ítem: <strong style={{color:'#38bdf8'}}>{items.find(i => i.id === executionQueue[currentIndex])?.title || executionQueue[currentIndex]}</strong>
+                                </p>
+                                <p style={{color:'#64748b',fontSize:'0.85rem',margin:0}}>
+                                    Buscando al líder de ventas y calculando brechas SEO... (~15-30s)
+                                </p>
+                                <style>{`@keyframes spin { to { transform: rotate(360deg); }}`}</style>
                             </div>
                         ) : error ? (
                             <div style={styles.errorBox}>
@@ -355,14 +456,40 @@ export default function SEOOptimizerPage() {
                                     <AttributeGapTable 
                                         ourAttributes={analysisData.ourItem.attributes}
                                         compAttributes={analysisData.analysis.attrGap}
-                                        onCompleteAttribute={(attr) => alert(`Modificar atributo ${attr.id} en desarrollo...`)}
+                                        onCompleteAttribute={handleCompleteAttribute}
                                     />
 
-                                    <h3 style={{...styles.sectionTitle, marginTop: '24px'}}>Brecha de Galería (Fotos)</h3>
+                                    <h3 style={{...styles.sectionTitle, marginTop: '24px'}}>Galería de Fotos</h3>
+
+                                    {/* Comparativa visual rápida */}
                                     <PhotoComparisonGrid 
                                         ourPhotos={analysisData.analysis.photoGap.ourPhotos}
                                         compPhotos={analysisData.analysis.photoGap.compPhotos}
                                     />
+
+                                    {/* Panel accionable: Banco de Imágenes + Aplicar a ML */}
+                                    <div style={{marginTop: '16px'}}>
+                                        <PhotoManager
+                                            accountId={accountId}
+                                            itemId={executionQueue[currentIndex]}
+                                            sku={items.find(i => i.id === executionQueue[currentIndex])?.sku}
+                                            currentPhotos={analysisData.analysis.photoGap.ourPhotos}
+                                            minRequired={3}
+                                            onPhotosUpdated={(newCount) => {
+                                                // Actualizar el conteo local en el analysisData
+                                                setAnalysisData(prev => ({
+                                                    ...prev,
+                                                    analysis: {
+                                                        ...prev.analysis,
+                                                        photoGap: {
+                                                            ...prev.analysis.photoGap,
+                                                            ourCount: newCount
+                                                        }
+                                                    }
+                                                }));
+                                            }}
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         )}
