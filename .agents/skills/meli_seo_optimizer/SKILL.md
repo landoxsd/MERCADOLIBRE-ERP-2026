@@ -105,6 +105,33 @@ const optional = attrs.filter(a => !a.tags?.required && !a.tags?.hidden);
 
 ---
 
+## 🛠️ Ejecución Activa: Guardado de Atributos (Quirófano)
+
+Cuando hemos detectado que a nuestra publicación le falta un atributo que el líder sí tiene, podemos actualizarlo en vivo en MLV sin afectar otros campos, usando el método `PUT`:
+
+```javascript
+// Payload para actualizar atributos faltantes (Ej: Marca)
+const updates = {
+    attributes: [
+        { id: "BRAND", value_name: "Toyota" }
+    ]
+};
+
+const res = await fetch(`https://api.mercadolibre.com/items/${itemId}`, {
+    method: 'PUT',
+    headers: { 
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+    },
+    body: JSON.stringify(updates)
+});
+```
+
+*Nota: Esta estrategia de "micro-updates" es la base del **SEO Optimizer** del ERP, ya que eleva instantáneamente el Score de Calidad sin requerir republicación masiva.*
+
+---
+
 ## 🏆 Flujo de Optimización SEO: Comparar vs Competencia
 
 ### Paso 1: Identificar el Líder de la Categoría
