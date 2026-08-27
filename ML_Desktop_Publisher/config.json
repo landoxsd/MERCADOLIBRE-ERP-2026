@@ -7,5 +7,7 @@
     "TIEMPO_GARANTIA": "90",
     "UNIDAD_GARANTIA": "días",
     "ORIGEN": "Importado",
-    "FALLBACK_IMAGE_URL": "https://http2.mlstatic.com/D_NQ_NP_927964-MLV111474686141_052026-F.jpg"
+    "FALLBACK_IMAGE_URL": "https://http2.mlstatic.com/D_NQ_NP_927964-MLV111474686141_052026-F.jpg",
+    "PHOTOS_PATH": "C:\\Users\\ORLANDO\\Pictures\\FOTOS",
+    "USE_GEMINI_AI": true
 }

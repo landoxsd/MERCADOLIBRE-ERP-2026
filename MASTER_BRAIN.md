@@ -50,6 +50,7 @@
 | Webhooks ML tiempo real | src/app/api/webhooks/ml/route.js | Activo |
 | Cron refresh tokens | src/app/api/cron/refresh-token/route.js | Cada 2h |
 | Mapeo categorias internas | src/lib/meli-categories.js | Operativo |
+| Publicador Masivo Directo API | src/app/api/account/publications/publish-batch/ | OPERATIVO |
 | Scraping Mercado Envios | Playwright + bypass dual auth | Operativo |
 | Middleware auth | middleware.js | Estable |
 
@@ -68,19 +69,27 @@
 
 | Modulo | Dashboard | Estado |
 |---|---|---|
-| Image Hunter | /dashboard/images/hunter | Backend parcial, UI pendiente |
+| Image Hunter | /dashboard/images/hunter | Descartado por inestabilidad de motores externos |
 | SEO Optimizer (Quirófano) | /dashboard/optimizer | OPERATIVO (Update Atributos via API) |
 | SERP Interconnect | /dashboard/intelligence | OPERATIVO (Ruteo a Spy y Optimizer) |
 
-### Sprint 7 — RADAR DE EVOLUCIÓN (EN PLANIFICACIÓN)
+### Sprint 7 — RADAR DE EVOLUCIÓN (OPERATIVO)
 
 | Modulo | Dashboard | Estado |
 |---|---|---|
-| Seller Watchlist (Timeseries) | /dashboard/spy | Diseño DB Aprobado |
+| Seller Watchlist (Timeseries) | /dashboard/spy | OPERATIVO (Snapshots + DB) |
+
+### Sprint 8 — PUBLICADOR MASIVO DIRECTO API & GEMINI AI (OPERATIVO)
+
+| Modulo | Dashboard / CLI | Estado |
+|---|---|---|
+| Batch Publisher API con Streaming SSE | /dashboard/inventory (Modal) | OPERATIVO (Fotos locales + Tienda Oficial) |
+| Multi-Key Pool Gemini 3.6 Flash IA | src/lib/gemini.js | OPERATIVO (4 Keys · 60 RPM) |
+| Desktop Publisher Standalone | ML_Desktop_Publisher/PUBLICAR_DIRECTO_API.bat | OPERATIVO (Terminal + Reporte Excel) |
 
 ---
 
-## 3. Inventario de Skills (33 Battle-Tested)
+## 3. Inventario de Skills (35 Battle-Tested)
 
 ### Core (1-13)
 1. Sync Masiva Multi-Status (scroll API) — src/lib/meli.js getAllItemIds()
@@ -116,12 +125,14 @@
 27. Interoperabilidad Mapeos via Excel
 28. Exportacion Masiva Vista Plana y Auditoria
 
-### Inteligencia Competitiva (29-33)
+### Inteligencia Competitiva & IA (29-35)
 29. Listing Sniper V3 — src/lib/sniper-scoring.js + src/lib/sniper-helpers.js
 30. Dashboard Inteligencia Mercado Dark Premium — src/app/dashboard/intelligence/ + src/components/intelligence/
 31. Snapshots Mercado Batch Tracking — supabase/migration_sniper_2026-05-06.sql
 32. Scrapling Anti-Bot Bypass (Anubis) — .agents/skills/scrapling_antibot/SKILL.md
 33. Guardado Activo Fichas Técnicas (Quirófano PUT) — .agents/skills/meli_seo_optimizer/SKILL.md
+34. Publicador Masivo API con Streaming SSE y Fotos Locales — .agents/skills/meli_batch_publisher/SKILL.md
+35. Enriquecedor de Autopartes con Gemini 3.6 Flash Multi-Key (60 RPM) — src/lib/gemini.js
 
 ---
 

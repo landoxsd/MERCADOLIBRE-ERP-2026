@@ -16,7 +16,14 @@ export default function SellerSpyLandingPage() {
     const [deleting, setDeleting] = useState(false);
     const [activeTab, setActiveTab] = useState("history"); // 'history' | 'watchlist'
     const [error, setError] = useState(null);
+    const [accountId, setAccountId] = useState(null);
     const hasAutoSearched = useRef(false);
+
+    // Cargar cuenta activa del cookie
+    useEffect(() => {
+        const match = document.cookie.match(/meli_erp_account=([^;]+)/);
+        if (match) setAccountId(match[1]);
+    }, []);
 
     const fetchHistory = async () => {
         setLoadingHistory(true);
@@ -89,7 +96,7 @@ export default function SellerSpyLandingPage() {
             const res = await fetch("/api/tools/sniper/resolve", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ query })
+                body: JSON.stringify({ query, accountId })
             });
 
             const data = await res.json();
@@ -177,20 +184,30 @@ export default function SellerSpyLandingPage() {
                 </div>
             </div>
 
-            {/* Tabs Selector */}
-            <div className="flex items-center gap-2 mb-6 border-b border-slate-800">
+            {/* Tabs Selector (Inline styles para robustez) */}
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
                 <button 
                     onClick={() => setActiveTab("history")}
-                    className={`flex items-center gap-2 px-4 py-3 font-semibold text-sm transition-colors border-b-2 ${activeTab === "history" ? "border-blue-500 text-blue-400" : "border-transparent text-slate-400 hover:text-slate-300"}`}
+                    style={{
+                        display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 16px', fontWeight: 600, fontSize: '14px',
+                        color: activeTab === "history" ? '#60a5fa' : '#94a3b8',
+                        borderBottom: activeTab === "history" ? '2px solid #3b82f6' : '2px solid transparent',
+                        transition: 'all 0.2s', cursor: 'pointer', background: 'transparent'
+                    }}
                 >
                     <History size={16} />
                     Historial Reciente
                 </button>
                 <button 
                     onClick={() => setActiveTab("watchlist")}
-                    className={`flex items-center gap-2 px-4 py-3 font-semibold text-sm transition-colors border-b-2 ${activeTab === "watchlist" ? "border-yellow-500 text-yellow-400" : "border-transparent text-slate-400 hover:text-slate-300"}`}
+                    style={{
+                        display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 16px', fontWeight: 600, fontSize: '14px',
+                        color: activeTab === "watchlist" ? '#facc15' : '#94a3b8',
+                        borderBottom: activeTab === "watchlist" ? '2px solid #eab308' : '2px solid transparent',
+                        transition: 'all 0.2s', cursor: 'pointer', background: 'transparent'
+                    }}
                 >
-                    <Star size={16} className={activeTab === "watchlist" ? "fill-yellow-500" : ""} />
+                    <Star size={16} fill={activeTab === "watchlist" ? "#facc15" : "transparent"} />
                     Directorio Watchlist
                 </button>
             </div>
@@ -227,37 +244,47 @@ export default function SellerSpyLandingPage() {
                         <p className="text-xs text-slate-500 max-w-sm">No has espiado a ningún competidor todavía. Introduce un término arriba para realizar el primer análisis.</p>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px' }}>
                         {history.slice(0, 6).map((session) => (
                             <div
                                 key={session.id}
                                 onClick={() => router.push(`/dashboard/spy/${session.seller_id}`)}
-                                className="glass-card flex items-center justify-between cursor-pointer hover:border-cyan-500/40 hover:-translate-y-1 transition-all group"
+                                className="glass-card group"
+                                style={{
+                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', 
+                                    cursor: 'pointer', padding: '16px', borderRadius: '16px', transition: 'all 0.2s'
+                                }}
                             >
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-400 font-bold text-sm">
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                    <div style={{
+                                        width: '40px', height: '40px', borderRadius: '12px',
+                                        background: 'linear-gradient(135deg, rgba(6,182,212,0.2), rgba(59,130,246,0.2))',
+                                        border: '1px solid rgba(6,182,212,0.3)',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        color: '#22d3ee', fontWeight: 'bold', fontSize: '14px'
+                                    }}>
                                         {session.seller_nickname ? session.seller_nickname.substring(0, 2).toUpperCase() : "🕵️"}
                                     </div>
                                     <div>
-                                        <h4 className="font-bold text-white text-sm group-hover:text-cyan-400 transition-colors">
+                                        <h4 style={{ fontWeight: 'bold', color: '#fff', fontSize: '14px', margin: 0 }}>
                                             {session.seller_nickname}
                                         </h4>
-                                        <p className="text-[10px] text-slate-500 mt-0.5">
+                                        <p style={{ fontSize: '10px', color: '#64748b', margin: '2px 0 0 0' }}>
                                             {formatDate(session.scanned_at)}
                                         </p>
                                     </div>
                                 </div>
 
-                                <div className="flex items-center gap-4">
-                                    <div className="text-right">
-                                        <div className="text-xs font-mono font-semibold text-slate-300">
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                    <div style={{ textAlign: 'right' }}>
+                                        <div style={{ fontSize: '12px', fontFamily: 'monospace', fontWeight: 600, color: '#cbd5e1' }}>
                                             {session.total_items} ítems
                                         </div>
-                                        <div className="text-[10px] font-mono text-emerald-400 mt-0.5">
+                                        <div style={{ fontSize: '10px', fontFamily: 'monospace', color: '#34d399', marginTop: '2px' }}>
                                             ${(session.total_revenue_usd || 0) >= 1000 ? ((session.total_revenue_usd || 0) / 1000).toFixed(1) + "k" : session.total_revenue_usd} USD
                                         </div>
                                     </div>
-                                    <ChevronRight size={16} className="text-slate-600 group-hover:text-cyan-400 transition-colors" />
+                                    <ChevronRight size={16} color="#475569" />
                                 </div>
                             </div>
                         ))}
@@ -280,51 +307,63 @@ export default function SellerSpyLandingPage() {
                                 <p className="text-xs text-slate-500 max-w-sm">No has guardado a ningún competidor. Al escanear a alguien, presiona la estrella ⭐ en la parte superior para agregarlo aquí y seguir su evolución.</p>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-1 gap-4">
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
                                 {watchlist.map((seller) => {
                                     const snap = seller.last_snapshot || {};
                                     return (
                                         <div
                                             key={seller.id}
                                             onClick={() => router.push(`/dashboard/spy/${seller.seller_id}`)}
-                                            className="glass-card flex items-center justify-between cursor-pointer border-l-4 border-l-yellow-500 hover:border-yellow-500/40 hover:-translate-y-1 transition-all group p-5"
+                                            className="glass-card group"
+                                            style={{
+                                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                                cursor: 'pointer', borderLeft: '4px solid #eab308', padding: '20px',
+                                                borderRadius: '16px', transition: 'all 0.2s'
+                                            }}
                                         >
-                                            <div className="flex items-center gap-4 w-1/3">
-                                                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-yellow-500/20 to-orange-500/20 border border-yellow-500/30 flex items-center justify-center text-yellow-400 font-bold text-lg shadow-[0_0_15px_rgba(234,179,8,0.1)]">
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', width: '33%' }}>
+                                                <div style={{
+                                                    width: '48px', height: '48px', borderRadius: '12px',
+                                                    background: 'linear-gradient(135deg, rgba(234,179,8,0.2), rgba(249,115,22,0.2))',
+                                                    border: '1px solid rgba(234,179,8,0.3)',
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                    color: '#facc15', fontWeight: 'bold', fontSize: '18px',
+                                                    boxShadow: '0 0 15px rgba(234,179,8,0.1)'
+                                                }}>
                                                     {seller.seller_nickname ? seller.seller_nickname.substring(0, 2).toUpperCase() : "🕵️"}
                                                 </div>
                                                 <div>
-                                                    <h4 className="font-bold text-white text-base group-hover:text-yellow-400 transition-colors flex items-center gap-2">
+                                                    <h4 style={{ fontWeight: 'bold', color: '#fff', fontSize: '16px', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                         {seller.seller_nickname}
                                                         {snap.power_seller_status && (
-                                                            <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 text-[9px] uppercase tracking-wider font-bold">
+                                                            <span style={{ padding: '2px 8px', borderRadius: '999px', background: 'rgba(59,130,246,0.2)', color: '#60a5fa', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 'bold' }}>
                                                                 {snap.power_seller_status}
                                                             </span>
                                                         )}
                                                     </h4>
-                                                    <p className="text-xs text-slate-400 mt-1 line-clamp-1 italic">
+                                                    <p style={{ fontSize: '12px', color: '#94a3b8', margin: '4px 0 0 0', fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                         {seller.notes || "Sin notas adicionales."}
                                                     </p>
                                                 </div>
                                             </div>
 
-                                            <div className="flex items-center justify-around w-2/3 border-l border-slate-800/50 pl-6">
-                                                <div className="text-center">
-                                                    <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Total Ítems</div>
-                                                    <div className="font-mono font-bold text-slate-200 text-lg">{snap.total_items || 0}</div>
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', width: '66%', borderLeft: '1px solid rgba(255,255,255,0.1)', paddingLeft: '24px' }}>
+                                                <div style={{ textAlign: 'center' }}>
+                                                    <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Total Ítems</div>
+                                                    <div style={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#e2e8f0', fontSize: '18px' }}>{snap.total_items || 0}</div>
                                                 </div>
-                                                <div className="text-center">
-                                                    <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Ventas Estimadas</div>
-                                                    <div className="font-mono font-bold text-emerald-400 text-lg flex items-center gap-1">
-                                                        <TrendingUp size={14} className="opacity-70"/>
+                                                <div style={{ textAlign: 'center' }}>
+                                                    <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Ventas Estimadas</div>
+                                                    <div style={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#34d399', fontSize: '18px', display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}>
+                                                        <TrendingUp size={14} opacity={0.7} />
                                                         ${(snap.total_revenue_usd || 0).toLocaleString('en-US')}
                                                     </div>
                                                 </div>
-                                                <div className="text-center">
-                                                    <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Último Escaneo</div>
-                                                    <div className="text-xs text-slate-400 mt-1">{formatDate(snap.scanned_at || seller.updated_at)}</div>
+                                                <div style={{ textAlign: 'center' }}>
+                                                    <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Último Escaneo</div>
+                                                    <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>{formatDate(snap.scanned_at || seller.updated_at)}</div>
                                                 </div>
-                                                <ChevronRight size={20} className="text-slate-600 group-hover:text-yellow-400 transition-colors" />
+                                                <ChevronRight size={20} color="#475569" />
                                             </div>
                                         </div>
                                     );

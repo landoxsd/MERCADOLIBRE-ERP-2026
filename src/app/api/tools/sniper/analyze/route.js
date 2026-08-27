@@ -354,6 +354,8 @@ export async function POST(request) {
                 first_picture_size, 
                 visits,
                 thumbnail,
+                brand,
+                sku,
                 ...dbFields 
             } = s;
             return dbFields;

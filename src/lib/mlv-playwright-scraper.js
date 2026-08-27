@@ -309,3 +309,109 @@ export async function scrapeItemDetail(url) {
         return { sold_quantity: 0, category_name: null };
     }
 }
+
+/**
+ * Función para raspar el seller_id y seller_nickname de una página de producto.
+ * Útil para resolver URLs directas a vendedores para Seller Spy.
+ */
+export async function scrapeItemSellerId(url) {
+    console.log(`[Playwright Seller] Iniciando scraper para: ${url}`);
+    let browser = null;
+
+    try {
+        browser = await launchBrowser();
+        const context = await browser.newContext({
+            userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            locale: "es-VE",
+            timezoneId: "America/Caracas",
+        });
+
+        await context.addInitScript(() => {
+            Object.defineProperty(navigator, "webdriver", { get: () => undefined });
+            Object.defineProperty(navigator, "languages", { get: () => ["es-VE", "es", "en-US"] });
+            Object.defineProperty(navigator, "plugins", { get: () => [1, 2, 3, 4, 5] });
+            window.chrome = { runtime: {} };
+        });
+
+        const page = await context.newPage();
+        
+        await page.goto(url, { waitUntil: "networkidle", timeout: 35000 }).catch(() => {});
+        
+        // Manejar Anubis/Challenge si es necesario
+        const challengeVisible = await page.locator('#continue-button').count();
+        if (challengeVisible > 0) {
+            console.log(`[Playwright Seller] 🔐 Challenge PoW detectado. Esperando resolución automática...`);
+            await page.waitForNavigation({ waitUntil: 'networkidle', timeout: 30000 }).catch(() => {});
+            await page.waitForTimeout(2000);
+        }
+
+        // Esperar a que cargue el producto real
+        try {
+            await page.waitForSelector('.ui-pdp-title, .ui-pdp-seller__link', { timeout: 15000 });
+            console.log(`[Playwright Seller] ✅ Página de producto cargada`);
+        } catch {
+            console.log(`[Playwright Seller] ⏳ Timeout esperando selectores de producto, intentando leer DOM de todos modos...`);
+        }
+        await page.waitForTimeout(1000);
+
+        // Extraer la información del DOM o PRELOADED_STATE
+        const sellerData = await page.evaluate(() => {
+            let sellerId = null;
+            let nickname = null;
+
+            // 1. Intentar desde __PRELOADED_STATE__
+            try {
+                if (window.__PRELOADED_STATE__) {
+                    const state = window.__PRELOADED_STATE__;
+                    if (state.initialState && state.initialState.components) {
+                        const sellerComp = state.initialState.components.seller_info || state.initialState.components.seller_profile;
+                        if (sellerComp && sellerComp.seller_id) {
+                            sellerId = sellerComp.seller_id;
+                        }
+                    }
+                }
+            } catch (e) { }
+
+            // 2. Intentar buscar en inputs hidden o en el form (a veces está ahí)
+            if (!sellerId) {
+                const hiddenInput = document.querySelector('input[name="seller_id"]');
+                if (hiddenInput && hiddenInput.value) {
+                    sellerId = parseInt(hiddenInput.value, 10);
+                }
+            }
+
+            // 3. Intentar extraer el ID de la URL "Ver más productos del vendedor" (_CustId_12345)
+            const moreProductsLink = document.querySelector('a[href*="_CustId_"]');
+            if (moreProductsLink) {
+                const match = moreProductsLink.href.match(/_CustId_(\d+)/);
+                if (match) {
+                    sellerId = parseInt(match[1], 10);
+                }
+            }
+
+            // 4. Obtener el Nickname (Vendidor por XXXX)
+            const sellerSpan = document.querySelector('.ui-pdp-seller__link span, .ui-pdp-seller-header__title span');
+            if (sellerSpan) {
+                nickname = sellerSpan.innerText.trim();
+            } else {
+                const titleSpan = document.querySelector('.ui-pdp-seller__header__title');
+                if (titleSpan) nickname = titleSpan.innerText.trim().replace('Vendido por', '').trim();
+            }
+
+            return { seller_id: sellerId, nickname };
+        });
+
+        await browser.close();
+        browser = null;
+
+        console.log(`[Playwright Seller] ✅ Resuelto: ID=${sellerData.seller_id}, Nickname=${sellerData.nickname}`);
+        return sellerData;
+
+    } catch (err) {
+        console.error(`[Playwright Seller] ❌ Error extrayendo seller:`, err.message);
+        if (browser) {
+            await browser.close().catch(() => {});
+        }
+        return { seller_id: null, nickname: null };
+    }
+}

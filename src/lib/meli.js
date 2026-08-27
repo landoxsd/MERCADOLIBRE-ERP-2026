@@ -531,3 +531,78 @@ export async function publishItem(itemData, accessToken) {
   return res.json();
 }
 
+/**
+ * Añade o actualiza la descripción en texto plano de una publicación.
+ * Fuente: POST /items/{item_id}/description
+ */
+export async function setItemDescription(itemId, plainText, accessToken) {
+  if (!itemId || !plainText) return null;
+  try {
+    const res = await fetch(`${MELI_BASE_URL}/items/${itemId}/description`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ plain_text: plainText }),
+    });
+
+    if (!res.ok) {
+      // Si falla POST (ej. si ya existe descripción), intentamos con PUT
+      const putRes = await fetch(`${MELI_BASE_URL}/items/${itemId}/description`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ plain_text: plainText }),
+      });
+      return await putRes.json().catch(() => ({}));
+    }
+
+    return await res.json().catch(() => ({}));
+  } catch (err) {
+    console.error(`⚠️ Error guardando descripción para ${itemId}:`, err.message);
+    return null;
+  }
+}
+
+/**
+ * Obtiene el ID numérico de Tienda Oficial (official_store_id) del usuario autenticado si existe.
+ */
+export async function getOfficialStoreId(accessToken) {
+  try {
+    const user = await getMeliUserProfile(accessToken);
+    if (user.brands && Array.isArray(user.brands) && user.brands.length > 0) {
+      const brandWithStore = user.brands.find(b => b.official_store_id);
+      if (brandWithStore) return brandWithStore.official_store_id;
+    }
+    return null;
+  } catch (err) {
+    console.warn("⚠️ No se pudo obtener official_store_id del perfil:", err.message);
+    return null;
+  }
+}
+
+/**
+ * Actualiza las fotos de una publicación existente en Mercado Libre.
+ * Fuente: PUT /items/{item_id} { pictures: [{ id }, { source }] }
+ */
+export async function updateItemPictures(itemId, pictures, accessToken) {
+  const res = await fetch(`${MELI_BASE_URL}/items/${itemId}`, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ pictures }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(`Error actualizando fotos en ML: ${JSON.stringify(err)}`);
+  }
+
+  return res.json();
+}
+

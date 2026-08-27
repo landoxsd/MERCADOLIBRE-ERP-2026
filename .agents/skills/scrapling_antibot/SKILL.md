@@ -62,3 +62,28 @@ Esto garantiza resistencia ante cambios de diseño (UI) en MLV.
 
 El ERP se comunica con el scraper enviando un `POST` a `http://localhost:8765/serp`.
 El microservicio levanta un navegador "fantasma", evade Anubis, descarga el HTML, parsea el JSON del SERP y lo devuelve limpio a nuestra aplicación Next.js, donde se empareja con Groq (Llama 3.3) para extraer insights e inteligencia competitiva.
+
+---
+
+## 🛑 Las 3 Restricciones de MLV y cómo evadirlas (Actualización)
+
+Durante la implementación del `Seller Spy`, descubrimos 3 barreras críticas y desarrollamos estrategias para sortearlas:
+
+### 1. Bloqueo 403 en API de Items de Competidores
+**Problema:** Una aplicación en MLV con permisos de `Vendedor` (Seller) recibe un error `403 Access Denied` al intentar leer un ítem de un competidor usando el endpoint `GET /items/{id}` (incluso con Token válido). Solo las aplicaciones `Marketplace` pueden leer ítems de terceros.
+**Solución:** Extraer la data a través de las URLs públicas (`listado.mercadolibre.com.ve`) usando Camoufox, ya que la API restringe por Token.
+
+### 2. Anubis "Aggressive Mode" en páginas de producto
+**Problema:** Camoufox puede evadir Anubis en las páginas de búsqueda (SERP), pero **fracasa en las páginas de artículo directo** (`articulo.mercadolibre.com.ve/MLV...`). El HTML devuelto es únicamente el Challenge PoW.
+**Solución:** **Evitar abrir páginas de producto directamente**. En su lugar, si el usuario provee una URL de artículo (que contiene el *slug* del título):
+1. Extraer el *slug* de la URL (ej: `MLV-123-amortiguador-aveo` -> `amortiguador aveo`).
+2. Buscar ese slug en el SERP (`listado.mercadolibre.com.ve/amortiguador-aveo`).
+3. Buscar el ítem en los resultados del SERP y extraer el nickname del vendedor desde allí.
+
+### 3. Resolución de Nickname a Seller ID (CustId)
+**Problema:** La mayoría de las APIs requieren el `seller_id` numérico, pero MLV esconde este ID, mostrando usualmente solo el Nickname en el Frontend.
+**Solución Exitosa:** Las páginas de perfil de los vendedores (`https://www.mercadolibre.com.ve/perfil/{nickname}`) **SÍ son accesibles** por Camoufox sin que Anubis lo bloquee.
+- Implementamos el endpoint `/resolve-nickname` en FastAPI.
+- Camoufox navega al `/perfil/{nickname}`.
+- Se extrae el `_CustId_{seller_id}` oculto en el HTML.
+- Tiempo de resolución: ~5 segundos.

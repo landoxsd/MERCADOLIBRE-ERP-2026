@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import styles from './Inventory.module.css';
+import MassPublisherModal from '@/components/inventory/MassPublisherModal';
 
 // Componente para visualizar fotos del Image Bank (Internet)
 const RemotePhoto = ({ url, size = 150 }) => {
@@ -118,6 +119,10 @@ export default function InventoryAuditPage() {
   const [mlTemplateFile, setMlTemplateFile] = useState(null);
   const [processingList, setProcessingList] = useState(false);
   const [dragging, setDragging] = useState(false);
+  
+  // Estado para el Publicador Masivo vía API
+  const [batchModalOpen, setBatchModalOpen] = useState(false);
+  const [batchItemsToPublish, setBatchItemsToPublish] = useState([]);
 
 
   useEffect(() => {
@@ -752,10 +757,22 @@ export default function InventoryAuditPage() {
             </button>
             <button
               className={styles.primaryBtn}
-              style={{ padding: '0.5rem 1rem', fontSize: '0.8rem', background: '#10b981' }}
-              onClick={() => handlePublishGroup(items, sub)}
+              style={{ padding: '0.5rem 1rem', fontSize: '0.8rem', background: 'linear-gradient(135deg, #2563eb, #7c3aed)', color: 'white', border: 'none', fontWeight: 'bold' }}
+              onClick={() => {
+                const prepared = items.map(it => ({
+                  sku: it.sku,
+                  title: it.title,
+                  price: it.price,
+                  stock: it.stock || 1,
+                  subline: sub,
+                  brand: it.brand,
+                  oem: it.oem
+                }));
+                setBatchItemsToPublish(prepared);
+                setBatchModalOpen(true);
+              }}
             >
-              🚀 Publicar Grupo
+              🚀 Publicar Sublínea vía API
             </button>
           </div>
         </div>
@@ -1159,15 +1176,69 @@ export default function InventoryAuditPage() {
               </h2>
               <p style={{ margin: 0, opacity: 0.7 }}>{results.missing.length} productos organizados por Sublínea.</p>
             </div>
-            <button
-              onClick={handleDownloadMissingIntegraly}
-              style={{
-                background: '#fbbf24', color: 'black', padding: '1rem 1.5rem', borderRadius: '10px',
-                border: 'none', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem'
-              }}
-            >
-              📥 Descargar Plan Completo (Excel)
-            </button>
+            <div style={{ display: 'flex', gap: '0.8rem', alignItems: 'center' }}>
+              <button
+                onClick={() => {
+                  const currentResults = auditMode === 'master' ? resultsMaster : resultsInbound;
+                  if (!currentResults?.missing?.length) return;
+                  
+                  const filtered = currentResults.missing.filter(item => {
+                    if (filterPhoto === 'yes' && !photoStatus[item.sku]) return false;
+                    if (filterPhoto === 'no' && photoStatus[item.sku]) return false;
+                    const hasStock = item.stock && item.stock > 0;
+                    if (filterStock === 'yes' && !hasStock) return false;
+                    if (filterStock === 'no' && hasStock) return false;
+                    if (searchQuery &&
+                      !item.sku.toLowerCase().includes(searchQuery.toLowerCase()) &&
+                      !item.title.toLowerCase().includes(searchQuery.toLowerCase())) {
+                      return false;
+                    }
+                    return true;
+                  }).map(it => ({
+                    sku: it.sku,
+                    title: it.title,
+                    price: it.price,
+                    stock: it.stock || 1,
+                    subline: it.subcategory,
+                    brand: it.brand,
+                    oem: it.oem
+                  }));
+
+                  if (filtered.length === 0) {
+                    alert("No hay productos que coincidan con los filtros actuales para publicar.");
+                    return;
+                  }
+
+                  setBatchItemsToPublish(filtered);
+                  setBatchModalOpen(true);
+                }}
+                style={{
+                  background: 'linear-gradient(135deg, #2563eb, #7c3aed)',
+                  color: 'white',
+                  padding: '1rem 1.6rem',
+                  borderRadius: '10px',
+                  border: 'none',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  boxShadow: '0 4px 20px rgba(37,99,235,0.4)',
+                  fontSize: '0.95rem'
+                }}
+              >
+                🚀 Publicar Todo vía API (Lote Directo)
+              </button>
+              <button
+                onClick={handleDownloadMissingIntegraly}
+                style={{
+                  background: '#fbbf24', color: 'black', padding: '1rem 1.5rem', borderRadius: '10px',
+                  border: 'none', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem'
+                }}
+              >
+                📥 Descargar Excel
+              </button>
+            </div>
           </div>
 
           {/* BARRA DE FILTROS */}
@@ -1327,6 +1398,15 @@ export default function InventoryAuditPage() {
               </div>
             </div>
           )}
+
+          {/* Modal de Publicación Masiva por Lotes vía API */}
+          <MassPublisherModal
+            isOpen={batchModalOpen}
+            onClose={() => setBatchModalOpen(false)}
+            selectedItems={batchItemsToPublish}
+            accountId={activeAccount}
+            defaultPhotosPath="C:\\Users\\ORLANDO\\Pictures\\FOTOS"
+          />
         </div>
       )}
     </div>
