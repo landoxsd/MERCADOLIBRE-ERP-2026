@@ -42,10 +42,10 @@
    - Usar `supabaseAdmin` para operaciones del backend sin restricciones de RLS.
 4. **Motor IA Gemini (`src/lib/gemini.js`):**
    - Usar `generateWithGemini(prompt, config)` y `enrichAutopartListing(item)`. Rota automáticamente entre las 4 claves ante errores 429.
-5. **Catálogo de Categorías Autopartes (`autoparts_leaf_categories.json`):**
-   - Contiene las 2,211 categorías hoja oficiales de repuestos de MLV.
-   - En Supabase: tabla `category_mappings`.
-   - En local: `.erp_settings.json` (`categoryMap`).
+5. **Catálogo de Categorías y Pesos:**
+   - Categorías: `autoparts_leaf_categories.json` (2,211 categorías hoja oficiales de MLV) y tabla `category_mappings` en Supabase.
+   - Pesos: `catalogo_pesos_mercadoenvios_300g.xlsx`.
+   - **Regla de Pesos:** Los pesos reales de Profit Plus mantienen sus decimales exactos. Todo peso estimado/no real debe terminar siempre en `.09` / `.X9` (ej. `0.29`, `0.99`, `2.59`, etc.) para auditoría visual inmediata.
 
 ---
 

@@ -39,7 +39,9 @@
    - **Archivo:** [`listado_marcas_profit.xlsx`](file:///c:/Users/ORLANDO/Documents/ANTIGRAVITY/MERCADOLIBRE%2018042026%20-%20copia/listado_marcas_profit.xlsx) con 514 marcas analizadas a partir de 43,195 artículos.
 5. **Catálogo de Pesos para Mercado Envíos (Tolerancia ±300g):**
    - **Archivo:** [`catalogo_pesos_mercadoenvios_300g.xlsx`](file:///c:/Users/ORLANDO/Documents/ANTIGRAVITY/MERCADOLIBRE%2018042026%20-%20copia/catalogo_pesos_mercadoenvios_300g.xlsx)
-   - 13,629 SKUs con peso real medido + 29,566 calculados con mediana de sublínea y compensación de tara de embalaje.
+   - 13,629 SKUs con peso real medido de balanza en Profit Plus.
+   - 29,566 SKUs con peso estimado por sublínea.
+   - **REGLA DE AUDITORÍA VISUAL (.09):** Todos los pesos estimados (no reales) **terminan obligatoriamente en `.09` o `.X9`** (ejemplo: si el cálculo da `0.30 kg`, se fija en `0.29 kg`; si da `1.00 kg`, se fija en `0.99 kg`). Los pesos reales mantienen sus decimales exactos. Esto permite identificar al instante en Mercado Libre o en reportes qué productos aún no han pasado por balanza física.
 
 ### ✅ Inteligencia Competitiva
 - **Seller Spy:** `/dashboard/spy` (Auditoría de inventario de competidores usando API oficial `GET /sites/MLV/search?seller_id={id}`).
