@@ -1,0 +1,22 @@
+---
+description: Reglas principales del proyecto MercadoLibre ERP Venezuela 2026 para Cursor
+globs: **/*
+---
+
+# Reglas Maestras del Proyecto — MercadoLibre ERP 2026
+
+## Contexto del Proyecto
+- **Propósito:** ERP y Gestor de Inteligencia Competitiva para Mercado Libre Venezuela (MLV), especializado en Autopartes (43,000+ SKUs de Profit Plus).
+- **Stack:** Next.js 14 (App Router) + Supabase (PostgreSQL) + Mercado Libre Official API + Gemini 3.6 Flash IA.
+
+## Reutilización Obligatoria (No reinventar la rueda)
+- **Consultas ML:** Usar `meliGet()` de `src/lib/meli.js`.
+- **Auth ML:** Usar `getValidAccessToken()` de `src/lib/meli-auth-helper.js`.
+- **Base de Datos:** Usar `supabaseAdmin` de `src/lib/supabase-admin.js`.
+- **Inteligencia Artificial:** Usar `generateWithGemini()` y `enrichAutopartListing()` de `src/lib/gemini.js` (pool de 4 API keys).
+- **Categorías:** Catálogo en `autoparts_leaf_categories.json` y tabla `category_mappings` en Supabase.
+
+## Restricciones Críticas
+1. **Secretos:** Nunca exponer o tocar archivos `.env*` ni incluir claves en commits.
+2. **Edición Quirúrgica:** Hacer reemplazos precisos de bloques de código. Evitar sobrescribir componentes enteros.
+3. **Persistencia:** Al terminar cada bloque de trabajo, documentar el avance en `memoria.md`.

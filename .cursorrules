@@ -1,0 +1,83 @@
+# =======================================================
+# .cursorrules — Reglas de Proyecto para Cursor AI
+# Proyecto: MercadoLibre ERP Venezuela 2026 (Autopartes)
+# =======================================================
+
+## 1. Identidad y Stack Técnico
+- **Framework:** Next.js 14 (App Router, JavaScript/JSX, Tailwind CSS).
+- **Backend:** Next.js Route Handlers (`src/app/api/...`) + Node.js 18+.
+- **Base de Datos:** Supabase (PostgreSQL + RLS + Auth + Storage).
+- **Marketplace:** Mercado Libre Venezuela (Site: `MLV`, moneda: `USD`).
+- **IA:** Google Gemini 3.6 Flash (`src/lib/gemini.js` con pool round-robin de 4 claves API).
+- **Scraping Opcional:** Microservicio Python (`scrapling-service` con Scrapling + Camoufox en puerto 8000).
+
+---
+
+## 2. Comandos de Arranque y Ejecución
+- **Servidor Web Principal:**
+  ```bash
+  npm run dev
+  # URL: http://localhost:3000
+  ```
+- **Microservicio Scrapling (si se requiere scraping web):**
+  ```bash
+  cd scrapling-service
+  uvicorn main:app --port 8000 --reload
+  ```
+- **Publicador Masivo Directo por Consola (Desktop):**
+  ```cmd
+  ML_Desktop_Publisher\PUBLICAR_DIRECTO_API.bat
+  ```
+
+---
+
+## 3. Módulos Core a Reutilizar (PROHIBIDO REIMPLEMENTAR)
+1. **Llamadas a Mercado Libre (`src/lib/meli.js`):**
+   - Usar SIEMPRE `meliGet(endpoint, accessToken, options)` para consultas GET. Maneja reintentos con backoff exponencial.
+   - Usar `updateItemPictures()`, `setItemDescription()`, `getOfficialStoreId()`.
+   - NUNCA inventar llamadas `fetch` desprotegidas contra `api.mercadolibre.com`.
+2. **Autenticación y Tokens ML (`src/lib/meli-auth-helper.js`):**
+   - Usar SIEMPRE `getValidAccessToken(accountId)` para obtener o refrescar tokens OAuth2 válidos.
+3. **Cliente Administrador Supabase (`src/lib/supabase-admin.js`):**
+   - Usar `supabaseAdmin` para operaciones del backend sin restricciones de RLS.
+4. **Motor IA Gemini (`src/lib/gemini.js`):**
+   - Usar `generateWithGemini(prompt, config)` y `enrichAutopartListing(item)`. Rota automáticamente entre las 4 claves ante errores 429.
+5. **Catálogo de Categorías Autopartes (`autoparts_leaf_categories.json`):**
+   - Contiene las 2,211 categorías hoja oficiales de repuestos de MLV.
+   - En Supabase: tabla `category_mappings`.
+   - En local: `.erp_settings.json` (`categoryMap`).
+
+---
+
+## 4. Archivos Calientes ("Un escritor a la vez")
+Para evitar conflictos de concurrencia y sobreescrituras destructivas, edita con extrema precaución:
+- `src/app/dashboard/inventory/page.js` (Página principal de inventario)
+- `src/app/api/account/publications/publish-batch/route.js` (Motor de publicación masiva SSE)
+- `src/lib/meli.js` (Cliente API Mercado Libre)
+- `src/lib/gemini.js` (Rotador y enriquecedor IA)
+- `.erp_settings.json` (Configuración y mapeos de sublíneas locales)
+
+---
+
+## 5. Filosofía de Cambios Quirúrgicos
+- **Cursor odia los monólitos:** NO reemplaces archivos enteros de 500-1500 líneas si solo vas a cambiar una función.
+- Haz modificaciones específicas, concisas y modulares.
+- Si vas a agregar una nueva funcionalidad grande, créala en un archivo o componente separado bajo `src/components/...` o `src/lib/...` e impórtala limpiamente.
+
+---
+
+## 6. Secretos y Variables de Entorno
+- **NUNCA** leas, expongas o edites credenciales reales en `.env`, `.env.local` ni archivos de log.
+- Para documentar nuevas variables, usa exclusivamente `.env.example`.
+- **NUNCA** hagas commit de secretos, tokens Bearer, service role keys o dumps masivos.
+
+---
+
+## 7. Fuente de Verdad y Contrato de Handoff
+- La memoria viva del proyecto reside en `memoria.md` (y su consolidado `MASTER_BRAIN.md`).
+- **Al finalizar cada sesión o bloque de trabajo**, debes actualizar `memoria.md` con:
+  - Qué se hizo
+  - Archivos tocados
+  - Qué quedó pendiente
+  - Cómo probarlo
+  - Qué NO rehacer

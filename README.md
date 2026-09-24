@@ -1,36 +1,52 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# 🏎️ MercadoLibre ERP Venezuela 2026
 
-## Getting Started
+ERP integral y suite de inteligencia competitiva para **Mercado Libre Venezuela (MLV)**, diseñado para la gestión y publicación masiva de más de **43,000 SKUs de autopartes** integrados con Profit Plus Administrativo.
 
-First, run the development server:
+---
 
+## 🚀 Inicio Rápido
+
+### 1. Requisitos Previos
+- Node.js 18+ instalado.
+- Cuenta de Supabase configurada.
+- Credenciales de aplicación en Mercado Libre Developers.
+
+### 2. Instalación de Dependencias
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 3. Configurar Variables de Entorno
+Copia el archivo de plantilla y completa tus credenciales locales:
+```bash
+cp .env.example .env.local
+```
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+### 4. Ejecutar Servidor Local
+```bash
+npm run dev
+```
+Abre [http://localhost:3000](http://localhost:3000) en tu navegador.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## 📖 Documentación y Fuente de Verdad para IAs (Cursor / Antigravity)
 
-To learn more about Next.js, take a look at the following resources:
+Este proyecto está 100% optimizado para desarrollo colaborativo entre agentes de IA y desarrolladores humanos:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **🧠 Memoria y Estado Vivo del Proyecto:** Consulta [`memoria.md`](file:///memoria.md) para conocer el estado exacto de cada módulo, qué está hecho, qué falta y el contrato de handoff entre sesiones.
+- **📜 Reglas de Cursor:** Archivo [`.cursorrules`](file:///c:/Users/ORLANDO/Documents/ANTIGRAVITY/MERCADOLIBRE%2018042026%20-%20copia/.cursorrules) y [`.cursor/rules/main.mdc`](file:///c:/Users/ORLANDO/Documents/ANTIGRAVITY/MERCADOLIBRE%2018042026%20-%20copia/.cursor/rules/main.mdc) con convenciones de código, archivos calientes y módulos core a reutilizar.
+- **📘 Documento Maestro de Arquitectura:** Consulta [`MASTER_BRAIN.md`](file:///MASTER_BRAIN.md) para el historial técnico consolidado de los Sprints 1 al 8.
+- **📂 Estructura de Profit Plus:** Consulta [`PROFIT_MASTER_DB.md`](file:///PROFIT_MASTER_DB.md) para consultas SQL y estructura de tablas del ERP contable.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## 📦 Herramientas Destacadas
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. **Publicador Masivo Directo por API (Sprint 8):**
+   - Web: `/dashboard/inventory` (Modal interactivo con streaming SSE).
+   - Desktop: Ejecutar [`ML_Desktop_Publisher/PUBLICAR_DIRECTO_API.bat`](file:///ML_Desktop_Publisher/PUBLICAR_DIRECTO_API.bat) para procesar lotes con fotos locales en disco.
+2. **Pool de IA Gemini 3.6 Flash:**
+   - 4 API Keys rotando automáticamente para generar fichas técnicas con compatibilidad vehicular a 60 RPM.
+3. **Catálogo de Pesos para Mercado Envíos (±300g):**
+   - [`catalogo_pesos_mercadoenvios_300g.xlsx`](file:///catalogo_pesos_mercadoenvios_300g.xlsx) con cálculo de tara de empaque para evitar penalizaciones por sobrepeso en MRW/Zoom.
