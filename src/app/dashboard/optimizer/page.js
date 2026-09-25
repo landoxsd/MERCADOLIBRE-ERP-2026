@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Tag, Target, Search, ArrowRight, ArrowLeft, Loader2, Play, CheckCircle, ChevronRight, ExternalLink } from 'lucide-react';
+import { Tag, Target, Search, ArrowRight, ArrowLeft, Loader2, Play, CheckCircle, ChevronRight, ExternalLink, Zap, XCircle } from 'lucide-react';
 
 import AttributeGapTable from '@/components/optimizer/AttributeGapTable';
 import PhotoComparisonGrid from '@/components/optimizer/PhotoComparisonGrid';
@@ -31,6 +31,12 @@ export default function SEOOptimizerPage() {
     const [analysisData, setAnalysisData] = useState(null);
     const [performanceData, setPerformanceData] = useState(null);
     const [error, setError] = useState(null);
+
+    // Mejora masiva con inteligencia competitiva
+    const [isImproving, setIsImproving] = useState(false);
+    const [improveLogs, setImproveLogs] = useState([]);
+    const [improveStats, setImproveStats] = useState({ improved: 0, skipped: 0, errors: 0 });
+    const improveAbortRef = useRef(null);
 
     // ─── Inicialización ──────────────────────────────────────────────
     useEffect(() => {
@@ -104,7 +110,110 @@ export default function SEOOptimizerPage() {
         const queue = Array.from(selectedIds);
         setExecutionQueue(queue);
         setCurrentIndex(0);
-        setActiveTab(1); // Mover al Quirófano
+        setActiveTab(1);
+    };
+
+    const handleBatchImprove = async () => {
+        if (selectedIds.size === 0 || !accountId) return;
+
+        const itemIds = Array.from(selectedIds);
+        setIsImproving(true);
+        setImproveLogs([]);
+        setImproveStats({ improved: 0, skipped: 0, errors: 0 });
+        improveAbortRef.current = new AbortController();
+
+        try {
+            const response = await fetch('/api/account/publications/improve-batch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                signal: improveAbortRef.current.signal,
+                body: JSON.stringify({
+                    accountId,
+                    itemIds,
+                    useCompetitorIntel: true,
+                    applyChanges: true,
+                }),
+            });
+
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({}));
+                throw new Error(errData.error || `Error ${response.status}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const events = buffer.split('\n\n');
+                buffer = events.pop();
+
+                for (const eventStr of events) {
+                    if (!eventStr.trim()) continue;
+                    const lines = eventStr.split('\n');
+                    let eventType = 'message';
+                    let dataStr = '';
+                    for (const line of lines) {
+                        if (line.startsWith('event: ')) eventType = line.replace('event: ', '').trim();
+                        else if (line.startsWith('data: ')) dataStr = line.replace('data: ', '').trim();
+                    }
+                    if (!dataStr) continue;
+                    try {
+                        const data = JSON.parse(dataStr);
+                        if (eventType === 'start') {
+                            setImproveLogs(prev => [...prev, { type: 'info', text: `🚀 Mejorando ${data.total} publicaciones con inteligencia competitiva...` }]);
+                        } else if (eventType === 'competitor_intel') {
+                            setImproveLogs(prev => [...prev, {
+                                type: 'intel',
+                                text: `🎯 [${data.index}/${data.total}] ${data.itemId} — Líder: ${data.leader_id} → $${data.suggested_price}`
+                            }]);
+                        } else if (eventType === 'item_improved') {
+                            setImproveStats(prev => ({ ...prev, improved: prev.improved + 1 }));
+                            const changeSummary = (data.changes || []).map(c => c.field).join(', ');
+                            setImproveLogs(prev => [...prev, {
+                                type: 'success',
+                                text: `✅ [${data.index}/${data.total}] ${data.itemId} — Mejorado (${changeSummary})`
+                            }]);
+                        } else if (eventType === 'item_skipped') {
+                            setImproveStats(prev => ({ ...prev, skipped: prev.skipped + 1 }));
+                            setImproveLogs(prev => [...prev, {
+                                type: 'warning',
+                                text: `⚠️ [${data.index}/${data.total}] ${data.itemId}: ${data.reason}`
+                            }]);
+                        } else if (eventType === 'item_error') {
+                            setImproveStats(prev => ({ ...prev, errors: prev.errors + 1 }));
+                            setImproveLogs(prev => [...prev, {
+                                type: 'error',
+                                text: `❌ [${data.index}/${data.total}] ${data.itemId}: ${data.error}`
+                            }]);
+                        } else if (eventType === 'complete') {
+                            setImproveLogs(prev => [...prev, {
+                                type: 'finish',
+                                text: `🎉 Finalizado en ${data.elapsedSeconds}s — Mejorados: ${data.totalImproved} | Omitidos: ${data.totalSkipped} | Errores: ${data.totalErrors}`
+                            }]);
+                        }
+                    } catch { /* ignore parse errors */ }
+                }
+            }
+        } catch (err) {
+            if (err.name !== 'AbortError') {
+                setImproveLogs(prev => [...prev, { type: 'error', text: `❌ ${err.message}` }]);
+            }
+        } finally {
+            setIsImproving(false);
+        }
+    };
+
+    const handleStopImprove = () => {
+        if (improveAbortRef.current) {
+            improveAbortRef.current.abort();
+            setIsImproving(false);
+            setImproveLogs(prev => [...prev, { type: 'warning', text: '⏹️ Proceso detenido.' }]);
+        }
     };
 
     // ─── Auto-Analizar Ítem Actual ──────────────────────────────────
@@ -313,7 +422,45 @@ export default function SEOOptimizerPage() {
                         >
                             <Play size={16} /> Ejecutar Optimización ({selectedIds.size})
                         </button>
+                        <button 
+                            style={selectedIds.size > 0 && !isImproving ? styles.btnImprove : styles.btnDisabled}
+                            onClick={handleBatchImprove}
+                            disabled={selectedIds.size === 0 || isImproving}
+                        >
+                            {isImproving ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}
+                            {isImproving ? 'Mejorando...' : `Mejorar con Intel. Competitiva (${selectedIds.size})`}
+                        </button>
+                        {isImproving && (
+                            <button style={styles.btnStop} onClick={handleStopImprove}>
+                                <XCircle size={16} /> Detener
+                            </button>
+                        )}
                     </div>
+
+                    {/* Panel de mejora masiva */}
+                    {(isImproving || improveLogs.length > 0) && (
+                        <div style={styles.improvePanel}>
+                            <div style={styles.improveStats}>
+                                <span style={{color:'#34d399'}}>✅ {improveStats.improved}</span>
+                                <span style={{color:'#fbbf24'}}>⚠️ {improveStats.skipped}</span>
+                                <span style={{color:'#f87171'}}>❌ {improveStats.errors}</span>
+                            </div>
+                            <div style={styles.improveLog}>
+                                {improveLogs.map((log, i) => (
+                                    <div key={i} style={{
+                                        color: log.type === 'success' ? '#34d399' :
+                                               log.type === 'error' ? '#f87171' :
+                                               log.type === 'warning' ? '#fbbf24' :
+                                               log.type === 'intel' ? '#fb923c' :
+                                               log.type === 'finish' ? '#c084fc' : '#38bdf8',
+                                        marginBottom: '4px', fontSize: '0.8rem', fontFamily: 'monospace'
+                                    }}>
+                                        {log.text}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     <div style={styles.tableWrapper}>
                         <table style={styles.table}>
@@ -514,11 +661,16 @@ const styles = {
     panel: { background: 'rgba(255, 255, 255, 0.02)', borderRadius: '20px', padding: '24px', border: '1px solid rgba(255, 255, 255, 0.05)', backdropFilter: 'blur(20px)' },
     
     // Toolbar (Search & Actions)
-    toolbar: { display: 'flex', justifyContent: 'space-between', marginBottom: '24px' },
+    toolbar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '24px' },
     searchBox: { display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(0,0,0,0.2)', padding: '10px 16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', flex: 1, maxWidth: '400px' },
     input: { background: 'transparent', border: 'none', color: '#fff', outline: 'none', flex: 1, fontSize: '0.9rem' },
     btnPrimary: { background: 'linear-gradient(135deg, #0284c7, #38bdf8)', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: '12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'transform 0.2s', boxShadow: '0 4px 12px rgba(56,189,248,0.2)' },
     btnDisabled: { background: 'rgba(255,255,255,0.1)', color: '#64748b', border: 'none', padding: '10px 24px', borderRadius: '12px', fontWeight: 700, cursor: 'not-allowed', display: 'flex', alignItems: 'center', gap: '8px' },
+    btnImprove: { background: 'linear-gradient(135deg, #ea580c, #f97316)', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: '12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(249,115,22,0.2)' },
+    btnStop: { background: 'rgba(239,68,68,0.2)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)', padding: '10px 16px', borderRadius: '12px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' },
+    improvePanel: { marginBottom: '16px', background: 'rgba(0,0,0,0.3)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.08)', padding: '16px' },
+    improveStats: { display: 'flex', gap: '16px', marginBottom: '12px', fontSize: '0.85rem', fontWeight: 600 },
+    improveLog: { maxHeight: '120px', overflowY: 'auto', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', padding: '12px' },
     
     // Table (Inventory)
     tableWrapper: { overflowX: 'auto', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' },

@@ -398,6 +398,39 @@ export async function getItemCompatibility(itemId, accessToken) {
 }
 
 /**
+ * Intenta registrar compatibilidades vehiculares vía API ML.
+ * Requiere IDs del catálogo ML cuando la categoría lo soporta.
+ * Devuelve { ok, data?, error? } sin lanzar excepción.
+ */
+export async function setItemCompatibilities(itemId, vehicles, accessToken) {
+  if (!itemId || !vehicles?.length || !accessToken) {
+    return { ok: false, error: "Parámetros insuficientes" };
+  }
+
+  try {
+    const res = await fetch(`${MELI_BASE_URL}/items/${itemId}/compatibilities`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({ products: vehicles }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      return { ok: false, error: errText };
+    }
+
+    const data = await res.json().catch(() => ({}));
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+/**
  * Obtiene los atributos obligatorios para una categoría específica.
  * Filtra aquellos que tienen tags.required = true.
  */

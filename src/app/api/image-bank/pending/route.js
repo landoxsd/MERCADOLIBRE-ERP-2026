@@ -6,40 +6,48 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+const CHUNK_SIZE = 500;
+
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const stockFilter = searchParams.get('stock'); // 'all', 'inStock', 'noStock'
+    const hasStockFilter = stockFilter === 'inStock' || stockFilter === 'noStock';
 
-    // 1. Obtener SKUs filtrados por stock si es necesario
-    let filteredSkus = null;
-    if (stockFilter === 'inStock' || stockFilter === 'noStock') {
-      let invQuery = supabase.from('internal_inventory').select('sku');
-      if (stockFilter === 'inStock') invQuery = invQuery.gt('stock', 0);
-      else invQuery = invQuery.lte('stock', 0);
-      
-      const { data: invData } = await invQuery;
-      if (invData) filteredSkus = invData.map(i => i.sku);
-    }
-
-    // 2. Obtener SKUs pendientes (sin imagenes)
-    let query = supabase
+    // 1. Obtener SKUs pendientes (solo columna sku, sin inventario completo)
+    const { data: pendingItems, error } = await supabase
       .from('image_bank')
       .select('sku')
       .in('sync_status', ['pending', 'changed']);
 
-    const { data: pendingItems, error } = await query;
     if (error) throw error;
 
-    let finalSkus = pendingItems.map(item => item.sku);
+    let finalSkus = [...new Set((pendingItems || []).map(item => item.sku))];
 
-    // 3. Cruzar con filtro de stock si aplica
-    if (filteredSkus) {
-        const stockSet = new Set(filteredSkus);
-        finalSkus = finalSkus.filter(sku => stockSet.has(sku));
+    // 2. Cruzar con filtro de stock consultando inventario solo para SKUs pendientes (en lotes)
+    if (hasStockFilter && finalSkus.length > 0) {
+      const matchingSkus = [];
+
+      for (let i = 0; i < finalSkus.length; i += CHUNK_SIZE) {
+        const chunk = finalSkus.slice(i, i + CHUNK_SIZE);
+        const { data: invData } = await supabase
+          .from('internal_inventory')
+          .select('sku, stock')
+          .in('sku', chunk);
+
+        if (invData) {
+          for (const row of invData) {
+            const hasStock = (row.stock || 0) > 0;
+            if (stockFilter === 'inStock' ? hasStock : !hasStock) {
+              matchingSkus.push(row.sku);
+            }
+          }
+        }
+      }
+
+      finalSkus = matchingSkus;
     }
 
-    // 4. Formatear como texto plano (un SKU por linea) para facil copiado
     const textOutput = finalSkus.join('\n');
 
     return new NextResponse(textOutput, {

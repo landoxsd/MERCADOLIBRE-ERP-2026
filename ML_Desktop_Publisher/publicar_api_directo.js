@@ -2,14 +2,11 @@ const fs = require('fs');
 const path = require('path');
 const xlsx = require('xlsx');
 const { createClient } = require('@supabase/supabase-js');
+const { SUPABASE_URL, SUPABASE_KEY } = require('./load-env');
 
 // ================================================================
 // PUBLICADOR DIRECTO VÍA API MERCADOLIBRE (Desktop CLI Edition)
 // ================================================================
-
-// 1. Cargar Configuración
-const SUPABASE_URL = "https://zqxesjcchykncxpekmbz.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpxeGVzamNjaHlrbmN4cGVrbWJ6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjY1NTMzNywiZXhwIjoyMDkyMjMxMzM3fQ.xrJXFm1WI7rNrDIUeir5IDAfk4Exbhf_k5vzPQzp51I"; 
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 

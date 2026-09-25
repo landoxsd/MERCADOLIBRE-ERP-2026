@@ -18,8 +18,12 @@ export async function GET(req) {
 
     const limit = 100; // Limite de productos por carga
 
+    // Columnas ligeras para listado (excluye raw_data y attributes JSON pesados)
+    const LIST_COLUMNS =
+      "id, meli_item_id, meli_account_id, title, status, price, available_qty, permalink, thumbnail, sku, category_id, sold_quantity, visits_count, updated_at, health_score, domain_id, last_updated_meli, cost_price";
+
     // 2. Obtener los productos con el filtro aplicado
-    let query = productsTable().select("*", { count: "exact" }).eq("meli_account_id", accountId);
+    let query = productsTable().select(LIST_COLUMNS, { count: "exact" }).eq("meli_account_id", accountId);
 
     if (status && status !== "all") {
       query = query.eq("status", status);
@@ -53,7 +57,7 @@ export async function GET(req) {
         .in("sku", [...new Set(allNormalizedSkus)]); // Usamos Set para únicos
       
       if (inventoryData) {
-        inventorySkus = new Set(inventoryData.map(i => i.sku));
+        inventorySkus = new Set(inventoryData.map(i => normalize(i.sku)));
       }
     }
 
@@ -71,10 +75,10 @@ export async function GET(req) {
     // 3. Obtener conteos por estado para las pestañas
     // ...
     const [allC, activeC, pausedC, closedC] = await Promise.all([
-      supabaseAdmin.from("products").select("*", { count: "exact", head: true }).eq("meli_account_id", accountId),
-      supabaseAdmin.from("products").select("*", { count: "exact", head: true }).eq("meli_account_id", accountId).eq("status", "active"),
-      supabaseAdmin.from("products").select("*", { count: "exact", head: true }).eq("meli_account_id", accountId).eq("status", "paused"),
-      supabaseAdmin.from("products").select("*", { count: "exact", head: true }).eq("meli_account_id", accountId).in("status", ["closed", "finished"]),
+      supabaseAdmin.from("products").select("id", { count: "exact", head: true }).eq("meli_account_id", accountId),
+      supabaseAdmin.from("products").select("id", { count: "exact", head: true }).eq("meli_account_id", accountId).eq("status", "active"),
+      supabaseAdmin.from("products").select("id", { count: "exact", head: true }).eq("meli_account_id", accountId).eq("status", "paused"),
+      supabaseAdmin.from("products").select("id", { count: "exact", head: true }).eq("meli_account_id", accountId).in("status", ["closed", "finished"]),
     ]);
 
     return NextResponse.json({

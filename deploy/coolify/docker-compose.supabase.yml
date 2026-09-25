@@ -1,0 +1,42 @@
+# =============================================================================
+# Override LAN para Supabase self-hosted (usar CON el compose oficial)
+# =============================================================================
+#
+# El stack completo vive en: https://github.com/supabase/supabase/tree/master/docker
+#
+# Instalación:
+#   git clone --depth 1 https://github.com/supabase/supabase.git /opt/supabase
+#   cd /opt/supabase/docker
+#   cp .env.example .env   # o deploy/coolify/.env.example de este repo
+#   # Editar .env con passwords y JWT keys
+#
+# Con override (Docker Compose v2):
+#   docker compose -f docker-compose.yml -f /path/to/docker-compose.supabase.yml up -d
+#
+# O copiar como docker-compose.override.yml en el mismo directorio:
+#   cp docker-compose.supabase.yml /opt/supabase/docker/docker-compose.override.yml
+#
+# Puertos expuestos en LAN (192.168.1.88):
+#   54321 — REST/Auth (Kong)
+#   54322 — Postgres directo
+#   54323 — Supabase Studio
+# =============================================================================
+
+services:
+  kong:
+    ports:
+      - "0.0.0.0:54321:8000/tcp"
+      - "0.0.0.0:8443:8443/tcp"
+
+  db:
+    ports:
+      - "0.0.0.0:54322:5432/tcp"
+
+  studio:
+    ports:
+      - "0.0.0.0:54323:3000/tcp"
+
+  # Descomenta si necesitas SMTP de prueba accesible en LAN
+  # inbucket:
+  #   ports:
+  #     - "0.0.0.0:54324:9000/tcp"

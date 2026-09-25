@@ -141,11 +141,14 @@ export default function WebhooksMonitorPage() {
     const [filterTopic, setFilterTopic] = useState('all');
     const [filterStatus, setFilterStatus] = useState('all');
     const [expandedRow, setExpandedRow] = useState(null);
+    const [expandedPayloads, setExpandedPayloads] = useState({});
+
+    const LIST_COLUMNS = 'id, topic, resource, status, created_at, attempts, user_id, processed_at, error_message';
 
     const fetchNotifications = useCallback(async () => {
         let query = supabase
             .from('ml_notifications')
-            .select('*')
+            .select(LIST_COLUMNS)
             .order('created_at', { ascending: false })
             .limit(100);
 
@@ -178,9 +181,21 @@ export default function WebhooksMonitorPage() {
         setLoading(false);
     }, [filterTopic, filterStatus]);
 
+    const fetchPayload = useCallback(async (id) => {
+        if (expandedPayloads[id] !== undefined) return;
+        const { data, error } = await supabase
+            .from('ml_notifications')
+            .select('payload')
+            .eq('id', id)
+            .single();
+        if (!error && data) {
+            setExpandedPayloads(prev => ({ ...prev, [id]: data.payload }));
+        }
+    }, [expandedPayloads]);
+
     useEffect(() => {
         fetchNotifications();
-        const interval = setInterval(fetchNotifications, 5000); // Polling cada 5 seg
+        const interval = setInterval(fetchNotifications, 60000); // Polling cada 60 seg
         return () => clearInterval(interval);
     }, [fetchNotifications]);
 
@@ -317,7 +332,11 @@ export default function WebhooksMonitorPage() {
                                     <>
                                         <tr
                                             key={n.id}
-                                            onClick={() => setExpandedRow(isExpanded ? null : n.id)}
+                                            onClick={() => {
+                                                const next = isExpanded ? null : n.id;
+                                                setExpandedRow(next);
+                                                if (next) fetchPayload(next);
+                                            }}
                                             style={{
                                                 borderBottom: '1px solid #f3f4f6',
                                                 cursor: 'pointer',
@@ -406,7 +425,9 @@ export default function WebhooksMonitorPage() {
                                                                 fontSize: '11px',
                                                                 maxHeight: '300px',
                                                             }}>
-                                                                {JSON.stringify(n.payload, null, 2)}
+                                                                {expandedPayloads[n.id] === undefined
+                                                                    ? 'Cargando payload...'
+                                                                    : JSON.stringify(expandedPayloads[n.id], null, 2)}
                                                             </pre>
                                                         </div>
                                                     </div>

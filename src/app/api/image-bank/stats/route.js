@@ -6,17 +6,20 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+const LIST_COLUMNS = 'id, sku, sync_status, ml_picture_id, ml_url, ml_secure_url, last_synced_at';
+
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search');
     const stockFilter = searchParams.get('stock'); // 'all', 'inStock', 'noStock'
+    const hasStockFilter = stockFilter === 'inStock' || stockFilter === 'noStock';
 
-    // 1. Obtener Stats Globales (sin límite de 1000)
-    const { count: total } = await supabase.from('image_bank').select('*', { count: 'exact', head: true });
-    const { count: synced } = await supabase.from('image_bank').select('*', { count: 'exact', head: true }).eq('sync_status', 'synced');
-    const { count: errorCount } = await supabase.from('image_bank').select('*', { count: 'exact', head: true }).eq('sync_status', 'error');
-    const { count: pending } = await supabase.from('image_bank').select('*', { count: 'exact', head: true }).in('sync_status', ['pending', 'changed']);
+    // 1. Obtener Stats Globales (head-only counts, sin transferir filas)
+    const { count: total } = await supabase.from('image_bank').select('id', { count: 'exact', head: true });
+    const { count: synced } = await supabase.from('image_bank').select('id', { count: 'exact', head: true }).eq('sync_status', 'synced');
+    const { count: errorCount } = await supabase.from('image_bank').select('id', { count: 'exact', head: true }).eq('sync_status', 'error');
+    const { count: pending } = await supabase.from('image_bank').select('id', { count: 'exact', head: true }).in('sync_status', ['pending', 'changed']);
 
     const stats = {
       total: total || 0,
@@ -25,50 +28,48 @@ export async function GET(request) {
       error: errorCount || 0
     };
 
-    // 2. Obtener SKUs filtrados por stock si es necesario
-    let filteredSkus = null;
-    if (stockFilter === 'inStock' || stockFilter === 'noStock') {
-      let invQuery = supabase.from('internal_inventory').select('sku');
-      if (stockFilter === 'inStock') invQuery = invQuery.gt('stock', 0);
-      else invQuery = invQuery.lte('stock', 0);
-      
-      const { data: invData } = await invQuery;
-      if (invData) filteredSkus = invData.map(i => i.sku);
-    }
+    // 2. Obtener imágenes (búsqueda o recientes); con filtro de stock pedimos más filas y filtramos en memoria
+    let query = supabase.from('image_bank').select(LIST_COLUMNS);
 
-    // 3. Obtener imágenes (búsqueda o recientes)
-    let query = supabase.from('image_bank').select('*');
-    
     if (search) {
       query = query.ilike('sku', `%${search}%`);
-    } else if (filteredSkus) {
-      // Si hay filtro de stock, limitamos a esos SKUs
-      query = query.in('sku', filteredSkus.slice(0, 1000)); // Limite de seguridad para el IN clause
     } else {
       query = query.eq('sync_status', 'synced');
     }
 
-    query = query.order('last_synced_at', { ascending: false }).limit(48);
+    const fetchLimit = hasStockFilter ? 250 : 48;
+    query = query.order('last_synced_at', { ascending: false }).limit(fetchLimit);
 
     const { data: recent, error: errRecent } = await query;
     if (errRecent) throw errRecent;
 
-    // 4. Enriquecer con información de stock real
-    const skusToFetch = [...new Set(recent.map(img => img.sku))];
-    const { data: stocks } = await supabase
-      .from('internal_inventory')
-      .select('sku, stock')
-      .in('sku', skusToFetch);
-
+    // 3. Enriquecer con stock solo para los SKUs de este lote (evita traer ~27k filas de inventario)
+    const skusToFetch = [...new Set((recent || []).map(img => img.sku))];
     const stockMap = {};
-    if (stocks) {
-      stocks.forEach(s => { stockMap[s.sku] = s.stock; });
+
+    if (skusToFetch.length > 0) {
+      const { data: stocks } = await supabase
+        .from('internal_inventory')
+        .select('sku, stock')
+        .in('sku', skusToFetch);
+
+      if (stocks) {
+        stocks.forEach(s => { stockMap[s.sku] = s.stock; });
+      }
     }
 
-    const enrichedRecent = recent.map(img => ({
+    let enrichedRecent = (recent || []).map(img => ({
       ...img,
       stock: stockMap[img.sku] !== undefined ? stockMap[img.sku] : 0
     }));
+
+    if (stockFilter === 'inStock') {
+      enrichedRecent = enrichedRecent.filter(img => img.stock > 0);
+    } else if (stockFilter === 'noStock') {
+      enrichedRecent = enrichedRecent.filter(img => img.stock <= 0);
+    }
+
+    enrichedRecent = enrichedRecent.slice(0, 48);
 
     return NextResponse.json({ success: true, stats, recent: enrichedRecent });
 

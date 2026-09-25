@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "import:fitment": "node scripts/import-vehicle-fitment.js"
   },
   "dependencies": {
     "@sparticuz/chromium-min": "^148.0.0",

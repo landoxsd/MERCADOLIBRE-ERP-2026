@@ -5,6 +5,7 @@
 // ================================================================
 import { NextResponse } from "next/server";
 import { supabaseAdmin, accountsTable, productsTable, ordersTable, questionsTable } from "@/lib/supabase-admin";
+import { extractSku } from "@/lib/meli";
 
 const MELI_BASE_URL = "https://api.mercadolibre.com";
 
@@ -86,22 +87,25 @@ async function fetchResource(resource, accessToken) {
 async function processItemNotification(resource, account, payload) {
     const itemData = await fetchResource(resource, account.access_token);
 
+    const sku = extractSku(itemData);
+    const upsertPayload = {
+        meli_item_id: itemData.id,
+        meli_account_id: account.id,
+        title: itemData.title,
+        status: itemData.status,
+        price: itemData.price,
+        available_qty: itemData.available_quantity,
+        permalink: itemData.permalink,
+        thumbnail: itemData.thumbnail,
+        category_id: itemData.category_id,
+        domain_id: itemData.domain_id,
+        attributes: itemData.attributes || null,
+        last_updated_meli: itemData.last_updated,
+    };
+    if (sku) upsertPayload.sku = sku;
+
     const { error } = await productsTable()
-        .upsert({
-            meli_item_id: itemData.id,
-            meli_account_id: account.id,
-            title: itemData.title,
-            status: itemData.status,
-            price: itemData.price,
-            available_qty: itemData.available_quantity,
-            permalink: itemData.permalink,
-            thumbnail: itemData.thumbnail,
-            category_id: itemData.category_id,
-            domain_id: itemData.domain_id,
-            sku: itemData.seller_custom_field || null,
-            attributes: itemData.attributes || null,
-            last_updated_meli: itemData.last_updated,
-        }, { onConflict: "meli_item_id" });
+        .upsert(upsertPayload, { onConflict: "meli_item_id" });
 
     if (error) throw new Error(`Error upsert producto: ${error.message}`);
     return { action: "product_updated", item_id: itemData.id };

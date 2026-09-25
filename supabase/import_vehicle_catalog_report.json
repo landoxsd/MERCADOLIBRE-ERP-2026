@@ -1,0 +1,130 @@
+{
+  "dir": "C:\\Users\\ORLANDO\\Pictures\\FOTOS\\CARROS",
+  "totalFiles": 456,
+  "imported": 313,
+  "skipped": 143,
+  "sqlFile": "C:\\Users\\ORLANDO\\Documents\\ANTIGRAVITY\\MERCADOLIBRE 18042026 - copia\\supabase\\import_vehicle_catalog_from_carros.sql",
+  "unknownMake": 128,
+  "skippedSample": [
+    {
+      "file": "4RUNNER 2003-2009.jpg",
+      "reason": "duplicado search_key TOYOTA|4RUNNER|2003"
+    },
+    {
+      "file": "4RUNNER 2003-2009.png",
+      "reason": "duplicado search_key TOYOTA|4RUNNER|2003"
+    },
+    {
+      "file": "4RUNNER 2010-2013.png",
+      "reason": "duplicado search_key TOYOTA|4RUNNER|2010"
+    },
+    {
+      "file": "4RUNNER 2014-2016.png",
+      "reason": "duplicado search_key TOYOTA|4RUNNER|2014"
+    },
+    {
+      "file": "4RUNNER 96-01.png",
+      "reason": "duplicado search_key TOYOTA|4RUNNER|1996"
+    },
+    {
+      "file": "706027X-0.jpg",
+      "reason": "patrón excluido"
+    },
+    {
+      "file": "A.png",
+      "reason": "patrón excluido"
+    },
+    {
+      "file": "ACCENT.jpg",
+      "reason": "sin años"
+    },
+    {
+      "file": "ARAUCA.jpg",
+      "reason": "sin años"
+    },
+    {
+      "file": "AVEO 1.6 LS 2007-2008.JPG",
+      "reason": "duplicado search_key CHEVROLET|AVEO_16|2007"
+    },
+    {
+      "file": "AVEO 1.6 LT SEDÁN 2011-2015.JPG",
+      "reason": "duplicado search_key CHEVROLET|AVEO_16|2011"
+    },
+    {
+      "file": "AVEO 1.6 LT SPEED 3 PUERTAS 2011-2015.JPG",
+      "reason": "duplicado search_key CHEVROLET|AVEO_16|2011"
+    },
+    {
+      "file": "AVEO 1.6 SEDÁN 2004-2010.JPG",
+      "reason": "duplicado search_key CHEVROLET|AVEO_16|2004"
+    },
+    {
+      "file": "AVEO ATRAS.jpg",
+      "reason": "sin años"
+    },
+    {
+      "file": "AVEO TRASEO.jpg",
+      "reason": "sin años"
+    },
+    {
+      "file": "B.png",
+      "reason": "patrón excluido"
+    },
+    {
+      "file": "BRISA HATCHBACK.jpg",
+      "reason": "sin años"
+    },
+    {
+      "file": "BRONCO B.png",
+      "reason": "sin años"
+    },
+    {
+      "file": "BRONCO.jpg",
+      "reason": "sin años"
+    },
+    {
+      "file": "BRONCO.png",
+      "reason": "sin años"
+    },
+    {
+      "file": "CAMARO 5.7 1991-1992.jpg",
+      "reason": "duplicado search_key DESCONOCIDO|CAMARO|1991"
+    },
+    {
+      "file": "CAMARO 5.7 1993-1999.jpg",
+      "reason": "duplicado search_key DESCONOCIDO|CAMARO|1993"
+    },
+    {
+      "file": "CAMRY 2007-2011.jpg",
+      "reason": "duplicado search_key TOYOTA|CAMRY|2007"
+    },
+    {
+      "file": "Camry 97-01.jpg",
+      "reason": "duplicado search_key TOYOTA|CAMRY|1997"
+    },
+    {
+      "file": "CAPRICE CLASIC 1981.jpg",
+      "reason": "duplicado search_key CHEVROLET|CAPRICE_CLASIC|1981"
+    },
+    {
+      "file": "CAPTIVA.jpg",
+      "reason": "sin años"
+    },
+    {
+      "file": "car-pictures.cars.com.png",
+      "reason": "sin años"
+    },
+    {
+      "file": "CHEROKEE 4.0 4 PUERTAS 1987-2001.jpg",
+      "reason": "duplicado search_key DESCONOCIDO|CHEROKEE|1987"
+    },
+    {
+      "file": "CHERY X1.jpg",
+      "reason": "sin años"
+    },
+    {
+      "file": "CHEVETTE.jpg",
+      "reason": "sin años"
+    }
+  ]
+}

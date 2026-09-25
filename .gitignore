@@ -65,6 +65,10 @@ tokens.json
 cookies.json
 *.session
 *.session-journal
+mcp_config_BACKUP.json
+claude_desktop_config_snippet.json
+.audit_cache_*.json
+mcp-token-refresh/*.log
 
 # Project Specific
 scratch/

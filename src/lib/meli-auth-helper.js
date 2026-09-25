@@ -10,7 +10,7 @@ import { refreshAccessToken } from "./meli";
 export async function getValidAccessToken(accountId) {
   // 1. Buscar la cuenta en la base de datos
   const { data: account, error } = await accountsTable()
-    .select("*")
+    .select("id, access_token, refresh_token, token_expiry, nickname")
     .eq("id", accountId)
     .single();
 
