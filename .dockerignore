@@ -1,0 +1,13 @@
+node_modules
+.next
+.git
+.gitignore
+.env*.local
+*.log
+scratch
+deploy/coolify/docker-compose.supabase.yml
+maestro articulos 27082026.xlsx
+sublineas.xlsx
+catalogo_pesos_autopartes.xlsx
+catalogo_pesos_mercadoenvios_300g.xlsx
+listado_marcas_profit.xlsx

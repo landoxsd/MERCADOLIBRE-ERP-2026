@@ -105,27 +105,12 @@ node -e "const { generateWithGemini } = require('./src/lib/gemini.js'); generate
 
 ## 🤝 6. Contrato de Handoff (Sesión Actual)
 
-### Sesión 2026-09-24 (Antigravity ➔ Cursor)
-- **Hecho:** 
-  1. Configuración de compatibilidad con Cursor: creados `.cursorrules`, `.cursor/rules/main.mdc`, `.env.example` y `memoria.md`.
-  2. Implementado y testeado el Publicador Masivo directo por API con streaming SSE, soporte de Tienda Oficial, escaneo de fotos locales y pool de 4 API Keys de Gemini 3.6 Flash.
-  3. Categorizadas las 569 sublíneas de Profit Plus contra el árbol oficial de repuestos de MLV y sincronizadas en Supabase `category_mappings`.
-  4. Generado el inventario de 514 marcas de Profit (`listado_marcas_profit.xlsx`).
-  5. Generado el catálogo de pesos con compensación de embalaje y semáforo de tolerancia $\pm 300\text{g}$ para Mercado Envíos (`catalogo_pesos_mercadoenvios_300g.xlsx`).
-- **Archivos Clave Tocados:**
-  - `memoria.md`
-  - `.cursorrules`
-  - `.cursor/rules/main.mdc`
-  - `.env.example`
-  - `src/lib/gemini.js`
-  - `src/app/api/account/publications/publish-batch/route.js`
-  - `src/components/inventory/MassPublisherModal.js`
-  - `src/app/dashboard/inventory/page.js`
-  - `ML_Desktop_Publisher/publicar_api_directo.js`
-  - `ML_Desktop_Publisher/PUBLICAR_DIRECTO_API.bat`
-- **Pendiente:** Conectar el lookup de pesos (`catalogo_pesos_mercadoenvios_300g.xlsx`) al endpoint de publicación batch para inyectar automáticamente el peso embalado en la publicación.
-- **Cómo probar:** Ejecutar `npm run dev` y abrir `/dashboard/inventory` o correr `ML_Desktop_Publisher\PUBLICAR_DIRECTO_API.bat`.
-- **No rehacer:**
-  - NO tocar la lógica de rotación de tokens en `src/lib/gemini.js`.
-  - NO reescribir `src/lib/meli.js` ni reimplementar llamadas crudas con `fetch` a ML.
-  - NO modificar las 569 sublíneas categorizadas en Supabase a menos que sea un ajuste puntual solicitado por el usuario.
+### Sesión 2026-09-29 (Continuación en la otra PC / Despliegue R630)
+- **Objetivo Próximo:** Desplegar el ERP en el servidor Dell PowerEdge R630 bajo Coolify/Docker para eliminar la dependencia y límites de Vercel.
+- **Preparativos Listos en el Repo:**
+  1. `Dockerfile` multi-stage optimizado para Next.js 14 standalone creado.
+  2. `next.config.mjs` configurado con `output: 'standalone'`.
+  3. `.dockerignore` configurado para excluir dependencias y archivos innecesarios.
+  4. Guías detalladas en `scripts/setup-coolify-r630.md` y `deploy/coolify/`.
+- **Instrucción para la IA en la otra PC:**
+  *Al abrir el repositorio en la otra PC (sea con Antigravity o Cursor), leer este archivo `memoria.md` y proceder a conectar el repositorio en Coolify (`http://192.168.1.88:8000` o IP del R630).*

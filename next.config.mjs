@@ -1,6 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  /* config options here */
+  output: 'standalone',
+  // Permitir procesamiento de imágenes externas si aplica
+  images: {
+    unoptimized: true
+  }
 };
 
 export default nextConfig;
