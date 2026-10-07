@@ -13,25 +13,7 @@ const MELI_BASE_URL = 'https://api.mercadolibre.com';
  * en Profit Plus (artículos descontinuados con stock, equivalencias, y sufijos genéricos 'E').
  */
 export async function getOrphanSuggestions({ page = 1, limit = 50, filter = 'pending' } = {}) {
-  // 1. Obtener propuestas ya registradas en Postgres
-  const { rows: existingProposals } = await pgPool.query(`
-    SELECT * FROM orphan_proposals WHERE status = $1 ORDER BY created_at DESC
-  `, [filter]);
-
-  // 2. Si no hay pendientes registradas, o para refrescar el motor, ejecutamos detección en caliente
-  const { rows: mlProducts } = await pgPool.query(`
-    SELECT meli_item_id, meli_account_id, sku, title, status, price, available_qty, permalink, thumbnail
-    FROM products
-    WHERE (sku IS NOT NULL AND TRIM(sku) != '')
-    ORDER BY (status = 'paused') DESC, available_qty ASC, updated_at DESC
-    LIMIT 400
-  `);
-
-  if (!mlProducts.length) {
-    return { total: 0, items: [], page, limit };
-  }
-
-  // 3. Obtener artículos descontinuados que tienen stock en Profit
+  // 1. Obtener artículos descontinuados que tienen stock físico en Profit Plus
   const discontinuedQuery = `
     SELECT 
       RTRIM(a.co_art) as co_art,
@@ -53,97 +35,69 @@ export async function getOrphanSuggestions({ page = 1, limit = 50, filter = 'pen
 
   const discontinuedInProfit = await queryProfit(discontinuedQuery).catch(() => []);
 
-  // Mapeo de artículos descontinuados: de cuál SKU apuntan a cuál nuevo
-  // Ej: 10384 -> "DESCONTINUADO USE K9009" apunta a K9009
-  const discMap = new Map(); // targetSku -> [ { oldSku, stock, precio, art_des, costo_usd } ]
+  // Extraer todos los SKUs objetivo de Profit (bidireccional: nuevo -> viejo, viejo -> nuevo)
+  const candidateTargets = new Map(); // targetSku -> profitItem
   for (const item of discontinuedInProfit) {
     const desc = item.art_des.toUpperCase();
-    const useMatch = desc.match(/USE\s+([A-Z0-9\-_]+)/);
-    if (useMatch && useMatch[1]) {
-      const targetSku = useMatch[1].trim();
-      if (!discMap.has(targetSku)) discMap.set(targetSku, []);
-      discMap.get(targetSku).push(item);
+    const matches = desc.match(/USE\s+([A-Z0-9\-_]+)/g);
+    if (matches) {
+      for (const m of matches) {
+        const code = m.replace(/USE\s+/, '').trim();
+        if (code) candidateTargets.set(code, item);
+      }
     }
-    // También verificar si en modelo colocaron el código nuevo
     const mod = item.modelo.trim().toUpperCase();
     if (mod && mod !== item.co_art) {
-      if (!discMap.has(mod)) discMap.set(mod, []);
-      discMap.get(mod).push(item);
+      candidateTargets.set(mod, item);
+    }
+    // También incluir el co_art descontinuado
+    candidateTargets.set(item.co_art.trim().toUpperCase(), item);
+  }
+
+  const targetList = Array.from(candidateTargets.keys());
+
+  if (targetList.length > 0) {
+    // 2. Buscar en PostgreSQL publicaciones de Mercado Libre que coincidan
+    const { rows: matchedProducts } = await pgPool.query(`
+      SELECT meli_item_id, meli_account_id, sku, title, status, price, available_qty, permalink, thumbnail
+      FROM products
+      WHERE UPPER(sku) = ANY($1)
+    `, [targetList]).catch(() => ({ rows: [] }));
+
+    // 3. Insertar propuestas en orphan_proposals
+    for (const prod of matchedProducts) {
+      const rawSku = (prod.sku || '').trim().toUpperCase();
+      const profitCand = candidateTargets.get(rawSku);
+      if (!profitCand) continue;
+
+      // El SKU sugerido:
+      // Si la publicación en ML tiene el código nuevo (ej: K9009) que está en 0, sugerimos el código con stock físico (10384)
+      // Si la publicación en ML tiene el código descontinuado (10384), sugerimos actualizar stock y precio del código 10384
+      let suggestedSku = profitCand.co_art.trim();
+      let reasonText = `La publicación en ML usa '${rawSku}' (stock ML: ${prod.available_qty}), pero en Profit el código '${profitCand.co_art}' (${profitCand.art_des}) tiene ${profitCand.stock_total} unidades en almacén con precio $${profitCand.precio.toFixed(2)}.`;
+      
+      await pgPool.query(`
+        INSERT INTO orphan_proposals 
+          (meli_item_id, current_sku, suggested_sku, match_type, reason, profit_stock, profit_price, profit_art_des, status)
+        VALUES ($1, $2, $3, 'discontinued_replacement', $4, $5, $6, $7, 'pending')
+        ON CONFLICT (meli_item_id, suggested_sku) 
+        DO UPDATE SET 
+          profit_stock = EXCLUDED.profit_stock,
+          profit_price = EXCLUDED.profit_price,
+          reason = EXCLUDED.reason;
+      `, [
+        prod.meli_item_id,
+        rawSku,
+        suggestedSku,
+        reasonText,
+        profitCand.stock_total,
+        profitCand.precio,
+        profitCand.art_des
+      ]).catch(err => console.warn('Error guardando propuesta:', err.message));
     }
   }
 
-  // 4. Analizar cada producto de ML
-  const newSuggestions = [];
-
-  for (const prod of mlProducts) {
-    const rawSku = (prod.sku || '').trim().toUpperCase();
-    if (!rawSku) continue;
-
-    // A. ¿Coincide con un artículo descontinuado en Profit que aún tiene stock físico?
-    // Ej: ML tiene SKU 'K9009' en cero, pero en Profit '10384' tiene stock 3 y precio $19.50
-    if (discMap.has(rawSku)) {
-      const candidates = discMap.get(rawSku);
-      for (const cand of candidates) {
-        newSuggestions.push({
-          meli_item_id: prod.meli_item_id,
-          meli_account_id: prod.meli_account_id,
-          current_sku: rawSku,
-          title: prod.title,
-          ml_status: prod.status,
-          ml_price: parseFloat(prod.price) || 0,
-          ml_stock: parseInt(prod.available_qty, 10) || 0,
-          permalink: prod.permalink,
-          thumbnail: prod.thumbnail,
-          suggested_sku: cand.co_art,
-          suggested_price: cand.precio,
-          suggested_stock: cand.stock_total,
-          profit_art_des: cand.art_des,
-          match_type: 'discontinued_replacement',
-          reason: `La publicación en ML usa '${rawSku}' (stock actual ${prod.available_qty}), pero en Profit el código '${cand.co_art}' (${cand.art_des}) tiene ${cand.stock_total} unid. en almacén a $${cand.precio.toFixed(2)}.`,
-          confidence: 95
-        });
-      }
-    }
-
-    // B. Regla Multimarca / Genérico con sufijo 'E'
-    // Si el SKU no termina en E, probar agregando E en Profit
-    // Si termina en E, probar sin E en Profit
-    const isGenericE = rawSku.endsWith('E');
-    const altSkuE = isGenericE ? rawSku.slice(0, -1) : `${rawSku}E`;
-
-    // Si la publicación está pausada o en 0 stock en ML, evaluamos el alternativo E
-    if (prod.status === 'paused' || prod.available_qty === 0) {
-      // Guardamos para consulta en bloque de alternativos E si no fue cubierto por descontinuados
-      if (!discMap.has(rawSku)) {
-        // Encolado para verificación de stock en lote
-      }
-    }
-  }
-
-  // 5. Persistir nuevas sugerencias en PostgreSQL orphan_proposals si no existen
-  for (const sug of newSuggestions) {
-    await pgPool.query(`
-      INSERT INTO orphan_proposals 
-        (meli_item_id, current_sku, suggested_sku, match_type, reason, profit_stock, profit_price, profit_art_des, status)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending')
-      ON CONFLICT (meli_item_id, suggested_sku) 
-      DO UPDATE SET 
-        profit_stock = EXCLUDED.profit_stock,
-        profit_price = EXCLUDED.profit_price,
-        reason = EXCLUDED.reason;
-    `, [
-      sug.meli_item_id,
-      sug.current_sku,
-      sug.suggested_sku,
-      sug.match_type,
-      sug.reason,
-      sug.suggested_stock,
-      sug.suggested_price,
-      sug.profit_art_des
-    ]).catch(err => console.warn('Error guardando propuesta:', err.message));
-  }
-
-  // 6. Consultar base de datos consolidada con datos frescos de `products`
+  // 4. Consultar base de datos consolidada con datos frescos de `products`
   const offset = (page - 1) * limit;
   const countRes = await pgPool.query(`
     SELECT COUNT(*) FROM orphan_proposals op
@@ -176,7 +130,7 @@ export async function getOrphanSuggestions({ page = 1, limit = 50, filter = 'pen
     FROM orphan_proposals op
     LEFT JOIN products p ON op.meli_item_id = p.meli_item_id
     WHERE op.status = $1
-    ORDER BY op.created_at DESC
+    ORDER BY (p.available_qty = 0) DESC, op.created_at DESC
     LIMIT $2 OFFSET $3
   `, [filter, limit, offset]);
 
