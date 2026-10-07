@@ -32,13 +32,32 @@ export async function POST(req) {
 
     // 3. Obtener TODOS los IDs (Incluyendo Activos, Pausados y Cerrados)
     console.log(`📊 Inicializando conteo total para ${account?.nickname}...`);
-    // Buscamos todos los estados relevantes para tener el inventario completo
     const allIds = await getAllItemIds(account.meli_user_id, accessToken, "active,paused,closed,not_yet_active,under_review");
+
+    // 4. Verificar qué publicaciones ya están guardadas en PostgreSQL local para reanudar
+    const { pgPool } = await import("@/lib/supabase-admin");
+    let existingCount = 0;
+    let pendingIds = allIds;
+    if (pgPool) {
+      try {
+        const existingRes = await pgPool.query(
+          "SELECT meli_item_id FROM products WHERE meli_account_id = $1",
+          [accountId]
+        );
+        const existingSet = new Set(existingRes.rows.map(r => r.meli_item_id));
+        existingCount = existingSet.size;
+        pendingIds = allIds.filter(id => !existingSet.has(id));
+      } catch (e) {
+        console.warn("No se pudo consultar ítems existentes:", e.message);
+      }
+    }
 
     return NextResponse.json({
       success: true,
       total: allIds.length,
-      itemIds: allIds, // Devolvemos la lista completa de IDs para que el frontend los procese por lotes
+      alreadySynced: existingCount,
+      pendingCount: pendingIds.length,
+      itemIds: pendingIds, // Solo procesar los que faltan
       nickname: account.nickname
     });
 

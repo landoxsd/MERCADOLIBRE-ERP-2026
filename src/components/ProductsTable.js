@@ -99,20 +99,41 @@ export default function ProductsTable({ accountId }) {
       const initData = await initRes.json();
       if (!initData.success) throw new Error(initData.error || 'Error al iniciar');
 
-      const allIds = initData.itemIds;
+      const allIds = initData.itemIds || [];
       const total = allIds.length;
+      if (total === 0) {
+        setSyncStatus(`✅ ¡Al día! ${initData.alreadySynced || 0} publicaciones ya están en tu base de datos.`);
+        setTimeout(() => {
+          setSyncing(false);
+          fetchProducts();
+        }, 2000);
+        return;
+      }
+
       let processedCount = 0;
       const chunkSize = 500;
+      const prefix = initData.alreadySynced ? `(Reanudando +${initData.alreadySynced}) ` : '';
 
       for (let i = 0; i < allIds.length; i += chunkSize) {
         const batch = allIds.slice(i, i + chunkSize);
-        setSyncStatus(`Cargando lote ${i + 1} a ${Math.min(i + chunkSize, total)} de ${total}...`);
+        setSyncStatus(`${prefix}Lote ${i + 1} a ${Math.min(i + chunkSize, total)} de ${total}...`);
         
-        await fetch('/api/account/publications/sync/batch', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ accountId, itemIds: batch })
-        });
+        let retries = 3;
+        while (retries > 0) {
+          try {
+            const batchRes = await fetch('/api/account/publications/sync/batch', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ accountId, itemIds: batch })
+            });
+            if (batchRes.ok) break;
+            throw new Error(`HTTP ${batchRes.status}`);
+          } catch (e) {
+            retries--;
+            if (retries === 0) throw e;
+            await new Promise(r => setTimeout(r, 2500));
+          }
+        }
 
         processedCount += batch.length;
         setProgress((processedCount / total) * 100);
