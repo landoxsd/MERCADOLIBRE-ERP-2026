@@ -11,8 +11,8 @@ export default function AuthPage() {
   // Estados para el modo "V4 Skills" (Manual)
   const [manualCode, setManualCode] = useState('');
   const [submittingCode, setSubmittingCode] = useState(false);
-  // Ponemos Producción por defecto para evitar el error 403 de localhost que bloquea a ML
-  const [redirectUri, setRedirectUri] = useState('https://mercadolibre-erp.vercel.app/api/auth/callback');
+  // URL de retorno autorizada registrada en MercadoLibre Developers
+  const [redirectUri, setRedirectUri] = useState('https://enquiries-aviation-batteries-gaps.trycloudflare.com/api/auth/callback');
   const [existingAccounts, setExistingAccounts] = useState([]);
 
   useEffect(() => {
@@ -87,10 +87,10 @@ export default function AuthPage() {
             onChange={(e) => setRedirectUri(e.target.value)}
             className={styles.select}
           >
-            <option value="http://localhost:3000/api/auth/callback">Local (localhost:3000)</option>
-            <option value="https://mercadolibre-erp.vercel.app/api/auth/callback">Producción (Vercel)</option>
+            <option value="https://enquiries-aviation-batteries-gaps.trycloudflare.com/api/auth/callback">Servidor Dell R630 (Cloudflare HTTPS)</option>
+            <option value="https://mercadolibre-erp.vercel.app/api/auth/callback">Antiguo (Vercel)</option>
           </select>
-          <p className={styles.hint}>Usa la de Producción si localhost te da error 403.</p>
+          <p className={styles.hint}>Usa Servidor Dell R630 (registrado en MercadoLibre Developers).</p>
         </div>
 
         <div className={styles.actions}>

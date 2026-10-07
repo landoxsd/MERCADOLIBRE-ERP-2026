@@ -11,12 +11,17 @@ import crypto from "crypto";
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const mode = searchParams.get("mode") || "login"; 
-  const customRedirectUri = searchParams.get("redirectUri");
+  let customRedirectUri = searchParams.get("redirectUri");
+
+  // Si envían la URL obsoleta de Vercel, usar la Redirect URI actual del entorno
+  if (!customRedirectUri || customRedirectUri.includes("vercel.app")) {
+    customRedirectUri = process.env.MELI_REDIRECT_URI;
+  }
 
   // State aleatorio para prevenir CSRF
   const state = crypto.randomBytes(16).toString("hex");
 
-  // Construir la URL de autorización de ML (pasando la URI personalizada si existe)
+  // Construir la URL de autorización de ML (pasando la URI configurada)
   const authUrl = getMeliAuthUrl(state, customRedirectUri);
 
   if (mode === "delegate") {
