@@ -606,14 +606,25 @@ export async function setItemDescription(itemId, plainText, accessToken) {
 export async function getOfficialStoreId(accessToken) {
   try {
     const user = await getMeliUserProfile(accessToken);
-    if (user.brands && Array.isArray(user.brands) && user.brands.length > 0) {
-      const brandWithStore = user.brands.find(b => b.official_store_id);
-      if (brandWithStore) return brandWithStore.official_store_id;
+    if (user?.id) {
+      const res = await fetch(`${MELI_BASE_URL}/users/${user.id}/brands`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.brands && Array.isArray(data.brands) && data.brands.length > 0) {
+          const brandWithStore = data.brands.find(b => b.official_store_id && b.status === "active") || data.brands[0];
+          if (brandWithStore?.official_store_id) {
+            return Number(brandWithStore.official_store_id);
+          }
+        }
+      }
     }
-    return null;
+    // Fallback: Tienda Oficial World Cars ID es 71674
+    return 71674;
   } catch (err) {
     console.warn("⚠️ No se pudo obtener official_store_id del perfil:", err.message);
-    return null;
+    return 71674;
   }
 }
 

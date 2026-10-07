@@ -304,18 +304,42 @@ function inferDefaultAttributeValue(attr, { oem }) {
   const name = (attr.name || "").toLowerCase();
   const id = attr.id || "";
 
-  if (id === "VEHICLE_TYPE" || name.includes("vehículo")) return "Auto/Camioneta";
+  // Si tiene lista de valores predefinidos en la categoría de ML
+  if (attr.values?.length > 0) {
+    if (id === "VEHICLE_TYPE" || name.includes("vehículo") || name.includes("vehiculo")) {
+      const match = attr.values.find((v) => {
+        const vn = (v.name || "").toLowerCase();
+        return vn.includes("carro") || vn.includes("auto") || vn.includes("camioneta");
+      }) || attr.values[0];
+      return { value_id: match.id, value_name: match.name };
+    }
+    if (id === "ITEM_CONDITION" || name.includes("condición") || name.includes("condicion")) {
+      const match = attr.values.find((v) => (v.name || "").toLowerCase().includes("nuevo")) || attr.values[0];
+      return { value_id: match.id, value_name: match.name };
+    }
+    if (id === "IS_OEM") {
+      const target = oem ? "sí" : "no";
+      const match = attr.values.find((v) => {
+        const vn = (v.name || "").toLowerCase();
+        return vn === target || vn === (oem ? "si" : "no");
+      }) || attr.values[0];
+      return { value_id: match.id, value_name: match.name };
+    }
+    const first = attr.values.find((v) => v.name) || attr.values[0];
+    return { value_id: first.id, value_name: first.name };
+  }
+
+  if (id === "VEHICLE_TYPE" || name.includes("vehículo") || name.includes("vehiculo")) {
+    return { value_id: "11377043", value_name: "Carro/Camioneta" };
+  }
+  if (id === "ITEM_CONDITION" || name.includes("condición") || name.includes("condicion")) {
+    return { value_id: "2230284", value_name: "Nuevo" };
+  }
   if (id === "UNITS_PER_PACKAGE") return "1";
   if (id === "IS_OEM") return oem ? "Sí" : "No";
   if (id === "UNIT_VOLUME" || name.includes("volumen")) return "1 L";
   if (id === "UNIT_WEIGHT" || name.includes("peso")) return "1 kg";
   if (id === "SALE_FORMAT" || name.includes("formato de venta")) return "Unidad";
-  if (id === "ITEM_CONDITION" || name.includes("condición")) return "Nuevo";
-
-  if (attr.values?.length > 0) {
-    const first = attr.values.find((v) => v.name) || attr.values[0];
-    return first.name || first.id || "Genérico";
-  }
 
   return "Genérico";
 }
@@ -334,16 +358,28 @@ export function buildDynamicAttributes({
 
   for (const at of extraAttrs) {
     if (at?.id && !dynamicAttributes.find((a) => a.id === at.id)) {
-      dynamicAttributes.push({ id: at.id, value_name: at.value_name });
+      const item = { id: at.id, value_name: at.value_name };
+      if (at.value_id) item.value_id = at.value_id;
+      dynamicAttributes.push(item);
     }
   }
 
   for (const attr of requiredAttributes) {
+    if (attr?.tags?.read_only) continue;
     if (!dynamicAttributes.find((a) => a.id === attr.id)) {
-      dynamicAttributes.push({
-        id: attr.id,
-        value_name: inferDefaultAttributeValue(attr, { oem }),
-      });
+      const inferred = inferDefaultAttributeValue(attr, { oem });
+      if (typeof inferred === "object" && inferred !== null) {
+        dynamicAttributes.push({
+          id: attr.id,
+          value_id: inferred.value_id,
+          value_name: inferred.value_name,
+        });
+      } else {
+        dynamicAttributes.push({
+          id: attr.id,
+          value_name: inferred,
+        });
+      }
     }
   }
 

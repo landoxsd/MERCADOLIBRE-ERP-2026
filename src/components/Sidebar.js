@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { href: '/dashboard/orders', label: 'Órdenes', icon: '📦' },
   { href: '/dashboard/products', label: 'Publicaciones', icon: '🏷️' },
   { href: '/dashboard/missing', label: 'Faltantes Sublínea', icon: '📋' },
+  { href: '/dashboard/orphans', label: 'Aprobación Huérfanos', icon: '🔄' },
   { href: '/dashboard/promotions', label: 'Promociones', icon: '🔖' },
   { href: '/dashboard/inventory', label: 'Auditoría Inventario', icon: '🔍' },
   { href: '/dashboard/image-bank', label: 'Banco de Imágenes', icon: '🖼️' },

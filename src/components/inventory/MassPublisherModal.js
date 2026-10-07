@@ -17,6 +17,7 @@ import {
   Tag,
   DollarSign
 } from "lucide-react";
+import "./MassPublisherModal.css";
 
 export default function MassPublisherModal({ 
   isOpen, 
@@ -309,8 +310,8 @@ export default function MassPublisherModal({
   const stepLabels = ["Configurar", "Vista previa", "Publicar"];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
-      <div className="bg-[#0f172a] border border-slate-700/80 rounded-2xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="publisher-modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
+      <div className="publisher-modal-container bg-[#0f172a] border border-slate-700/80 rounded-2xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         
         {/* Header */}
         <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-gradient-to-r from-blue-900/30 to-purple-900/20">

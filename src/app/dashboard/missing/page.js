@@ -156,11 +156,33 @@ export default function MissingProductsPage() {
     <div className={styles.container}>
       {/* Header */}
       <div className={styles.header}>
-        <h1 className={styles.title}>📋 Publicaciones Faltantes por Sub-línea</h1>
-        <p className={styles.subtitle}>
-          Cruce seguro en tiempo real: Profit Plus SQL Server (Inventario con Stock) vs Mercado Libre (Dell R630).
-          Validación automática de códigos oficiales y cruce con 265,000+ equivalencias.
-        </p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+          <div>
+            <h1 className={styles.title}>📋 Publicaciones Faltantes por Sub-línea</h1>
+            <p className={styles.subtitle}>
+              Cruce seguro en tiempo real: Profit Plus SQL Server (Inventario con Stock) vs Mercado Libre (Dell R630).
+              Validación automática de códigos oficiales y cruce con 265,000+ equivalencias.
+            </p>
+          </div>
+          <Link
+            href="/dashboard/orphans"
+            style={{
+              background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)',
+              color: '#fff',
+              padding: '0.65rem 1.25rem',
+              borderRadius: '10px',
+              fontSize: '0.9rem',
+              fontWeight: 700,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              textDecoration: 'none',
+              boxShadow: '0 4px 14px rgba(59, 130, 246, 0.35)'
+            }}
+          >
+            <span>🔄 Aprobación de Huérfanos y Descontinuados</span>
+          </Link>
+        </div>
       </div>
 
       {/* Métricas Globales */}
