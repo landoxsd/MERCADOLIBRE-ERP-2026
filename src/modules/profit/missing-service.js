@@ -326,13 +326,18 @@ export async function getMissingItemsBySubline(co_subl, { page = 1, limit = 50, 
     const suffixes = ['-0', '-1', '-2', '-3', '-4', ''];
     const extensions = ['.jpg', '.jpeg', '.png'];
 
-    for (const sfx of suffixes) {
-      for (const ext of extensions) {
-        const candidate = `${skuLower}${sfx}${ext}`;
-        if (photosMap.has(candidate)) {
-          const original = photosMap.get(candidate);
-          if (!foundPhotos.includes(original)) {
-            foundPhotos.push(original);
+    // Códigos a probar para fotos: SKU principal + todas sus equivalencias
+    const candidateCodes = [skuLower, ...(item.equivalencias || []).map(e => e.toLowerCase())];
+
+    for (const code of candidateCodes) {
+      for (const sfx of suffixes) {
+        for (const ext of extensions) {
+          const candidate = `${code}${sfx}${ext}`;
+          if (photosMap.has(candidate)) {
+            const original = photosMap.get(candidate);
+            if (!foundPhotos.includes(original)) {
+              foundPhotos.push(original);
+            }
           }
         }
       }
