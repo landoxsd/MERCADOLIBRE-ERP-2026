@@ -13,21 +13,29 @@ export async function GET(request) {
   const error = searchParams.get("error");
   const customRedirectUri = searchParams.get("redirectUri");
 
+  const baseUrl = new URL(request.url).origin;
+
   if (error) {
     return NextResponse.redirect(
-      new URL(`/auth?error=${error}`, process.env.NEXT_PUBLIC_APP_URL)
+      new URL(`/auth?error=${error}`, baseUrl)
     );
   }
 
   if (!code) {
     return NextResponse.redirect(
-      new URL("/auth?error=no_code", process.env.NEXT_PUBLIC_APP_URL)
+      new URL("/auth?error=no_code", baseUrl)
     );
   }
 
   try {
     // 1. Intercambiar el código por tokens (pasando la URI personalizada si existe)
-    const tokenData = await exchangeCodeForToken(code, customRedirectUri);
+    const requestUrl = new URL(request.url);
+    const forwardedProto = request.headers.get("x-forwarded-proto") || requestUrl.protocol.replace(":", "");
+    const forwardedHost = request.headers.get("x-forwarded-host") || request.headers.get("host") || requestUrl.host;
+    const detectedRedirectUri = `${forwardedProto}://${forwardedHost}${requestUrl.pathname}`;
+    const effectiveRedirectUri = customRedirectUri || (forwardedHost.includes("trycloudflare.com") || forwardedHost.includes("komid") ? detectedRedirectUri : process.env.MELI_REDIRECT_URI);
+
+    const tokenData = await exchangeCodeForToken(code, effectiveRedirectUri);
     const { access_token, refresh_token, expires_in, user_id } = tokenData;
 
     // 2. Obtener el perfil del usuario de ML
@@ -61,7 +69,7 @@ export async function GET(request) {
     console.log(`✅ Cuenta conectada: ${account.nickname} (${account.meli_user_id})`);
 
     // 5. Redirigir al dashboard con cookie de sesión
-    const redirectUrl = new URL("/dashboard", process.env.NEXT_PUBLIC_APP_URL);
+    const redirectUrl = new URL("/dashboard", baseUrl);
     const response = NextResponse.redirect(redirectUrl);
 
     response.cookies.set("active_account_id", account.id, {

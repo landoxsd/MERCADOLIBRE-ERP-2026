@@ -76,8 +76,6 @@ async function exchangeAndSave(inputCode) {
   console.log(`ID en Base de Datos: ${dbRes.rows[0].id}`);
   console.log(`Nickname: ${dbRes.rows[0].nickname}`);
   console.log(`Meli User ID: ${dbRes.rows[0].meli_user_id}`);
-
-  await pool.end();
 }
 
 const authUrl = `https://auth.mercadolibre.com.ve/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}`;
@@ -95,7 +93,11 @@ if (!codeArg) {
   process.exit(0);
 }
 
-exchangeAndSave(codeArg).catch(err => {
-  console.error('\n❌ ERROR:', err.message);
-  process.exit(1);
-});
+exchangeAndSave(codeArg)
+  .catch(err => {
+    console.error('\n❌ ERROR:', err.message);
+    process.exitCode = 1;
+  })
+  .finally(async () => {
+    try { await pool.end(); } catch (e) {}
+  });
