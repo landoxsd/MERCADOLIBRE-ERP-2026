@@ -5,10 +5,8 @@
 // Doc oficial ML: https://developers.mercadolibre.com.ar/es_ar/autenticacion-y-autorizacion
 // ================================================================
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { accountsTable } from "@/lib/supabase-admin";
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const MELI_BASE_URL = "https://api.mercadolibre.com";
 const MELI_CLIENT_ID = process.env.MELI_CLIENT_ID;
 const MELI_CLIENT_SECRET = process.env.MELI_CLIENT_SECRET;
@@ -41,28 +39,23 @@ async function refreshAccessToken(refreshToken) {
 
 /**
  * GET /api/cron/refresh-token
- * Ejecutado por Vercel Cron cada 2 horas
+ * Refresca tokens de cuentas que estén por expirar en los próximos 30 minutos
  */
 export async function GET(request) {
-    // Seguridad: solo permitir ejecución desde Vercel Cron o con secret
     const authHeader = request.headers.get("authorization");
     const cronSecret = process.env.CRON_SECRET;
 
-    // El header Authorization de Vercel Cron incluye el CRON_SECRET
     if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-        // En desarrollo permitimos sin auth
         if (process.env.NODE_ENV !== "development") {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
     }
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
     const results = { refreshed: 0, errors: 0, skipped: 0, details: [] };
 
     try {
-        // 1. Obtener todas las cuentas activas
-        const { data: accounts, error: fetchError } = await supabase
-            .from("meli_accounts")
+        // 1. Obtener todas las cuentas activas desde PostgreSQL local
+        const { data: accounts, error: fetchError } = await accountsTable()
             .select("id, meli_user_id, nickname, access_token, refresh_token, token_expiry")
             .order("token_expiry", { ascending: true });
 
@@ -96,9 +89,8 @@ export async function GET(request) {
                 const refreshed = await refreshAccessToken(account.refresh_token);
                 const newExpiry = new Date(Date.now() + refreshed.expires_in * 1000);
 
-                // 4. Guardar nuevo token en Supabase
-                const { error: updateError } = await supabase
-                    .from("meli_accounts")
+                // 4. Guardar nuevo token en PostgreSQL local
+                const { error: updateError } = await accountsTable()
                     .update({
                         access_token: refreshed.access_token,
                         refresh_token: refreshed.refresh_token,
