@@ -14,24 +14,33 @@ export async function GET(request) {
     const activeAccountId = cookieStore.get("meli_erp_account")?.value;
 
     const { searchParams } = new URL(request.url);
-    const accountId = searchParams.get("accountId") || activeAccountId;
+    let targetAccountId = searchParams.get("accountId") || activeAccountId;
+    let account = null;
 
-    if (!accountId) {
+    if (!targetAccountId) {
+      const { data: accounts } = await accountsTable()
+        .select("id, meli_user_id, nickname, access_token, token_expiry")
+        .limit(1);
+      if (accounts && accounts.length > 0) {
+        account = accounts[0];
+        targetAccountId = account.id;
+      }
+    } else {
+      const { data, error } = await accountsTable()
+        .select("id, meli_user_id, nickname, access_token, token_expiry")
+        .eq("id", targetAccountId)
+        .single();
+      if (!error && data) {
+        account = data;
+      }
+    }
+
+    if (!account) {
       return NextResponse.json({ error: "No hay cuenta activa" }, { status: 401 });
     }
 
-    // Buscar la cuenta en Supabase
-    const { data: account, error } = await accountsTable()
-      .select("id, meli_user_id, nickname, access_token, token_expiry")
-      .eq("id", accountId)
-      .single();
-
-    if (error || !account) {
-      return NextResponse.json({ error: "Cuenta no encontrada" }, { status: 404 });
-    }
-
     // Obtener token válido (refresca automáticamente si expiró)
-    const accessToken = await getValidAccessToken(accountId);
+    const accessToken = await getValidAccessToken(targetAccountId);
 
     // Obtener resumen completo desde la API de ML
     const overview = await getAccountOverview(account.meli_user_id, accessToken);

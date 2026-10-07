@@ -69,7 +69,13 @@ export async function GET(request) {
     console.log(`✅ Cuenta conectada: ${account.nickname} (${account.meli_user_id})`);
 
     // 5. Redirigir al dashboard con cookie de sesión
-    const redirectUrl = new URL("/dashboard", baseUrl);
+    let safeBase = baseUrl;
+    if (!safeBase || safeBase.includes("0.0.0.0")) {
+      safeBase = process.env.NEXT_PUBLIC_APP_URL && !process.env.NEXT_PUBLIC_APP_URL.includes("0.0.0.0")
+        ? process.env.NEXT_PUBLIC_APP_URL
+        : "http://192.168.1.58:3001";
+    }
+    const redirectUrl = new URL("/dashboard", safeBase);
     const response = NextResponse.redirect(redirectUrl);
 
     response.cookies.set("active_account_id", account.id, {
@@ -77,6 +83,13 @@ export async function GET(request) {
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       maxAge: 60 * 60 * 24 * 7, // 7 días
+      path: "/",
+    });
+    response.cookies.set("meli_erp_account", account.id, {
+      httpOnly: false,
+      secure: false,
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 7,
       path: "/",
     });
 
