@@ -127,7 +127,8 @@ export default function MissingProductsPage() {
     if (!itemsData?.items?.length) return;
     const prepared = itemsData.items.map((it) => ({
       sku: it.sku,
-      title: it.descripcion,
+      title: it.titulo_seo || it.descripcion,
+      description: it.descripcion_ml,
       price: it.precio,
       stock: it.stock_total || 1,
       subline: it.sublinea,
@@ -433,13 +434,12 @@ export default function MissingProductsPage() {
                           </td>
 
                           <td className={styles.titleCell}>
-                            <div>{item.descripcion}</div>
-                            {(item.modelo || item.referencia) && (
-                              <div className={styles.descExtra}>
-                                {item.modelo && <span>🚗 Mod: {item.modelo} </span>}
-                                {item.referencia && <span>📌 Ref: {item.referencia}</span>}
-                              </div>
-                            )}
+                            <div style={{ fontWeight: 600, color: '#fff' }}>{item.titulo_seo || item.descripcion}</div>
+                            <div className={styles.descExtra}>
+                              <span>📦 Profit: {item.descripcion}</span>
+                              {item.modelo && <span> | 🚗 Mod: {item.modelo}</span>}
+                              {item.referencia && <span> | 📌 Ref: {item.referencia}</span>}
+                            </div>
                           </td>
 
                           <td>

@@ -56,6 +56,90 @@ export function getLocalPhotosMap() {
   return map;
 }
 
+// Diccionario de abreviaturas automotrices de ML_Desktop_Publisher
+export const ABBREVIATIONS = {
+  'AMORT.': 'AMORTIGUADOR', 'AMORT': 'AMORTIGUADOR',
+  'DEL.': 'DELANTERO', 'DEL': 'DELANTERO', 'DELT.': 'DELANTERO', 'DELT': 'DELANTERO',
+  'TRAS.': 'TRASERO', 'TRAS': 'TRASERO', 'TRST.': 'TRASERO', 'TRST': 'TRASERO',
+  'IZQ.': 'IZQUIERDO', 'IZQ': 'IZQUIERDO',
+  'DER.': 'DERECHO', 'DER': 'DERECHO',
+  'SUP.': 'SUPERIOR', 'SUP': 'SUPERIOR',
+  'INF.': 'INFERIOR', 'INF': 'INFERIOR',
+  'PAST.': 'PASTILLAS', 'PAST': 'PASTILLAS',
+  'BOMB.': 'BOMBA', 'BOMB': 'BOMBA',
+  'BUJ.': 'BUJE', 'BUJ': 'BUJE',
+  'ROT.': 'ROTULA', 'ROT': 'ROTULA',
+  'TERM.': 'TERMINAL', 'TERM': 'TERMINAL',
+  'KIT.': 'KIT', 'KIT': 'KIT',
+  'EMP.': 'EMPACADURA', 'EMP': 'EMPACADURA',
+  'ESTOP.': 'ESTOPERA', 'ESTOP': 'ESTOPERA',
+  'ROD.': 'RODAMIENTO', 'ROD': 'RODAMIENTO',
+  'FILT.': 'FILTRO', 'FILT': 'FILTRO',
+  'VALV.': 'VALVULA', 'VALV': 'VALVULA',
+  'CHEV.': 'CHEVROLET', 'CHEV': 'CHEVROLET', 'CHEVY': 'CHEVROLET',
+  'TOY.': 'TOYOTA', 'TOY': 'TOYOTA',
+  'MIT.': 'MITSUBISHI', 'MIT': 'MITSUBISHI',
+  'HYU.': 'HYUNDAI', 'HYU': 'HYUNDAI',
+  'FOR.': 'FORD', 'FOR': 'FORD',
+  'MAZ.': 'MAZDA', 'MAZ': 'MAZDA',
+  'REN.': 'RENAULT', 'REN': 'RENAULT',
+  'CIL.': 'CILINDRO', 'CIL': 'CILINDRO',
+  'MULT.': 'MULTIPLE', 'MULT': 'MULTIPLE',
+  'CREM.': 'CREMALLERA', 'CREM': 'CREMALLERA'
+};
+
+export function generateSEO(rawTitle) {
+  if (!rawTitle) return '';
+  let seoTitle = String(rawTitle).toUpperCase();
+  
+  const sortedKeys = Object.keys(ABBREVIATIONS).sort((a, b) => b.length - a.length);
+  const escapedKeys = sortedKeys.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const regex = new RegExp(`\\b(${escapedKeys.join('|')})(?=\\.|\\s|$)`, 'gi');
+  
+  seoTitle = seoTitle.replace(regex, (matched) => {
+    const upperMatched = matched.toUpperCase();
+    return ABBREVIATIONS[upperMatched] || ABBREVIATIONS[upperMatched + '.'] || matched;
+  });
+
+  seoTitle = seoTitle
+    .replace(/[,()]/g, ' ')
+    .replace(/\.([A-Z])/g, ' $1')
+    .replace(/\./g, ' ')
+    .replace(/\b(DE|LA|EL|LOS|LAS|CON|PARA|DEL)\b/gi, '')
+    .replace(/NUEVO|OFERTA|PROMO|BARATO|ENVIO GRATIS|EXCELENTE|GARANTIZADO|ORIGINAL|REEMPLAZO/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  
+  let finalTitle = seoTitle.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+
+  if (finalTitle.length > 60) {
+    let truncated = finalTitle.substring(0, 60);
+    const lastSpace = truncated.lastIndexOf(' ');
+    if (lastSpace > 45) {
+      truncated = truncated.substring(0, lastSpace);
+    }
+    return truncated.trim();
+  }
+
+  return finalTitle;
+}
+
+export function generateDescription(item) {
+  const oem = item.campo7 || item.referencia || (item.equivalencias?.[0] || item.sku || 'N/A');
+  return `¡BIENVENIDOS A CORPORACION RWC!
+
+PRODUCTO: ${item.descripcion}
+NÚMERO DE PIEZA (OEM): ${oem}
+
+-- INFORMACIÓN IMPORTANTE --
+* Somos Tienda Física.
+* Horario: Lunes a Viernes de 8:30 AM a 5:00 PM.
+* Envíos Nacionales GRATIS: MRW, Zoom y Tealca (MercadoEnvíos).
+* Por favor verifique disponibilidad y haga todas sus preguntas antes de ofertar.
+
+¡GRACIAS POR PREFERIRNOS!`;
+}
+
 /**
  * Obtiene el conjunto de SKUs ya publicados en MercadoLibre (desde PostgreSQL local).
  */
@@ -349,6 +433,9 @@ export async function getMissingItemsBySubline(co_subl, { page = 1, limit = 50, 
     return {
       sku: skuRaw,
       descripcion: item.descripcion,
+      titulo_seo: generateSEO(item.descripcion),
+      descripcion_ml: generateDescription(item),
+      oem: item.campo7 || item.referencia || (item.equivalencias?.[0] || item.sku),
       modelo: item.modelo,
       referencia: item.referencia,
       campo6: item.campo6,
