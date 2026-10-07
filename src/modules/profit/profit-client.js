@@ -3,6 +3,7 @@
 // Cliente de conexión SOLO LECTURA a Profit Plus (SQL Server)
 // ⚠️ ESTE CLIENTE NUNCA DEBE EJECUTAR OPERACIONES DE ESCRITURA
 // ================================================================
+import './promise-polyfill.js';
 import sql from 'mssql';
 
 const profitConfig = {
