@@ -75,8 +75,46 @@ export async function GET(request) {
     return response;
   } catch (err) {
     console.error("Error en callback de ML:", err.message);
-    return NextResponse.redirect(
-      new URL(`/auth?error=callback_failed`, process.env.NEXT_PUBLIC_APP_URL)
-    );
+    const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Código de Vinculación MercadoLibre</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { background: #0f172a; color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 1rem; }
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 2rem; max-width: 560px; width: 100%; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); text-align: center; }
+    h2 { color: #38bdf8; margin-top: 0; }
+    p { color: #94a3b8; line-height: 1.5; font-size: 0.95rem; }
+    .code-box { background: #020617; border: 1px solid #475569; border-radius: 8px; padding: 1rem; font-family: monospace; font-size: 1.1rem; color: #22c55e; word-break: break-all; margin: 1.5rem 0; user-select: all; }
+    .btn { background: #2563eb; color: #fff; border: none; border-radius: 8px; padding: 0.85rem 1.75rem; font-size: 1rem; font-weight: 600; cursor: pointer; transition: background 0.2s; width: 100%; }
+    .btn:hover { background: #1d4ed8; }
+    .copied { background: #16a34a !important; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>🔑 Código de Vinculación Obtenido</h2>
+    <p>MercadoLibre ha generado tu código de acceso con éxito. Cópialo a continuación para completar la vinculación en tu servidor local:</p>
+    <div class="code-box" id="codeBox">${code}</div>
+    <button class="btn" id="copyBtn" onclick="copyCode()">📋 Copiar Código</button>
+  </div>
+  <script>
+    function copyCode() {
+      const code = document.getElementById('codeBox').innerText;
+      navigator.clipboard.writeText(code).then(() => {
+        const btn = document.getElementById('copyBtn');
+        btn.innerText = '✓ ¡Copiado!';
+        btn.classList.add('copied');
+      });
+    }
+  </script>
+</body>
+</html>`;
+    return new NextResponse(html, {
+      status: 200,
+      headers: { "Content-Type": "text/html; charset=utf-8" },
+    });
   }
 }
+
