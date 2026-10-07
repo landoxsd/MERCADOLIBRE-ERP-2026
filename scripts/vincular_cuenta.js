@@ -8,8 +8,13 @@ const connStr = 'postgresql://postgres:LaV65QIkQ1mujjpc6KA0RWqZBX4FqcbAcUR9NtTBO
 
 const pool = new Pool({ connectionString: connStr });
 
-async function exchangeAndSave(code) {
-  console.log(`\n1. Intercambiando código con MercadoLibre...`);
+async function exchangeAndSave(inputCode) {
+  let cleanCode = inputCode.trim();
+  const match = cleanCode.match(/TG-[a-zA-Z0-9_-]+/);
+  if (match) {
+    cleanCode = match[0];
+  }
+  console.log(`\n1. Intercambiando código con MercadoLibre: ${cleanCode}`);
   const tokenRes = await fetch('https://api.mercadolibre.com/oauth/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -17,10 +22,11 @@ async function exchangeAndSave(code) {
       grant_type: 'authorization_code',
       client_id: clientId,
       client_secret: clientSecret,
-      code: code.trim(),
+      code: cleanCode,
       redirect_uri: redirectUri
     })
   });
+
 
   const tokenData = await tokenRes.json();
   if (!tokenRes.ok) {
