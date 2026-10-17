@@ -111,40 +111,10 @@ export const ABBREVIATIONS = {
   'CREM.': 'CREMALLERA', 'CREM': 'CREMALLERA'
 };
 
-export function generateSEO(rawTitle) {
-  if (!rawTitle) return '';
-  let seoTitle = String(rawTitle).toUpperCase();
-  
-  const sortedKeys = Object.keys(ABBREVIATIONS).sort((a, b) => b.length - a.length);
-  const escapedKeys = sortedKeys.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-  const regex = new RegExp(`\\b(${escapedKeys.join('|')})(?=\\.|\\s|$)`, 'gi');
-  
-  seoTitle = seoTitle.replace(regex, (matched) => {
-    const upperMatched = matched.toUpperCase();
-    return ABBREVIATIONS[upperMatched] || ABBREVIATIONS[upperMatched + '.'] || matched;
-  });
+import { optimizeAutomotiveSEOTitle } from '../../lib/publish-helpers.js';
 
-  seoTitle = seoTitle
-    .replace(/[,()]/g, ' ')
-    .replace(/\.([A-Z])/g, ' $1')
-    .replace(/(?<!\d)\.|(\.(?!\d))/g, ' ')
-    .replace(/\b(DE|LA|EL|LOS|LAS|CON|PARA|DEL)\b/gi, '')
-    .replace(/NUEVO|OFERTA|PROMO|BARATO|ENVIO GRATIS|EXCELENTE|GARANTIZADO|ORIGINAL|REEMPLAZO/gi, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  
-  let finalTitle = seoTitle.toLowerCase().replace(/(?:^|\s|-|\/)\S/g, c => c.toUpperCase());
-
-  if (finalTitle.length > 60) {
-    let truncated = finalTitle.substring(0, 60);
-    const lastSpace = truncated.lastIndexOf(' ');
-    if (lastSpace > 45) {
-      truncated = truncated.substring(0, lastSpace);
-    }
-    return truncated.trim();
-  }
-
-  return finalTitle;
+export function generateSEO(rawTitle, vehicleBrand = '') {
+  return optimizeAutomotiveSEOTitle(rawTitle, { vehicleBrand });
 }
 
 export function generateDescription(item) {

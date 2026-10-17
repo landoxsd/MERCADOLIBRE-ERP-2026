@@ -301,10 +301,11 @@ export async function POST(req) {
                 ...(oem ? [{ id: "OEM", value_name: oem }] : []),
               ];
               const merged = mergeLeaderInsights({
-                ourTitle: title,
+                ourTitle: rawTitle || title,
                 ourPrice: effectivePrice,
                 ourAttrs: preliminaryAttrs,
                 leader: intel.leader,
+                topCompetitors: intel.topCompetitors || [],
               });
 
               title = merged.suggestedTitle || title;

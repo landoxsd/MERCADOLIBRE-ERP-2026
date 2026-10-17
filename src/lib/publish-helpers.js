@@ -133,40 +133,265 @@ const ABBREVIATIONS = {
   MULT: "MULTIPLE",
   "CREM.": "CREMALLERA",
   CREM: "CREMALLERA",
+  "SINCR.": "SINCRONICO",
+  "SINC.": "SINCRONICO",
+  SINCR: "SINCRONICO",
+  "AUT.": "AUTOMATICO",
+  "AUTOM.": "AUTOMATICO",
 };
 
-export function formatSEOTitle(rawTitle) {
+const PART_AND_POS_WORDS = new Set([
+  "BASE", "SOPORTE", "CAJA", "AMORTIGUADOR", "BUJE", "MESETA", "PASTILLA", "PASTILLAS",
+  "FRENO", "DISCO", "TAMBOR", "FILTRO", "ACEITE", "AIRE", "GASOLINA", "CABINA",
+  "BOMBA", "AGUA", "DIRECCION", "EMBRAGUE", "CLUTCH", "CREMALLERA", "EMPACADURA",
+  "ESTOPERA", "RODAMIENTO", "CUBO", "MOZO", "TERMINAL", "ROTULA", "BRAZO", "BIELA",
+  "BIELETA", "LAPIZ", "BARRA", "ESTABILIZADORA", "GOMA", "PALANCA", "CAMBIO", "POMO",
+  "FORRO", "GUAYA", "CABLE", "CORREA", "TIEMPO", "UNICA", "ACANALADA", "TENSOR",
+  "POLEA", "VALVULA", "TERMOSTATO", "ENVASE", "DEPOSITO", "RADIADOR", "ELECTROVENTILADOR",
+  "ASPAS", "FAN", "BOBINA", "BUJIA", "BUJIAS", "CABLES", "SENSOR", "OXIGENO", "INYECTOR",
+  "CUERPO", "ACELERACION", "ALTERNADOR", "ARRANQUE", "BENDIX", "INDUCIDO", "PUENTE",
+  "CARBONERA", "REGULADOR", "CONCHA", "BANCADA", "ANILLOS", "PISTON", "CAMISA", "ARBOL",
+  "LEVA", "TAQUETE", "MARTILLO", "BALANCIN", "COLLARIN", "PLATO", "KIT", "SET", "JUEGO",
+  "PAR", "COMPLETA", "COMPLETO", "DELANTERO", "DELANTERA", "TRASERO", "TRASERA",
+  "IZQUIERDO", "IZQUIERDA", "DERECHO", "DERECHA", "SUPERIOR", "INFERIOR", "CENTRAL", "HUESITO",
+]);
+
+const VEHICLE_MAKES = new Set([
+  "FORD", "CHEVROLET", "TOYOTA", "JEEP", "DODGE", "HYUNDAI", "KIA", "MITSUBISHI",
+  "RENAULT", "NISSAN", "MAZDA", "HONDA", "VOLKSWAGEN", "VW", "CHERY", "FIAT",
+  "PEUGEOT", "SUZUKI", "ISUZU", "DAEWOO", "CHRYSLER", "GMC", "MERCEDES", "BMW",
+]);
+
+const MODEL_TO_MAKE = {
+  "F-150": "FORD", "F150": "FORD", "F-250": "FORD", "F250": "FORD", "F-350": "FORD", "F350": "FORD",
+  "FIESTA": "FORD", "KA": "FORD", "ECOSPORT": "FORD", "EXPLORER": "FORD", "ESCAPE": "FORD",
+  "FOCUS": "FORD", "RANGER": "FORD", "LASER": "FORD", "MUSTANG": "FORD", "BRONCO": "FORD",
+  "FESTIVA": "FORD", "SIERRA": "FORD", "CORCEL": "FORD", "CONQUISTADOR": "FORD", "TRITON": "FORD",
+  "AVEO": "CHEVROLET", "OPTRA": "CHEVROLET", "CORSA": "CHEVROLET", "SPARK": "CHEVROLET",
+  "SILVERADO": "CHEVROLET", "TAHOE": "CHEVROLET", "CHEYENNE": "CHEVROLET", "BLAZER": "CHEVROLET",
+  "TRAILBLAZER": "CHEVROLET", "CRUZE": "CHEVROLET", "EPICA": "CHEVROLET", "CAPTIVA": "CHEVROLET",
+  "ESTEEM": "CHEVROLET", "SWIFT": "CHEVROLET", "VITARA": "CHEVROLET", "LUV": "CHEVROLET",
+  "DMAX": "CHEVROLET", "D-MAX": "CHEVROLET", "NPR": "CHEVROLET", "NKR": "CHEVROLET",
+  "NHR": "CHEVROLET", "KODIAK": "CHEVROLET", "MALIBU": "CHEVROLET", "CELEBRITY": "CHEVROLET",
+  "CENTURY": "CHEVROLET", "CAPRICE": "CHEVROLET", "CAVALIER": "CHEVROLET", "MONTANA": "CHEVROLET",
+  "MERIVA": "CHEVROLET", "ORLANDO": "CHEVROLET", "SONIC": "CHEVROLET", "REY": "CHEVROLET",
+  "COROLLA": "TOYOTA", "YARIS": "TOYOTA", "CAMRY": "TOYOTA", "TERIOS": "TOYOTA", "STARLET": "TOYOTA",
+  "HILUX": "TOYOTA", "KAVAK": "TOYOTA", "FORTUNER": "TOYOTA", "4RUNNER": "TOYOTA", "MERU": "TOYOTA",
+  "PRADO": "TOYOTA", "AUTANA": "TOYOTA", "BURBUJA": "TOYOTA", "MACHITO": "TOYOTA", "SAMURAI": "TOYOTA",
+  "TUNDRA": "TOYOTA", "TACOMA": "TOYOTA", "HIACE": "TOYOTA", "DYNA": "TOYOTA", "AVANZA": "TOYOTA",
+  "CHEROKEE": "JEEP", "WAGONEER": "JEEP", "WRANGLER": "JEEP", "LIBERTY": "JEEP", "COMMANDER": "JEEP",
+  "COMPASS": "JEEP", "PATRIOT": "JEEP", "RENEGADE": "JEEP", "CJ5": "JEEP", "CJ7": "JEEP",
+  "XJ": "JEEP", "ZJ": "JEEP", "WJ": "JEEP", "WK": "JEEP", "WK2": "JEEP", "KJ": "JEEP", "KK": "JEEP",
+  "NEON": "DODGE", "RAM": "DODGE", "DAKOTA": "DODGE", "DURANGO": "DODGE", "CALIBER": "DODGE",
+  "CARAVAN": "DODGE", "STRATUS": "DODGE", "DART": "DODGE", "BRISA": "DODGE", "FORZA": "DODGE",
+  "ACCENT": "HYUNDAI", "GETZ": "HYUNDAI", "ELANTRA": "HYUNDAI", "SONATA": "HYUNDAI",
+  "TUCSON": "HYUNDAI", "ATOS": "HYUNDAI", "MATRIX": "HYUNDAI", "EXCEL": "HYUNDAI", "H1": "HYUNDAI", "H100": "HYUNDAI",
+  "RIO": "KIA", "STYLUS": "KIA", "PICANTO": "KIA", "SPECTRA": "KIA", "CERATO": "KIA",
+  "OPTIMA": "KIA", "SPORTAGE": "KIA", "SORENTO": "KIA", "CARNIVAL": "KIA", "PREGIO": "KIA",
+  "LANCER": "MITSUBISHI", "SIGNO": "MITSUBISHI", "TOURING": "MITSUBISHI", "MIRAGE": "MITSUBISHI",
+  "GALANT": "MITSUBISHI", "ECLIPSE": "MITSUBISHI", "MONTERO": "MITSUBISHI", "DAKAR": "MITSUBISHI",
+  "NATIVA": "MITSUBISHI", "OUTLANDER": "MITSUBISHI", "ASX": "MITSUBISHI", "L200": "MITSUBISHI",
+  "SPORTERO": "MITSUBISHI", "L300": "MITSUBISHI", "CANTER": "MITSUBISHI",
+  "LOGAN": "RENAULT", "SYMBOL": "RENAULT", "CLIO": "RENAULT", "TWINGO": "RENAULT", "KANGOO": "RENAULT",
+  "MEGANE": "RENAULT", "SCENIC": "RENAULT", "DUSTER": "RENAULT", "SANDERO": "RENAULT", "FLUENCE": "RENAULT",
+  "SENTRA": "NISSAN", "B13": "NISSAN", "B14": "NISSAN", "B15": "NISSAN", "TIIDA": "NISSAN",
+  "VERSA": "NISSAN", "ALMERA": "NISSAN", "MAXIMA": "NISSAN", "ALTIMA": "NISSAN", "PATHFINDER": "NISSAN",
+  "PATROL": "NISSAN", "FRONTIER": "NISSAN", "D21": "NISSAN", "D22": "NISSAN", "NP300": "NISSAN", "X-TRAIL": "NISSAN",
+  "ALLEGRO": "MAZDA", "323": "MAZDA", "626": "MAZDA", "DEMIO": "MAZDA", "BT-50": "MAZDA", "BT50": "MAZDA",
+  "B2000": "MAZDA", "B2200": "MAZDA", "B2600": "MAZDA",
+  "CIVIC": "HONDA", "ACCORD": "HONDA", "FIT": "HONDA", "CR-V": "HONDA", "CRV": "HONDA", "PILOT": "HONDA", "ODYSSEY": "HONDA",
+  "GOL": "VOLKSWAGEN", "PARATI": "VOLKSWAGEN", "SAVEIRO": "VOLKSWAGEN", "FOX": "VOLKSWAGEN",
+  "SPACEFOX": "VOLKSWAGEN", "CROSSFOX": "VOLKSWAGEN", "POLO": "VOLKSWAGEN", "BORA": "VOLKSWAGEN",
+  "JETTA": "VOLKSWAGEN", "GOLF": "VOLKSWAGEN", "PASSAT": "VOLKSWAGEN", "AMAROK": "VOLKSWAGEN",
+  "ARAUCA": "CHERY", "ORINOCO": "CHERY", "TIGGO": "CHERY", "QQ": "CHERY", "X1": "CHERY",
+  "PALIO": "FIAT", "SIENA": "FIAT", "UNO": "FIAT", "PREMIO": "FIAT", "FIORINO": "FIAT", "STRADA": "FIAT",
+};
+
+const SPEC_WORDS = new Set([
+  "SYNCRO", "SINCRONICO", "AUTOMATICO", "AUTOMATICA", "4X4", "4X2", "2WD", "4WD", "AWD",
+  "8V", "12V", "16V", "24V", "V6", "V8", "L4", "L6", "OHV", "SOHC", "DOHC", "ZETEC", "ROCAM", "DURATEC", "VORTEC",
+  "300", "302", "351", "258", "262", "242", "350", "318", "360",
+]);
+
+export function isYearToken(w = "") {
+  const clean = String(w).trim();
+  if (/^(19[5-9]\d|20[0-2]\d)(-(19[5-9]\d|20[0-2]\d))?$/.test(clean)) return true;
+  const m = clean.match(/^(\d{2})-(\d{2})$/);
+  if (m) {
+    const a = parseInt(m[1], 10);
+    const b = parseInt(m[2], 10);
+    const valid2DigitYear = (y) => (y >= 60 && y <= 99) || (y >= 0 && y <= 27);
+    return valid2DigitYear(a) && valid2DigitYear(b);
+  }
+  return false;
+}
+
+function isSpecToken(w = "") {
+  const upper = String(w).trim().toUpperCase();
+  if (SPEC_WORDS.has(upper)) return true;
+  if (/^\d+\.\d+L?$/.test(upper)) return true; // 1.6, 2.0, 4.6, 3.5L
+  if (/^[VL]\d{1,2}$/.test(upper)) return true; // V6, V8, L6
+  if (/^\d{1,2}V$/.test(upper)) return true; // 8V, 16V
+  return false;
+}
+
+/**
+ * Estructurador Canónico de Títulos SEO para Autopartes (Mercado Libre Gold Pro):
+ * Fórmula: [Repuesto + Posición] + [Marca Vehículo] + [Modelos] + [Motor / Specs] + [Años]
+ * - Elimina barras `/`, paréntesis y duplicados (ej. `94-96` repetido o `1.6` repetido).
+ * - Infiere automáticamente la marca del vehículo (`Ford`, `Chevrolet`, `Toyota`, `Jeep`, etc.) y la coloca antes del modelo.
+ * - Si se proveen `extraKeywords` de la competencia, las inserta en su bucket semántico correspondiente (antes de los años) sin superar 60 caracteres.
+ */
+export function optimizeAutomotiveSEOTitle(rawTitle, { extraKeywords = [], vehicleBrand = "" } = {}) {
   if (!rawTitle) return "";
-  let seoTitle = String(rawTitle).toUpperCase();
+  let text = String(rawTitle).toUpperCase();
 
   const sortedKeys = Object.keys(ABBREVIATIONS).sort((a, b) => b.length - a.length);
   const escapedKeys = sortedKeys.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-  const regex = new RegExp(`\\b(${escapedKeys.join("|")})(?=\\.|\\s|$)`, "gi");
+  const regex = new RegExp(`\\b(${escapedKeys.join("|")})(?=\\.|\\s|/|$)`, "gi");
 
-  seoTitle = seoTitle.replace(regex, (matched) => {
+  text = text.replace(regex, (matched) => {
     const upperMatched = matched.toUpperCase();
     return ABBREVIATIONS[upperMatched] || ABBREVIATIONS[upperMatched + "."] || matched;
   });
 
-  seoTitle = seoTitle
-    .replace(/[,()]/g, " ")
+  text = text
+    .replace(/[,()/\\]/g, " ")
     .replace(/\.([A-Z])/g, " $1")
     .replace(/(?<!\d)\.|(\.(?!\d))/g, " ")
-    .replace(/\b(DE|LA|EL|LOS|LAS|CON|PARA|DEL)\b/gi, "")
-    .replace(/NUEVO|OFERTA|PROMO|BARATO|ENVIO GRATIS|EXCELENTE|GARANTIZADO|ORIGINAL|REEMPLAZO/gi, "")
+    .replace(/\b(DE|LA|EL|LOS|LAS|CON|PARA|DEL|EN|Y|POR|AL)\b/gi, " ")
+    .replace(/NUEVO|OFERTA|PROMO|BARATO|ENVIO GRATIS|EXCELENTE|GARANTIZADO|ORIGINAL|REEMPLAZO/gi, " ")
     .replace(/\s+/g, " ")
     .trim();
 
-  let finalTitle = seoTitle.toLowerCase().replace(/(?:^|\s|-|\/)\S/g, (c) => c.toUpperCase());
+  const rawTokens = text.split(" ").filter(Boolean);
+  const seenNorm = new Set();
+  const uniqueTokens = [];
 
-  if (finalTitle.length > 60) {
-    let truncated = finalTitle.substring(0, 60);
+  for (const tok of rawTokens) {
+    const norm = tok.replace(/[^A-Z0-9.]/gi, "").toUpperCase();
+    if (!norm || seenNorm.has(norm)) continue;
+    seenNorm.add(norm);
+    uniqueTokens.push(tok);
+  }
+
+  const partBucket = [];
+  const makeBucket = [];
+  const modelBucket = [];
+  const specBucket = [];
+  const yearBucket = [];
+
+  let stillInPartPrefix = true;
+
+  for (let i = 0; i < uniqueTokens.length; i++) {
+    const tok = uniqueTokens[i];
+    const upper = tok.toUpperCase();
+
+    if (VEHICLE_MAKES.has(upper)) {
+      stillInPartPrefix = false;
+      makeBucket.push(upper === "VW" ? "VOLKSWAGEN" : upper);
+      continue;
+    }
+
+    if (isYearToken(upper)) {
+      stillInPartPrefix = false;
+      yearBucket.push(upper);
+      continue;
+    }
+
+    if (isSpecToken(upper)) {
+      stillInPartPrefix = false;
+      specBucket.push(upper);
+      continue;
+    }
+
+    if (PART_AND_POS_WORDS.has(upper) || (stillInPartPrefix && i === 0)) {
+      // Si la palabra es "MOTOR" y ya tenemos una pieza (ej. "BASE CAJA"), "MOTOR" es especificación o parte secundaria
+      if (upper === "MOTOR" && partBucket.length >= 2 && !stillInPartPrefix) {
+        specBucket.push(upper);
+      } else {
+        partBucket.push(upper);
+      }
+      continue;
+    }
+
+    stillInPartPrefix = false;
+    modelBucket.push(upper);
+  }
+
+  // Inferir Marca del Vehículo si aún no está en makeBucket
+  if (makeBucket.length === 0) {
+    const cleanVehBrand = String(vehicleBrand || "").trim().toUpperCase();
+    if (cleanVehBrand && VEHICLE_MAKES.has(cleanVehBrand)) {
+      makeBucket.push(cleanVehBrand);
+    } else {
+      for (const m of modelBucket) {
+        if (MODEL_TO_MAKE[m]) {
+          makeBucket.push(MODEL_TO_MAKE[m]);
+          break;
+        }
+      }
+    }
+  }
+
+  for (const mk of makeBucket) {
+    seenNorm.add(mk.replace(/[^A-Z0-9.]/gi, "").toUpperCase());
+  }
+
+  const toTitleCase = (str) =>
+    str
+      .toLowerCase()
+      .replace(/(?:^|\s|-)\S/g, (c) => c.toUpperCase())
+      .replace(/\b(V6|V8|L4|L6|8v|12v|16v|24v|4x4|4x2|2wd|4wd|Awd|Wk|Wk2|Xj|Zj|Wj|Kj|Kk|Cj5|Cj7|B13|B14|B15|D21|D22|Np300|Bt-50|Bt50|Cr-V|Crv)\b/gi, (m) => m.toUpperCase());
+
+  const buildCandidate = () => {
+    const all = [...partBucket, ...makeBucket, ...modelBucket, ...specBucket, ...yearBucket];
+    return toTitleCase(all.join(" ")).replace(/\s+/g, " ").trim();
+  };
+
+  let currentTitle = buildCandidate();
+
+  // Si sobran caracteres hasta 60, integrar keywords valiosas de la competencia en el bucket correcto
+  if (Array.isArray(extraKeywords) && extraKeywords.length > 0) {
+    for (const rawKw of extraKeywords) {
+      const kw = String(rawKw || "").trim().toUpperCase().replace(/^[-/]+|[-/]+$/g, "");
+      if (!kw || kw.length < 2) continue;
+      // NUNCA copiar años de la competencia ni barras
+      if (isYearToken(kw) || kw.includes("/")) continue;
+      const norm = kw.replace(/[^A-Z0-9.]/gi, "");
+      if (!norm || seenNorm.has(norm)) continue;
+      // No agregar otra marca de vehículo distinta si ya tenemos una
+      if (VEHICLE_MAKES.has(kw) && makeBucket.length > 0) continue;
+
+      // Probar insertar en el bucket semántico apropiado
+      let targetBucket = modelBucket;
+      if (VEHICLE_MAKES.has(kw)) targetBucket = makeBucket;
+      else if (isSpecToken(kw) || kw === "MOTOR") targetBucket = specBucket;
+      else if (PART_AND_POS_WORDS.has(kw)) targetBucket = partBucket;
+
+      targetBucket.push(kw);
+      const testTitle = buildCandidate();
+      if (testTitle.length <= 60) {
+        seenNorm.add(norm);
+        currentTitle = testTitle;
+      } else {
+        targetBucket.pop();
+      }
+    }
+  }
+
+  if (currentTitle.length > 60) {
+    let truncated = currentTitle.substring(0, 60);
     const lastSpace = truncated.lastIndexOf(" ");
-    if (lastSpace > 45) truncated = truncated.substring(0, lastSpace);
+    if (lastSpace > 40) truncated = truncated.substring(0, lastSpace);
     return truncated.trim();
   }
 
-  return finalTitle;
+  return currentTitle;
+}
+
+export function formatSEOTitle(rawTitle, options = {}) {
+  return optimizeAutomotiveSEOTitle(rawTitle, options);
 }
 
 export function matchLocalPhotoFiles(

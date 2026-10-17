@@ -10,6 +10,7 @@ import { sortBySoldQuantity } from "@/lib/sniper-helpers";
 import { getValidAccessToken } from "@/lib/meli-auth-helper";
 import {
   formatSEOTitle,
+  isYearToken,
   resolvePicturesForSku,
   resolveCategoryId,
   getCategoryDisplayName,
@@ -200,6 +201,13 @@ export async function analyzeCompetitorsForListing({
     ok: true,
     query: effectiveQuery,
     competitorsAnalyzed: rawResults.length,
+    topCompetitors: sorted.slice(0, 5).map((c) => ({
+      id: c.id,
+      title: c.title,
+      price: c.price || 0,
+      sold_quantity: c.sold_quantity || 0,
+      seller: c.seller || null,
+    })),
     leader: {
       id: leader.id,
       title: leader.title,
@@ -213,43 +221,68 @@ export async function analyzeCompetitorsForListing({
 }
 
 /**
- * Fusiona insights del líder: keywords de título, atributos faltantes, precio -3%.
+ * Fusiona insights del líder y del Top 5 de competidores:
+ * - Extrae keywords consenso del líder y top competidores (excluyendo años ajenos).
+ * - Aplica el Optimizador Canónico de Títulos SEO ([Pieza + Posición] + [Marca Vehículo] + [Modelos] + [Motor/Specs] + [Años]).
+ * - Extrae atributos faltantes y sugiere precio competitivo (-3%).
  */
-export function mergeLeaderInsights({ ourTitle, ourPrice, ourAttrs = [], leader }) {
+export function mergeLeaderInsights({ ourTitle, ourPrice, ourAttrs = [], leader, topCompetitors = [] }) {
   if (!leader) {
     return {
-      suggestedTitle: ourTitle,
+      suggestedTitle: formatSEOTitle(ourTitle) || ourTitle,
       suggestedPrice: ourPrice,
       missingAttributes: [],
       titleKeywords: [],
     };
   }
 
-  const ourTitleLower = (ourTitle || "").toLowerCase();
-  const leaderWords = (leader.title || "")
-    .toLowerCase()
-    .split(/\s+/)
-    .map((w) => w.replace(/[^a-záéíóúñ0-9/-]/gi, ""))
-    .filter((w) => w.length > 2 && !STOP_WORDS.has(w));
+  const baseFormatted = formatSEOTitle(ourTitle) || ourTitle || "";
+  const ourNormSet = new Set(
+    baseFormatted
+      .toUpperCase()
+      .split(/\s+/)
+      .map((w) => w.replace(/[^A-Z0-9.]/gi, ""))
+      .filter(Boolean)
+  );
 
-  const titleKeywords = [...new Set(leaderWords.filter((w) => !ourTitleLower.includes(w)))];
+  // Analizar títulos del líder (peso 2) + top 5 competidores (peso 1)
+  const sources = [
+    { title: leader.title || "", weight: 2 },
+    ...(Array.isArray(topCompetitors) ? topCompetitors.slice(0, 5).map((c) => ({ title: c.title || "", weight: 1 })) : []),
+  ];
 
-  let suggestedTitle = ourTitle || "";
-  for (const kw of titleKeywords.slice(0, 4)) {
-    const candidate = `${suggestedTitle} ${kw}`.trim();
-    if (candidate.length <= 60) {
-      suggestedTitle = candidate;
-    } else {
-      break;
+  const kwScores = new Map();
+  const kwOrder = [];
+
+  for (const src of sources) {
+    const words = src.title
+      .toLowerCase()
+      .split(/\s+/)
+      .map((w) => w.replace(/[^a-záéíóúñ0-9.+-]/gi, "").replace(/^[-+]+|[-+]+$/g, ""))
+      .filter((w) => w.length >= 2 && !STOP_WORDS.has(w));
+
+    const seenInSource = new Set();
+    for (const w of words) {
+      // Nunca copiar años ni rangos de años de un competidor a nuestro título
+      if (isYearToken(w) || /^\d{2,4}[-/]\d{2,4}$/.test(w)) continue;
+      const norm = w.replace(/[^a-z0-9.]/gi, "").toUpperCase();
+      if (!norm || ourNormSet.has(norm) || seenInSource.has(norm)) continue;
+      seenInSource.add(norm);
+      if (!kwScores.has(w)) kwOrder.push(w);
+      kwScores.set(w, (kwScores.get(w) || 0) + src.weight);
     }
   }
-  suggestedTitle = formatSEOTitle(suggestedTitle) || suggestedTitle;
+
+  const titleKeywords = kwOrder.sort((a, b) => (kwScores.get(b) || 0) - (kwScores.get(a) || 0));
+
+  const suggestedTitle =
+    formatSEOTitle(ourTitle, { extraKeywords: titleKeywords.slice(0, 8) }) || baseFormatted;
 
   const ourAttrIds = new Set((ourAttrs || []).map((a) => a.id));
   const missingAttributes = (leader.attributes || [])
     .filter((a) => a.id && a.value_name && !ourAttrIds.has(a.id))
     .filter((a) => !SKIP_ATTR_IDS.has(a.id))
-    .map((a) => ({ id: a.id, value_name: a.value_name }))
+    .map((a) => ({ id: a.id, value_name: a.value_name, value_id: a.value_id || null }))
     .slice(0, 8);
 
   const leaderPrice = parseFloat(leader.price);
@@ -416,10 +449,11 @@ export async function buildPublishPreview({
         ...(oem ? [{ id: "OEM", value_name: oem }] : []),
       ];
       const merged = mergeLeaderInsights({
-        ourTitle: title,
+        ourTitle: rawTitle || title,
         ourPrice: effectivePrice,
         ourAttrs: preliminaryAttrs,
         leader: intel.leader,
+        topCompetitors: intel.topCompetitors || [],
       });
 
       title = merged.suggestedTitle || title;
@@ -430,6 +464,8 @@ export async function buildPublishPreview({
 
       competitorIntel = {
         query: intel.query,
+        competitorsAnalyzed: intel.competitorsAnalyzed || 1,
+        topCompetitors: intel.topCompetitors || [],
         leader: intel.leader,
         titleKeywords: merged.titleKeywords,
         attributesAdded: extraAttrs.length,
