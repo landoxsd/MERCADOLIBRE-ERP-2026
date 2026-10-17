@@ -676,8 +676,121 @@ export async function getCategoryDisplayName(categoryId) {
   return { name: categoryId, path: categoryId };
 }
 
+// Caché de validación de categorías: id -> { valid, reason, pathIds }
+const categoryValidityCache = new Map();
+// Caché de categorías corregidas por sublínea (evita repetir domain_discovery en lotes)
+const healedSublineCategoryCache = new Map();
+
+const MELI_VEHICLE_ACCESSORIES_ROOT = "MLV1747"; // Accesorios para Vehículos
+const MELI_CAR_PARTS_ROOT = "MLV1748"; // Repuestos Carros y Camionetas
+
+/**
+ * Verifica que una categoría de ML exista, sea hoja (sin hijas) y permita publicar.
+ * Las categorías de ML se eliminan/reorganizan con el tiempo; un mapeo viejo produce
+ * "Category MLVxxxx does not exist" al publicar.
+ */
+export async function validateMeliCategory(categoryId) {
+  if (!categoryId) return { valid: false, reason: "empty", pathIds: [] };
+  if (categoryValidityCache.has(categoryId)) return categoryValidityCache.get(categoryId);
+
+  let result = { valid: false, reason: "unknown", pathIds: [] };
+  try {
+    const res = await fetch(`${MELI_BASE_URL}/categories/${categoryId}`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    if (res.status === 404) {
+      result = { valid: false, reason: "not_found", pathIds: [] };
+    } else if (!res.ok) {
+      // Error transitorio de ML: no bloquear la publicación por esto
+      return { valid: true, reason: `unverified_${res.status}`, pathIds: [] };
+    } else {
+      const data = await res.json();
+      const isLeaf = !data.children_categories || data.children_categories.length === 0;
+      const listingAllowed = data.settings?.listing_allowed !== false;
+      const pathIds = (data.path_from_root || []).map((p) => p.id);
+      result = isLeaf && listingAllowed
+        ? { valid: true, reason: "ok", pathIds }
+        : { valid: false, reason: !isLeaf ? "not_leaf" : "listing_not_allowed", pathIds };
+    }
+  } catch {
+    // Timeout/red: no bloquear
+    return { valid: true, reason: "unverified_network", pathIds: [] };
+  }
+
+  categoryValidityCache.set(categoryId, result);
+  return result;
+}
+
+// Sinónimos que ML entiende mejor en su predictor (términos venezolanos -> términos del catálogo ML)
+const CATEGORY_QUERY_SYNONYMS = [
+  [/\bENVASES?\b/gi, "DEPOSITO REFRIGERANTE"],
+  [/\bGUAYAS?\b/gi, "CABLE"],
+  [/\bBALLESTAS?\b/gi, "MUELLE BALLESTA SUSPENSION"],
+  [/\bCONCHAS?\b/gi, "COJINETE"],
+  [/\bESTOPERAS?\b/gi, "RETEN"],
+  [/\bEMPACADURAS?\b/gi, "JUNTA"],
+  [/\bCRUCETAS?\b/gi, "CRUCETA CARDAN"],
+  [/\bTRIPOIDES?\b/gi, "TRIPOIDE HOMOCINETICA"],
+  [/\bMESETAS?\b/gi, "BRAZO SUSPENSION"],
+];
+
+function expandCategoryQuery(q = "") {
+  let out = String(q);
+  for (const [re, rep] of CATEGORY_QUERY_SYNONYMS) out = out.replace(re, rep);
+  return out;
+}
+
+async function predictValidCategory(query) {
+  if (!query) return null;
+  const queries = [...new Set([expandCategoryQuery(query), query, `${expandCategoryQuery(query)} repuesto carro`])];
+
+  let fallbackInVehicleTree = null;
+  for (const q of queries) {
+    try {
+      const res = await fetch(
+        `${MELI_BASE_URL}/sites/MLV/domain_discovery/search?limit=8&q=${encodeURIComponent(q)}`,
+        { signal: AbortSignal.timeout(6000) }
+      );
+      const data = await res.json();
+      if (!Array.isArray(data)) continue;
+      for (const cand of data) {
+        if (!cand?.category_id) continue;
+        const check = await validateMeliCategory(cand.category_id);
+        if (!check.valid) continue;
+        // Preferir "Repuestos Carros y Camionetas"; aceptar "Accesorios para Vehículos" como respaldo.
+        // Descartar categorías fuera del árbol automotriz (ej. Peluquería, Caza, Hogar).
+        if (check.pathIds.includes(MELI_CAR_PARTS_ROOT)) return cand.category_id;
+        if (!fallbackInVehicleTree && check.pathIds.includes(MELI_VEHICLE_ACCESSORIES_ROOT)) {
+          fallbackInVehicleTree = cand.category_id;
+        }
+      }
+    } catch (e) {
+      console.warn("Error prediciendo categoría:", e.message);
+    }
+  }
+  return fallbackInVehicleTree;
+}
+
+// Mapeos canónicos para autopartes que ML confunde en domain_discovery o cuyas categorías históricas fueron reorganizadas
+const CANONICAL_AUTOPART_CATEGORIES = [
+  // Ballestas y resortes (ML domain discovery confunde "ballesta" con ballestas de caza)
+  { match: /\b(HOJAS?\s+DE\s+)?BALLESTAS?\b/i, categoryId: "MLV458152" }, // Suspensión > Resortes y Barras > Ballestas
+  { match: /\b(COLGANTE\s+DE\s+BALLESTA|GEMELOS?)\b/i, categoryId: "MLV458150" }, // Grilletes de Ballesta
+  // Sistema de Enfriamiento / Radiador (reemplaza MLV122602 eliminada por ML)
+  { match: /\b(ENVASES?\s+(DE\s+)?(RADIADOR|REFRIGERANTE|AGUA)|DEPOSITO\s+(DE\s+)?(AGUA|REFRIGERANTE|LIQUIDO))\b/i, categoryId: "MLV373330" }, // Depósito Líquido Refrigerante
+  { match: /\b(MANGUERAS?\s+(DE\s+)?RADIADOR)\b/i, categoryId: "MLV373331" }, // Mangueras de Radiador
+  { match: /\b(TAPAS?\s+(DE\s+)?RADIADOR)\b/i, categoryId: "MLV373334" }, // Tapas de Radiadores
+  { match: /\bRADIADOR(ES)?(\s+DE\s+AGUA)?\b/i, categoryId: "MLV373327" }, // Radiadores de Agua
+  // Frenos
+  { match: /\bMANGUERAS?\s+(DE\s+)?FRENO\b/i, categoryId: "MLV412187" }, // Mangueras de Frenos
+  // Dirección
+  { match: /\bMANGUERAS?\s+(DE\s+)?DIRECCION(\s+HIDRAULICA)?\b/i, categoryId: "MLV373422" }, // Mangueras Dirección Hidráulica
+  { match: /\bBARRA\s+CENTRAL(\s+Y\s+DE\s+DIRECCION)?\b/i, categoryId: "MLV458162" }, // Barras Centrales de Dirección
+];
+
 export async function resolveCategoryId(supabaseAdmin, { subline, title, settings }) {
   let categoryId = null;
+  let source = null;
 
   if (subline) {
     const { data: mapping } = await supabaseAdmin
@@ -687,24 +800,52 @@ export async function resolveCategoryId(supabaseAdmin, { subline, title, setting
       .limit(1)
       .single();
 
-    if (mapping?.ml_category_id) categoryId = mapping.ml_category_id;
+    if (mapping?.ml_category_id) {
+      categoryId = mapping.ml_category_id;
+      source = "category_mappings";
+    }
   }
 
   if (!categoryId && settings?.categoryMap?.[subline]) {
     categoryId = settings.categoryMap[subline];
+    source = "erp_settings";
+  }
+
+  // Validar el mapeo: si la categoría fue eliminada o no es hoja, auto-corregir
+  if (categoryId) {
+    const check = await validateMeliCategory(categoryId);
+    if (!check.valid) {
+      console.warn(
+        `⚠️ [categorías] ${categoryId} (${source}, sublínea "${subline}") inválida: ${check.reason}. Re-prediciendo...`
+      );
+      categoryId = null;
+    }
+  }
+
+  // Comprobar reglas canónicas de autopartes (evita desvíos del predictor y resuelve categorías obsoletas)
+  if (!categoryId) {
+    const probe = `${subline || ""} ${title || ""}`.trim();
+    for (const rule of CANONICAL_AUTOPART_CATEGORIES) {
+      if (rule.match.test(probe)) {
+        categoryId = rule.categoryId;
+        source = "canonical_autoparts_rule";
+        break;
+      }
+    }
   }
 
   if (!categoryId && title) {
-    try {
-      const predictRes = await fetch(
-        `${MELI_BASE_URL}/sites/MLV/domain_discovery/search?q=${encodeURIComponent(title)}`
-      );
-      const predictData = await predictRes.json();
-      if (Array.isArray(predictData) && predictData[0]?.category_id) {
-        categoryId = predictData[0].category_id;
-      }
-    } catch (e) {
-      console.warn("Error prediciendo categoría:", e.message);
+    categoryId = await predictValidCategory(title);
+  }
+
+  // Último recurso: predecir con la sublínea (cacheado por sublínea)
+  if (!categoryId && subline) {
+    const key = String(subline).toUpperCase();
+    if (healedSublineCategoryCache.has(key)) {
+      categoryId = healedSublineCategoryCache.get(key);
+    } else {
+      categoryId = await predictValidCategory(subline);
+      if (categoryId) healedSublineCategoryCache.set(key, categoryId);
     }
   }
 
