@@ -107,3 +107,65 @@ FROM docum_cc (NOLOCK)
 WHERE co_cli = 'CLIENTE01' AND saldo > 0
 GROUP BY co_cli
 ```
+
+---
+
+## 🔬 8. Hallazgos de Ingeniería Inversa (Mercatech Sync `rwcagente 2.0-SNAPSHOT` — `RWC20_A`)
+
+> **⚠️ REGLA INQUEBRANTABLE:** Toda conexión desde el ERP Next.js hacia `192.168.1.10:1433` (`RWC20_A`) es **100% SOLO LECTURA (`READ-ONLY`)** con `WITH (NOLOCK)`. Jamás ejecutar `INSERT`, `UPDATE`, `DELETE` ni `EXEC` de escritura.
+
+### 8.1. Fórmula Oficial de Stock Disponible para Mercado Libre (`SQLStockProductDAOImplProfit2k8`)
+En Corporación R.W.C., el stock disponible para comercio electrónico se calcula exclusivamente sobre los **3 almacenes operativos** (`'01.01'`, `'01.02'`, `'01.03'`):
+```sql
+SELECT 
+    LTRIM(RTRIM(AA.co_art)) AS co_art,
+    ISNULL(SUM(AA.stock_act) - SUM(AA.stock_com), 0) AS stock_disponible
+FROM [RWC20_A].dbo.st_almac AA WITH (NOLOCK)
+WHERE AA.co_alma IN ('01.01', '01.02', '01.03')
+GROUP BY LTRIM(RTRIM(AA.co_art));
+```
+
+### 8.2. Catálogo de Artículos Vendibles y Precios (`SQLProductDAOImplProfit2k8`)
+```sql
+SELECT 
+    CONVERT(varchar(50), LTRIM(RTRIM(tt.co_art))) AS co_art,
+    tt.art_des,
+    tt.prec_vta1,
+    tt.prec_vta2,
+    tt.prec_vta3,
+    tt.prec_vta4,
+    tt.prec_vta5,
+    tt.anulado,
+    tt.tipo
+FROM [RWC20_A].dbo.art tt WITH (NOLOCK)
+WHERE tt.tipo = 'V' AND tt.anulado = 0;
+```
+
+### 8.3. Tasa de Cambio Vigente (`tasas`)
+```sql
+SELECT TOP 1 tasa_v, fecha
+FROM [RWC20_A].dbo.tasas WITH (NOLOCK)
+WHERE co_mone = 'US$'
+ORDER BY fecha DESC;
+```
+
+### 8.4. Mapeo y Auditoría de Pedidos Mercado Libre (`pedidos` — `co_cli = 'ML-999'`)
+El agente `sync-mercatech-pedido.jar` (`TestGetOrders`) registraba las órdenes de Mercado Libre bajo el cliente `ML-999` (`co_ven = '00001'`, `co_sucu = '01'`, `co_alma = '01.01'`, `moneda = 'US$'`), guardando la trazabilidad en los campos adicionales:
+- `rif`: ID de la orden en Mercado Libre (`idml`)
+- `campo3`: Código de orden interno Mercatech (`ordercode`)
+- `campo4`: ID del comprador (`customer_code`)
+- `campo5`: Nombre del comprador (`customer_name`)
+- `campo6`: Nickname del comprador en ML (`customer_nickname`)
+- `campo7`: Teléfono del comprador (`customer_phone`)
+- `campo8`: Tasa de cambio BCV/interna aplicada al momento de la venta (`tasa_cambio`)
+
+```sql
+SELECT TOP 100
+    p.fact_num, p.fec_emis, LTRIM(RTRIM(p.rif)) AS ml_order_id,
+    LTRIM(RTRIM(p.campo3)) AS mercatech_code, LTRIM(RTRIM(p.campo6)) AS ml_nickname,
+    LTRIM(RTRIM(p.campo8)) AS tasa_cambio, p.tot_bruto, p.iva, p.tot_neto, p.saldo
+FROM [RWC20_A].dbo.pedidos p WITH (NOLOCK)
+WHERE p.co_cli = 'ML-999'
+ORDER BY p.fec_emis DESC, p.fact_num DESC;
+```
+

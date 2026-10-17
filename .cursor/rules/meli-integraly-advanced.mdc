@@ -1,0 +1,46 @@
+---
+description: Patrones avanzados de Mercado Libre extraídos por Ingeniería Inversa REA de Integraly v2.2.0.5 y v2.2.0.6
+globs: src/lib/**/*, src/app/api/**/*, src/components/**/*
+alwaysApply: false
+---
+
+# Patrones Avanzados Mercado Libre — Ingeniería Inversa Integraly (`v2.2.0.5` & `v2.2.0.6`)
+
+## 1. Sincronización de Stock en User Products (UP) y Multi-Warehouse
+Mercado Libre está migrando las publicaciones tradicionales al modelo **User Products (`user_product_id`, ej. `MLVU...`)** y depósitos (`seller_warehouse`):
+1. Consultar primero `GET /user-products/{user_product_id}/stock`.
+2. Capturar la cabecera HTTP de respuesta `x-version` (entero de control de concurrencia optimista).
+3. Actualizar stock mediante `PUT /user-products/{user_product_id}/stock/type/seller_warehouse` (o `selling_address`) enviando el header `x-version: {version}`.
+4. **Fallback Obligatorio (`GrabarStockNivelItemAsync`):** Si la API responde `400`/`403`/`409` indicando que `selling_address` no es modificable o la cuenta aún opera por ítem, hacer fallback transparente a `PUT /items/{item_id}` con `{ "available_quantity": stock }`.
+
+## 2. Precios por Cantidad Mayoristas B2B (`PxQ B2B %` — Novedad v2.2.0.6)
+- **Deadline Oficial ML:** El **27 de octubre de 2026** Mercado Libre apaga el esquema antiguo de precios mayoristas.
+- **Reglas de Validación Estricta (`ValidarTramosPxQ`):**
+  - Máximo **5 tramos** por publicación (`Tier 1..5`).
+  - Las cantidades mínimas deben ser enteros estrictamente crecientes (`min_qty_1 < min_qty_2 < ...`).
+  - Los porcentajes de descuento (`PxQ B2B %`) deben ser estrictamente crecientes (`desc_1 < desc_2 < ...`) entre `1%` y `80%`.
+
+## 3. Promociones Co-Financiadas Boost (`discount_meli_boost_amount` — Novedad v2.2.0.6)
+- Al consultar `GET /seller-promotions/items/{item_id}?app_version=v2`, inspeccionar el campo `discount_meli_boost_amount` (o `meli_percentage` vs `seller_percentage`).
+- El costo real del descuento para Corporación RWC es únicamente la porción del vendedor (`seller_percentage`), mientras que el precio visible al comprador incluye el subsidio `discount_meli_boost_amount` aportado por Mercado Libre.
+
+## 4. Auditoría Financiera de Ventas (`FormListadoVentas` — Novedad v2.2.0.6)
+Para calcular la rentabilidad real de cada orden en MLV:
+- `Ingreso Bruto` = `unit_price * quantity`
+- `Comisión ML` = `order_items[].sale_fee * quantity`
+- `Costo Envío Vendedor` = `shipping.cost` (cuando es a cargo del seller)
+- `Impuestos / Retenciones` = `taxes.amount`
+- `Neto a Recibir` = `Ingreso Bruto - Comisión ML - Costo Envío Vendedor - Impuestos`
+- Cruzar contra el costo de reposición en Profit Plus (`prec_vta5` / `ult_cos_un`) y atribución de campaña (`PADS` / Product Ads).
+
+## 5. Compatibilidades de Autopartes (`compatibilidades.json.gz` + Similitud de Coseno)
+- Integraly incluye una base comprimida local (`c:\DEVELOPER\INGENIERIA INVERSA\INTEGRALY\2.2.0.6\compatibilidades.json.gz`, 2.59 MB) con el árbol de vehículos de Mercado Libre (`brand`, `model`, `year`, `trim`, `catalog_product_id`).
+- Para asociar compatibilidades a un repuesto:
+  1. Extraer marca/modelo/año del título o descripción de Profit Plus.
+  2. Comparar contra el diccionario vehicular usando búsqueda exacta normalizada + Similitud de Coseno sobre vectores de embeddings.
+  3. Inyectar mediante `POST /items/{item_id}/compatibilities` o `POST /items/{item_id}/compatibilities/cards`.
+
+## 6. Auto-Recorte de Fotos (`CropWhiteSpace` + `EnlargeImage`)
+Antes de subir fotos locales de `\\192.168.1.10\e\FOTOS` (`/mnt/fotos`) a `POST /pictures/items/upload`:
+- Detectar el bounding box del repuesto escaneando píxeles no blancos (umbral RGB `< 245`).
+- Recortar los márgenes blancos excesivos y escalar la pieza para que ocupe el **90%–95%** de un lienzo cuadrado blanco puro de `1200x1200` o `1500x1500` px (`sharp.trim()` + `sharp.resize()`).

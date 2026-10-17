@@ -14,7 +14,7 @@ let photosMapCache = null; // Map<lowerFilename, originalFilename>
 let photosCacheTime = 0;
 const PHOTOS_CACHE_TTL_MS = 60000; // 1 minuto
 
-export function getLocalPhotosMap() {
+export async function getLocalPhotosMap() {
   const now = Date.now();
   if (photosMapCache && (now - photosCacheTime) < PHOTOS_CACHE_TTL_MS) {
     return photosMapCache;
@@ -22,11 +22,12 @@ export function getLocalPhotosMap() {
 
   const map = new Map();
   const candidatePaths = [
-    'F:\\',
-    'C:\\Users\\ORLANDO\\Pictures\\FOTOS',
-    '\\\\Servidor\\e\\FOTOS',
     process.env.PHOTOS_PATH || '',
     '/mnt/fotos',
+    '\\\\192.168.1.10\\e\\FOTOS',
+    '\\\\Servidor\\e\\FOTOS',
+    'F:\\',
+    'C:\\Users\\ORLANDO\\Pictures\\FOTOS',
     '/fotos',
   ].filter(Boolean);
 
@@ -49,6 +50,28 @@ export function getLocalPhotosMap() {
     } catch (e) {
       // Probar siguiente ruta
     }
+  }
+
+  // Fallback de red LAN para el contenedor Docker en Dell R630 (192.168.1.58 -> Photo Bridge en Windows 192.168.1.97:8088)
+  const bridgeUrl = process.env.PHOTO_BRIDGE_URL || 'http://192.168.1.97:8088';
+  try {
+    const res = await fetch(`${bridgeUrl}/list`, { signal: AbortSignal.timeout(4000) });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.files) && data.files.length > 0) {
+        for (const file of data.files) {
+          const lower = String(file).toLowerCase();
+          if (!map.has(lower)) {
+            map.set(lower, file);
+          }
+        }
+        photosMapCache = map;
+        photosCacheTime = now;
+        return map;
+      }
+    }
+  } catch (e) {
+    // Bridge no disponible
   }
 
   photosMapCache = map;
@@ -172,7 +195,7 @@ export async function getSublinesSummary({ minFaltantes = 0, search = '' } = {})
   // 1. Obtener SKUs publicados
   const publishedSet = await getPublishedSkusSet();
 
-  // 2. Consultar Profit Plus (Solo Lectura con NOLOCK)
+  // 2. Consultar Profit Plus (Solo Lectura con NOLOCK, fórmula Mercatech: almacenes 01.01, 01.02, 01.03 y stock_act - stock_com)
   const q = `
     SELECT 
       RTRIM(a.co_art) as sku,
@@ -184,11 +207,12 @@ export async function getSublinesSummary({ minFaltantes = 0, search = '' } = {})
     FROM art a WITH (NOLOCK)
     LEFT JOIN sub_lin s WITH (NOLOCK) ON a.co_subl = s.co_subl
     LEFT JOIN (
-      SELECT co_art, SUM(stock_act) as stock_total
+      SELECT co_art, SUM(stock_act - stock_com) as stock_total
       FROM st_almac WITH (NOLOCK)
+      WHERE co_alma IN ('01.01', '01.02', '01.03')
       GROUP BY co_art
     ) st ON a.co_art = st.co_art
-    WHERE ISNULL(st.stock_total, 0) > 0 AND a.anulado = 0;
+    WHERE ISNULL(st.stock_total, 0) > 0 AND a.anulado = 0 AND a.tipo = 'V';
   `;
 
   const items = await queryProfit(q);
@@ -275,7 +299,7 @@ export async function getSublinesSummary({ minFaltantes = 0, search = '' } = {})
  */
 export async function getMissingItemsBySubline(co_subl, { page = 1, limit = 50, search = '', photoFilter = 'all' } = {}) {
   const publishedSet = await getPublishedSkusSet();
-  const photosMap = getLocalPhotosMap();
+  const photosMap = await getLocalPhotosMap();
 
   const q = `
     SELECT 
@@ -293,11 +317,12 @@ export async function getMissingItemsBySubline(co_subl, { page = 1, limit = 50, 
     FROM art a WITH (NOLOCK)
     LEFT JOIN sub_lin s WITH (NOLOCK) ON a.co_subl = s.co_subl
     LEFT JOIN (
-      SELECT co_art, SUM(stock_act) as stock_total
+      SELECT co_art, SUM(stock_act - stock_com) as stock_total
       FROM st_almac WITH (NOLOCK)
+      WHERE co_alma IN ('01.01', '01.02', '01.03')
       GROUP BY co_art
     ) st ON a.co_art = st.co_art
-    WHERE RTRIM(a.co_subl) = @co_subl AND ISNULL(st.stock_total, 0) > 0 AND a.anulado = 0
+    WHERE RTRIM(a.co_subl) = @co_subl AND ISNULL(st.stock_total, 0) > 0 AND a.anulado = 0 AND a.tipo = 'V'
     ORDER BY ISNULL(st.stock_total, 0) DESC, a.co_art ASC;
   `;
 

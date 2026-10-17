@@ -226,4 +226,44 @@ Este documento recopila las "Habilidades Especiales" desarrolladas en este proye
 
 ---
 
-*Este inventario de habilidades permite que este ERP sea el cimiento para cualquier otra herramienta de automatización comercial. Las skills 9-31 fueron diseñadas a partir de la documentación oficial del MCP de MercadoLibre Developers y la experiencia real con 40k+ SKUs.*
+## 🔬 Habilidades Extraídas por Ingeniería Inversa REA (Mercatech + Integraly `v2.2.0.5` / `v2.2.0.6`)
+
+## 36. Habilidad: Stock Exacto Multi-Almacén RWC (`01.01`, `01.02`, `01.03`) y Conciliación `ML-999`
+**Descripción:** Fórmula exacta de inventario vendible y auditoría de pedidos de Corporación R.W.C. descubierta en `sync-mercatech-precios.jar` y `sync-mercatech-pedido.jar`.
+*   **Lógica:** Calcula `SUM(stock_act) - SUM(stock_com)` en `[RWC20_A].dbo.st_almac WITH (NOLOCK)` filtrando exclusivamente `co_alma IN ('01.01', '01.02', '01.03')` y `art.tipo = 'V'`. Permite auditar órdenes en `pedidos` bajo `co_cli = 'ML-999'` leyendo `@rif = idml` y `@campo8 = tasa`.
+*   **Ubicación:** `.agents/skills/profit_mercatech_sync/SKILL.md` · `PROFIT_MASTER_DB.md`.
+
+## 37. Habilidad: Sincronización de Stock en User Products (UP) con Control Optimista (`x-version`)
+**Descripción:** Soporte para la nueva arquitectura de inventario distribuido de Mercado Libre (`User Products` + `seller_warehouse`) descubierta en `Integraly.Core.dll`.
+*   **Lógica:** Consulta `GET /user-products/{id}/stock`, captura el header `x-version` y envía `PUT /user-products/{id}/stock/type/seller_warehouse` con `x-version`. Incluye fallback transparente a `PUT /items/{id}` (`available_quantity`) si `selling_address` está bloqueado.
+*   **Ubicación:** `.agents/skills/integraly_reverse_knowledge/SKILL.md` · `.agents/skills/meli_expert/SKILL.md`.
+
+## 38. Habilidad: Motor de Compatibilidades Vehiculares (`compatibilidades.json.gz` + Similitud de Coseno)
+**Descripción:** Asociación masiva de autopartes al catálogo oficial de vehículos de Mercado Libre sin depender únicamente de búsquedas manuales.
+*   **Lógica:** Utiliza la base local comprimida `compatibilidades.json.gz` (2.59 MB) combinada con normalización de tokens y Similitud de Coseno sobre vectores de embeddings para inyectar `/items/{id}/compatibilities` y `/compatibilities/cards`.
+*   **Ubicación:** `.agents/skills/integraly_reverse_knowledge/SKILL.md` · `src/lib/vehicle-catalog.js`.
+
+## 39. Habilidad: Auto-Recorte de Bordes Blancos y Maximización de Miniatura (`CropWhiteSpace` + `EnlargeImage`)
+**Descripción:** Pre-procesamiento de imágenes de repuestos para maximizar el CTR en listados de búsqueda de MLV.
+*   **Lógica:** Escanea el bounding box no blanco (`threshold < 245` / `sharp.trim()`) y escala el repuesto para ocupar el 92%–95% de un lienzo cuadrado blanco puro de `1500x1500` px antes de subir a `POST /pictures/items/upload`.
+*   **Ubicación:** `.agents/skills/meli_batch_publisher/SKILL.md` · `.agents/skills/integraly_reverse_knowledge/SKILL.md`.
+
+## 40. Habilidad: Generador de Combos y Kits Virtuales (`syncBoxProduct` + `FormOpenAISugerirKitsVirtuales`)
+**Descripción:** Publicación de Kits de alta rotación (ej. Kit 4 Bujías, Par de Amortiguadores, Kit de Afinación) sin duplicar SKUs físicos en Profit Plus.
+*   **Lógica:** Vincula múltiples SKUs hijos (`co_art`, `qty_requerida`) a una publicación virtual y calcula su stock disponible en tiempo real como `MIN(FLOOR(stock_disponible_hijo / qty_requerida))`.
+*   **Ubicación:** `.agents/skills/profit_mercatech_sync/SKILL.md` · `.agents/skills/meli_batch_publisher/SKILL.md`.
+
+## 41. Habilidad: Promociones Co-Financiadas Boost (`discount_meli_boost_amount`) y Precios B2B (`PxQ B2B %`)
+**Descripción:** Gestión de descuentos co-financiados por Mercado Libre y tramos mayoristas B2B bajo el nuevo estándar obligatorio del **27 de octubre de 2026** (extraído de Integraly `v2.2.0.6`).
+*   **Lógica:** Separa el subsidio `discount_meli_boost_amount` del aporte del vendedor para proteger el margen sobre costo Profit, y valida hasta 5 tramos mayoristas (`PxQ B2B %`) con cantidades mínimas y porcentajes de descuento estrictamente crecientes.
+*   **Ubicación:** `.agents/skills/promo_manager/SKILL.md`.
+
+## 42. Habilidad: Auditoría Financiera Neta de Ventas (`FormListadoVentas` `v2.2.0.6`)
+**Descripción:** Cálculo exacto de rentabilidad neta por orden descontando comisiones, envíos, impuestos y publicidad.
+*   **Lógica:** Desglosa cada venta en `Bruto - sale_fee - shipping_cost (seller) - taxes = Neto a Recibir`, cruzándolo con el costo de reposición en Profit Plus (`prec_vta5` / `ult_cos_un`) y atribución de campañas `PADS`.
+*   **Ubicación:** `.agents/skills/meli_expert/SKILL.md` · `.agents/skills/integraly_reverse_knowledge/SKILL.md`.
+
+---
+
+*Este inventario de habilidades permite que este ERP sea el cimiento para cualquier otra herramienta de automatización comercial. Las skills 9-35 fueron diseñadas a partir del MCP de MercadoLibre Developers y la experiencia con 43k+ SKUs; las skills 36-42 provienen de la ingeniería inversa forense con REA sobre Mercatech Sync e Integraly v2.2.0.5/v2.2.0.6.*
+

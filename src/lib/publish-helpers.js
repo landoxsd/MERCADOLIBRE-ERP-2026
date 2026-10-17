@@ -4,12 +4,71 @@
 // ================================================================
 import fs from "fs";
 import path from "path";
+import sharp from "sharp";
 import { uploadPicture } from "@/lib/meli";
 import { uploadImageToStorage } from "@/lib/supabase-admin";
 
 const MELI_BASE_URL = "https://api.mercadolibre.com";
 export const OFFICIAL_STORE_PLACEHOLDER =
   "https://http2.mlstatic.com/D_NQ_NP_918237-MLV52098675124_102022-O.webp";
+
+/**
+ * Resuelve el directorio efectivo de fotos probando primero la ruta solicitada
+ * y luego las rutas candidatas en vivo (\\192.168.1.10\e\FOTOS en Windows, /mnt/fotos en R630).
+ */
+export function resolveEffectivePhotosDir(requestedPath = "", fallbackSettingsPath = "") {
+  const candidates = [
+    requestedPath && String(requestedPath).trim(),
+    process.env.PHOTOS_PATH || "",
+    "/mnt/fotos",
+    "\\\\192.168.1.10\\e\\FOTOS",
+    "\\\\Servidor\\e\\FOTOS",
+    fallbackSettingsPath && String(fallbackSettingsPath).trim(),
+    "F:\\",
+    "C:\\Users\\ORLANDO\\Pictures\\FOTOS",
+    "/fotos",
+  ].filter(Boolean);
+
+  for (const dir of candidates) {
+    try {
+      if (fs.existsSync(dir)) {
+        return dir;
+      }
+    } catch {
+      // Continuar con siguiente candidato
+    }
+  }
+  return requestedPath || fallbackSettingsPath || "";
+}
+
+/**
+ * Auto-Recorte de Bordes Blancos (CropWhiteSpace) + Maximización en Lienzo (EnlargeImage)
+ * Extraído por Ingeniería Inversa REA de Integraly v2.2.0.6:
+ * Recorta márgenes blancos sobrantes y escala la pieza al ~92% de un lienzo 1500x1500 blanco puro.
+ */
+export async function optimizeAutopartPhotoBuffer(rawBuffer) {
+  try {
+    return await sharp(rawBuffer)
+      .trim({ background: "#FFFFFF", threshold: 12 })
+      .resize(1380, 1380, {
+        fit: "contain",
+        background: { r: 255, g: 255, b: 255, alpha: 1 },
+        withoutEnlargement: false,
+      })
+      .extend({
+        top: 60,
+        bottom: 60,
+        left: 60,
+        right: 60,
+        background: { r: 255, g: 255, b: 255, alpha: 1 },
+      })
+      .flatten({ background: { r: 255, g: 255, b: 255 } })
+      .jpeg({ quality: 92 })
+      .toBuffer();
+  } catch {
+    return rawBuffer;
+  }
+}
 
 const ABBREVIATIONS = {
   "AMORT.": "AMORTIGUADOR",
@@ -148,6 +207,46 @@ export async function getImageBankPictures(supabaseAdmin, sku) {
     .filter(Boolean);
 }
 
+export async function loadAvailablePhotoFiles(effectivePhotosPath = "") {
+  if (effectivePhotosPath && fs.existsSync(effectivePhotosPath)) {
+    try {
+      const files = fs.readdirSync(effectivePhotosPath);
+      if (files.length > 0) return files;
+    } catch {
+      // fallback to bridge
+    }
+  }
+  const bridgeUrl = process.env.PHOTO_BRIDGE_URL || "http://192.168.1.97:8088";
+  try {
+    const res = await fetch(`${bridgeUrl}/list`, { signal: AbortSignal.timeout(4000) });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.files)) return data.files;
+    }
+  } catch {
+    // Bridge no disponible
+  }
+  return [];
+}
+
+async function readPhotoBuffer(photosPath, fileName) {
+  if (photosPath && fs.existsSync(photosPath)) {
+    const filePath = path.join(photosPath, fileName);
+    if (fs.existsSync(filePath)) {
+      return fs.readFileSync(filePath);
+    }
+  }
+  const bridgeUrl = process.env.PHOTO_BRIDGE_URL || "http://192.168.1.97:8088";
+  const res = await fetch(`${bridgeUrl}/file?name=${encodeURIComponent(fileName)}`, {
+    signal: AbortSignal.timeout(6000),
+  });
+  if (res.ok) {
+    const ab = await res.arrayBuffer();
+    return Buffer.from(ab);
+  }
+  return null;
+}
+
 export async function uploadLocalPictures({
   sku,
   photosPath,
@@ -159,16 +258,17 @@ export async function uploadLocalPictures({
   const payloads = [];
 
   for (const fileName of matchingFiles) {
-    const filePath = path.join(photosPath, fileName);
-    if (!fs.existsSync(filePath)) continue;
-
     try {
-      const buffer = fs.readFileSync(filePath);
+      const rawBuffer = await readPhotoBuffer(photosPath, fileName);
+      if (!rawBuffer) continue;
+      const buffer = await optimizeAutopartPhotoBuffer(rawBuffer);
       const picRes = await uploadPicture(buffer, fileName, accessToken);
       if (picRes?.id) payloads.push({ id: picRes.id });
     } catch (uploadErr) {
       try {
-        const buffer = fs.readFileSync(filePath);
+        const rawBuffer = await readPhotoBuffer(photosPath, fileName);
+        if (!rawBuffer) continue;
+        const buffer = await optimizeAutopartPhotoBuffer(rawBuffer);
         const publicUrl = await uploadImageToStorage(buffer, fileName);
         if (publicUrl) payloads.push({ source: publicUrl });
       } catch {
@@ -208,7 +308,7 @@ export async function resolvePicturesForSku({
   };
 
   const tryLocalDisk = async () => {
-    if (photosPath && fs.existsSync(photosPath) && localFiles?.length) {
+    if (localFiles?.length) {
       const { payloads, matchingFiles } = await uploadLocalPictures({
         sku,
         photosPath,

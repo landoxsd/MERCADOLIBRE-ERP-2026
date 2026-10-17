@@ -139,3 +139,22 @@ Ejecutar `migration_vehicle_catalog_2026.sql` para tablas:
 
 ### improve-batch
 `start`, `competitor_intel`, `item_status`, `item_improved`, `item_preview` (dry-run), `item_skipped`, `item_error`, `complete`
+
+---
+
+## 🔧 Mejoras de Ingeniería Inversa (Mercatech + Integraly `v2.2.0.6` — Octubre 2026)
+
+### 1. Auto-Recorte y Maximización de Fotos (`CropWhiteSpace` + `EnlargeImage`)
+Antes de subir las fotos locales de `/mnt/fotos` (`\\192.168.1.10\e\FOTOS`, formato `SKU-0.jpg`) a `POST /pictures/items/upload`:
+- Usar `sharp(buffer).trim({ background: '#FFFFFF', threshold: 12 })` para recortar márgenes blancos sobrantes.
+- Escalar el repuesto para que ocupe el **92%–95%** de un lienzo cuadrado blanco puro de `1500x1500` px (`JPEG 95%`), maximizando el tamaño visual de la miniatura en los listados de MLV.
+
+### 2. Diccionario Maestro de Compatibilidades (`compatibilidades.json.gz` + Similitud de Coseno)
+- Recurso extraído de Integraly en `c:\DEVELOPER\INGENIERIA INVERSA\INTEGRALY\2.2.0.6\compatibilidades.json.gz` (2.59 MB).
+- Permite cruzar marca/modelo/año extraídos de la descripción de Profit Plus mediante tokens normalizados y Similitud de Coseno sobre embeddings para inyectar automáticamente `POST /items/{id}/compatibilities` y `/compatibilities/cards`.
+
+### 3. Publicación de Combos y Kits Virtuales (`syncBoxProduct` + `FormOpenAISugerirKitsVirtuales`)
+- Permite publicar Kits (ej. `Kit 4 Bujías`, `Par Amortiguadores Delanteros`, `Kit Tiempo`) compuestos por 1 o más SKUs hijos de Profit Plus (`RWC20_A`).
+- El stock disponible del Kit se calcula sobre los almacenes `'01.01'`, `'01.02'`, `'01.03'` como:
+  `MIN(FLOOR((stock_act - stock_com) / qty_requerida))`.
+

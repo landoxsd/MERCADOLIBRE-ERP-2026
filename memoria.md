@@ -11,10 +11,13 @@
 - **Nombre:** MercadoLibre ERP Venezuela 2026
 - **Dominio de Negocio:** Autopartes y Repuestos automotrices (18,000 – 43,000 SKUs de Profit Plus Administrativo).
 - **Marketplace:** Mercado Libre Venezuela (`MLV`), moneda oficial de publicación `USD`.
+- **Producción actual:** Dell PowerEdge R630 — Coolify CT 101 en `http://192.168.1.58:3001` (UI Coolify `:8000`).
 - **Stack Tecnológico:**
-  - **Frontend:** Next.js 14 (App Router, Tailwind CSS, Lucide Icons, SheetJS / xlsx).
+  - **Frontend:** Next.js 14 (App Router, CSS modules / CSS puro, Lucide Icons, SheetJS / xlsx).
   - **Backend:** Next.js Route Handlers (`src/app/api/...`), Server-Sent Events (SSE).
-  - **Base de Datos:** Supabase (PostgreSQL, tablas: `products`, `oauth_accounts`, `category_mappings`, etc.).
+  - **Base de Datos App:** PostgreSQL local R630 (`192.168.1.58:5432`) — tablas `products`, `orphan_proposals`, cuentas OAuth, etc. (cliente admin + `pgPool` en `src/lib/supabase-admin.js`).
+  - **ERP origen:** Profit Plus SQL Server `192.168.1.10:1433` / `RWC20_A` — **solo lectura**.
+  - **Fotos:** red `\\192.168.1.10\e\FOTOS` → en contenedor debe montarse `/mnt/fotos` (pendiente infra).
   - **IA:** Google Gemini 3.6 Flash (`src/lib/gemini.js`) con pool round-robin de 4 API Keys (60 RPM).
   - **Scraping (Opcional):** Microservicio Python FastAPI en `scrapling-service` (Scrapling + Camoufox).
 
@@ -97,6 +100,7 @@ node -e "const { generateWithGemini } = require('./src/lib/gemini.js'); generate
 ---
 
 ## 📋 5. Pendientes y Roadmap Futuro
+- [ ] **INFRA URGENTE:** Montar share CIFS de fotos `\\192.168.1.10\e\FOTOS` en Dell R630 como `/mnt/fotos` (cifs-utils, solo lectura) y bind-mount en Coolify app `mercadolibre-erp-2026` → contenedor `/mnt/fotos`. El código ya lee `/mnt/fotos` (`missing-service.js`, `api/profit/photos`).
 - [ ] Conectar el catálogo de pesos (`catalogo_pesos_mercadoenvios_300g.xlsx`) directamente al payload de creación/actualización de publicaciones (`shipping.dimensions` / `attributes.PACKAGE_WEIGHT`).
 - [ ] Auditoría de publicaciones activas con peso en 0 en Mercado Libre para actualizarles el peso vía API antes de generar envíos.
 - [ ] Panel web para editar y crear nuevas reglas de mapeo de sublíneas visualmente.
@@ -105,12 +109,57 @@ node -e "const { generateWithGemini } = require('./src/lib/gemini.js'); generate
 
 ## 🤝 6. Contrato de Handoff (Sesión Actual)
 
-### Sesión 2026-09-29 (Continuación en la otra PC / Despliegue R630)
-- **Objetivo Próximo:** Desplegar el ERP en el servidor Dell PowerEdge R630 bajo Coolify/Docker para eliminar la dependencia y límites de Vercel.
-- **Preparativos Listos en el Repo:**
-  1. `Dockerfile` multi-stage optimizado para Next.js 14 standalone creado.
-  2. `next.config.mjs` configurado con `output: 'standalone'`.
-  3. `.dockerignore` configurado para excluir dependencias y archivos innecesarios.
-  4. Guías detalladas en `scripts/setup-coolify-r630.md` y `deploy/coolify/`.
-- **Instrucción para la IA en la otra PC:**
-  *Al abrir el repositorio en la otra PC (sea con Antigravity o Cursor), leer este archivo `memoria.md` y proceder a conectar el repositorio en Coolify (`http://192.168.1.88:8000` o IP del R630).*
+### Sesión 2026-10-16 (Consolidación Ingeniería Inversa REA: Mercatech + Integraly `v2.2.0.6` → Cursor & Antigravity)
+Se completó la ingeniería inversa forense mediante el servidor MCP de **REA (`morluto/rea`)** de las dos plataformas externas que operaban en Corporación R.W.C. y se inyectó todo el conocimiento en reglas de Cursor (`.cursor/rules/*.mdc`) y Skills (`.agents/skills/` y `.clineskills/`):
+
+1. **Mercatech Sync (`c:\DEVELOPER\INGENIERIA INVERSA\mercatech\REPORTE_INGENIERIA_INVERSA_MERCATECH.md`):**
+   - **Fórmula exacta de stock vendible en `RWC20_A`:** `SUM(stock_act) - SUM(stock_com)` en `st_almac WITH (NOLOCK)` filtrando exclusivamente `co_alma IN ('01.01', '01.02', '01.03')` y `art.tipo = 'V'`.
+   - **Trazabilidad de pedidos ML en Profit Plus (`READ-ONLY`):** Órdenes registradas bajo `co_cli = 'ML-999'`, donde `rif = idml` (ID orden ML), `campo3 = ordercode`, `campo6 = nickname` y `campo8 = tasa_cambio`.
+   - **Combos / Cajas (`syncBoxProduct` + JWT `Combo`):** Stock calculado como `MIN(FLOOR(stock_disponible_hijo / qty_requerida))`.
+2. **Integraly Excel Add-In `v2.2.0.5` y `v2.2.0.6` (`c:\DEVELOPER\INGENIERIA INVERSA\INTEGRALY\REPORTE_INGENIERIA_INVERSA_v2_2_0_6.md`):**
+   - **Stock en User Products (UP) & Multi-Warehouse:** Lectura de `GET /user-products/{id}/stock`, captura del header `x-version` y actualización vía `PUT /user-products/{id}/stock/type/seller_warehouse` con fallback automático a `PUT /items/{id}`.
+   - **Compatibilidades Vehiculares Offline + IA:** Diccionario comprimido `c:\DEVELOPER\INGENIERIA INVERSA\INTEGRALY\2.2.0.6\compatibilidades.json.gz` (2.59 MB) + matching por Similitud de Coseno hacia `/items/{id}/compatibilities`.
+   - **Pre-procesamiento de Fotos (`CropWhiteSpace` + `EnlargeImage`):** Recorte automático de márgenes blancos (`sharp.trim()`) y escalado al 92%–95% del lienzo de `1500x1500` px antes de subir a ML.
+   - **Novedades `v2.2.0.6`:**
+     - `FormListadoVentas`: Auditoría financiera neta (`Bruto - sale_fee - shipping_cost - taxes = Neto a Recibir`) + cruce con publicidad (`PADS`).
+     - `discount_meli_boost_amount`: Descuentos co-financiados por Mercado Libre en `/seller-promotions`.
+     - `PxQ B2B %`: Precios Mayoristas por Cantidad con validación de hasta 5 tramos monótonos crecientes (**obligatorio antes del 27/10/2026**).
+3. **Reglas de Cursor Creadas/Actualizadas (`.cursor/rules/`):**
+   - `.cursor/rules/main.mdc` (Reglas maestras `alwaysApply: true` + prohibición estricta de tocar programas de Mercatech en producción)
+   - `.cursor/rules/profit-mercatech.mdc` (Reglas SQL `RWC20_A` `READ-ONLY` + almacenes `01.01..01.03` + `ML-999`)
+   - `.cursor/rules/meli-integraly-advanced.mdc` (User Products `x-version`, `PxQ B2B %`, Boost, `CropWhiteSpace`, `compatibilidades.json.gz`)
+4. **Mejoras Aplicadas en Código (`MERCADOLIBRE 18042026 - copia`):**
+   - **Conexión en vivo a `\\192.168.1.10\e\FOTOS` (39,123 fotos):** Actualizados `missing-service.js`, `api/profit/photos/route.js`, `publish-helpers.js` (`resolveEffectivePhotosDir`), `.erp_settings.json`, `MassPublisherModal.js`, `missing/page.js` e `inventory/page.js` para priorizar `\\192.168.1.10\e\FOTOS` (y `/mnt/fotos` en R630) sobre `C:\Users\ORLANDO\Pictures\FOTOS`.
+   - **Fórmula de Stock Oficial Mercatech en `missing-service.js` y `orphan-service.js`:** Ahora filtra `co_alma IN ('01.01', '01.02', '01.03')`, `a.tipo = 'V'` y calcula `SUM(stock_act - stock_com)` en modo `READ-ONLY` (`WITH (NOLOCK)`).
+   - **Auto-Recorte de Bordes Blancos (`CropWhiteSpace` + `EnlargeImage`) en `publish-helpers.js`:** Incorporado `optimizeAutopartPhotoBuffer(rawBuffer)` con `sharp.trim()` + escalado a `1380x1380` sobre lienzo `1500x1500` blanco puro antes de subir fotos a `POST /pictures/items/upload`.
+
+---
+
+### Sesión 2026-10-07 (Handoff Antigravity → Cursor) — HEAD `769831f`
+- **Producción:** Dell PowerEdge R630 — app Coolify CT 101 en `192.168.1.58:3001` · Coolify UI `http://192.168.1.58:8000`.
+- **PostgreSQL local R630:** `192.168.1.58:5432/postgres` (fuente de `products`, `orphan_proposals`, cuentas OAuth).
+- **Profit Plus:** SQL Server `192.168.1.10:1433` / DB `RWC20_A` — **SOLO LECTURA** (`WITH (NOLOCK)`). Nunca escribir.
+
+#### ✅ Resuelto en código (no rehacer)
+1. **`VEHICLE_TYPE` MLV:** valor fijo `{ value_id: "11377043", value_name: "Carro/Camioneta" }` en `src/lib/publish-helpers.js` (`inferDefaultAttributeValue` / `buildDynamicAttributes`). Antes fallaba con `"Auto/Camioneta"`.
+2. **Tienda Oficial World Cars:** `getOfficialStoreId()` en `src/lib/meli.js` consulta `/users/{user_id}/brands`; fallback `official_store_id = 71674`.
+3. **MassPublisherModal CSS puro:** `src/components/inventory/MassPublisherModal.css` (el proyecto no usa Tailwind en este modal).
+4. **Fotos naming:** `{SKU}-0.jpg` … `{SKU}-n.jpg`. Sin match exacto/equivalencias → placeholder Tienda Oficial (caso SKU `8043` documentado: existen `38043-*` / `ES-80431-*` pero no `8043-0.jpg`).
+5. **Módulo Huérfanos/Descontinuados (aprobación humana obligatoria):**
+   - Motor: `src/modules/profit/orphan-service.js` (bidireccional Profit ↔ ML).
+   - APIs: `GET /api/profit/orphans`, `POST .../approve`, `POST .../reject`.
+   - UI: `/dashboard/orphans` + link en Sidebar y cabecera de `/dashboard/missing`.
+   - Tabla PG: `orphan_proposals`. Aprobar actualiza `SELLER_SKU`, precio, stock y reactiva en ML.
+6. **Módulo Faltantes por sublínea:** `/dashboard/missing` + `src/modules/profit/missing-service.js` (lotes, equivalencias/OEM, fotos, export SEO/RWC 2 hojas).
+
+#### 🔜 Siguiente acción recomendada
+1. En R630: instalar `cifs-utils`, montar `//192.168.1.10/e/FOTOS` → `/mnt/fotos` (**credenciales fuera del repo**; no commitear password).
+2. Coolify → Storages → Bind Mount Host `/mnt/fotos` → Contenedor `/mnt/fotos`.
+3. Probar publicación/faltantes leyendo fotos reales desde el contenedor.
+
+#### ⚠️ Archivos calientes (un escritor a la vez)
+`publish-helpers.js`, `meli.js`, `MassPublisherModal.*`, `orphan-service.js`, `missing-service.js`, páginas `orphans` / `missing`.
+
+### Archivo — Sesión 2026-09-29 (R630 / Coolify)
+- Despliegue Docker/Coolify ya operativo en `192.168.1.58`. Preparativos históricos: `Dockerfile`, `next.config.mjs` standalone, `deploy/coolify/`, `scripts/setup-coolify-r630.md`.
+

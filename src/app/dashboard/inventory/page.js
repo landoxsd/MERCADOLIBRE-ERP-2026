@@ -1405,7 +1405,7 @@ export default function InventoryAuditPage() {
             onClose={() => setBatchModalOpen(false)}
             selectedItems={batchItemsToPublish}
             accountId={activeAccount}
-            defaultPhotosPath="C:\\Users\\ORLANDO\\Pictures\\FOTOS"
+            defaultPhotosPath="\\\\192.168.1.10\\e\\FOTOS"
           />
         </div>
       )}

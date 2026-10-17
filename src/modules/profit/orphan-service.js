@@ -24,10 +24,11 @@ export async function getOrphanSuggestions({ page = 1, limit = 50, filter = 'pen
       ISNULL(st.stock_total, 0) as stock_total
     FROM art a WITH (NOLOCK)
     JOIN (
-      SELECT co_art, SUM(stock_act) as stock_total 
+      SELECT co_art, SUM(stock_act - stock_com) as stock_total 
       FROM st_almac WITH (NOLOCK) 
+      WHERE co_alma IN ('01.01', '01.02', '01.03')
       GROUP BY co_art 
-      HAVING SUM(stock_act) > 0
+      HAVING SUM(stock_act - stock_com) > 0
     ) st ON a.co_art = st.co_art
     WHERE (a.art_des LIKE '%DESCONTINUADO%USE%' OR a.art_des LIKE '%DESCONTINUADO%')
       AND a.anulado = 0

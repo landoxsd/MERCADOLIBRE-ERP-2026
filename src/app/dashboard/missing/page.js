@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import styles from './Missing.module.css';
 import MassPublisherModal from '@/components/inventory/MassPublisherModal';
 
@@ -544,7 +545,7 @@ export default function MissingProductsPage() {
           onClose={() => setBatchModalOpen(false)}
           selectedItems={batchItemsToPublish}
           accountId={activeAccount}
-          defaultPhotosPath="C:\Users\ORLANDO\Pictures\FOTOS"
+          defaultPhotosPath={"\\\\192.168.1.10\\e\\FOTOS"}
         />
       )}
     </div>

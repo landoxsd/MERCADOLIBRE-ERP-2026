@@ -1,0 +1,41 @@
+---
+description: Reglas de integración con Profit Plus (RWC20_A) y lógica extraída por Ingeniería Inversa de Mercatech Sync
+globs: src/modules/profit/**/*, src/app/api/profit/**/*, SQL/**/*, scripts/**/*
+alwaysApply: false
+---
+
+# Reglas de Profit Plus (`RWC20_A`) y Mercatech Sync (Ingeniería Inversa REA)
+
+## 1. Directiva de Seguridad en Base de Datos
+- **Servidor:** `192.168.1.10:1433` · Base de datos: `RWC20_A`.
+- **MODO ESTRICTO SOLO LECTURA (`READ-ONLY`):** Jamás ejecutar `INSERT`, `UPDATE`, `DELETE` ni procedimientos almacenados de escritura (`pp_ins_pedidos`, `pActualizarPrecioCostoManual`, `pStockActualizar`) desde el ERP Next.js.
+- **Hint Obligatorio:** Todas las tablas consultadas (`art`, `st_almac`, `pedidos`, `reng_ped`, `factura`, `reng_fac`, `tasas`) deben incluir `WITH (NOLOCK)`.
+
+## 2. Fórmula Oficial de Stock Disponible de Corporación R.W.C. (Extraída de Mercatech)
+En `sync-mercatech-precios.jar` (`SQLStockProductDAOImplProfit2k8`), el stock real vendible en Mercado Libre se calcula exclusivamente sobre los **3 almacenes operativos** (`01.01`, `01.02`, `01.03`):
+```sql
+SELECT ISNULL(SUM(AA.stock_act) - SUM(AA.stock_com), 0) AS stock_disponible
+FROM [RWC20_A].dbo.st_almac AA WITH (NOLOCK)
+WHERE AA.co_alma IN ('01.01', '01.02', '01.03')
+  AND AA.co_art = @co_art
+```
+- **Filtro de Artículos Vendibles (`SQLProductDAOImplProfit2k8`):**
+  Solo sincronizar artículos con `tt.tipo = 'V'` y `tt.anulado = 0`.
+
+## 3. Trazabilidad de Pedidos Mercado Libre en Profit Plus (`TestGetOrders`)
+Mercatech inyectaba las órdenes de Mercado Libre en `[RWC20_A].[dbo].[pedidos]` con la siguiente convención que debemos usar para **auditoría y conciliación READ-ONLY**:
+- `co_cli = 'ML-999'` (Cliente genérico Mercado Libre)
+- `co_ven = '00001'`
+- `co_sucu = '01'`
+- `co_alma = '01.01'`
+- `moneda = 'US$'`
+- `rif = idml` (En la versión `2025` de `sync-mercatech-pedido.jar`, el ID de la orden de Mercado Libre se guarda en el campo `rif` o `campo3` del pedido).
+- `campo4`: Código del comprador (`customer_code`)
+- `campo5`: Nombre del comprador (`customer_name`)
+- `campo6`: Nickname de Mercado Libre (`customer_nickname`)
+- `campo7`: Teléfono del comprador (`customer_phone`)
+- `campo8`: Tasa de cambio BCV/interna vigente al momento de la orden (`OrderDAO.getTasaActual('US$')`).
+
+## 4. Lógica de Combos / Cajas (`syncBoxProduct`)
+- Un **Combo / Kit Virtual** agrupa múltiples SKUs hijos de Profit Plus (`co_art_hijo`, `cantidad_requerida`).
+- **Stock del Combo:** `MIN(FLOOR(stock_disponible_hijo / cantidad_requerida))`. Si algún componente llega a `0`, el Combo completo se pausa en Mercado Libre.

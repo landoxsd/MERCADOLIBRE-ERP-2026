@@ -1,22 +1,39 @@
 ---
-description: Reglas principales del proyecto MercadoLibre ERP Venezuela 2026 para Cursor
+description: Reglas principales del proyecto MercadoLibre ERP Venezuela 2026 para Cursor y Agentes IA
 globs: **/*
+alwaysApply: true
 ---
 
-# Reglas Maestras del Proyecto — MercadoLibre ERP 2026
+# Reglas Maestras del Proyecto — MercadoLibre ERP Venezuela 2026
 
-## Contexto del Proyecto
-- **Propósito:** ERP y Gestor de Inteligencia Competitiva para Mercado Libre Venezuela (MLV), especializado en Autopartes (43,000+ SKUs de Profit Plus).
-- **Stack:** Next.js 14 (App Router) + Supabase (PostgreSQL) + Mercado Libre Official API + Gemini 3.6 Flash IA.
+## 1. Contexto e Infraestructura Actualizada (Octubre 2026)
+- **Propósito:** ERP y Gestor de Inteligencia Competitiva para Mercado Libre Venezuela (`MLV`), especializado en Autopartes (`CORPORACION R.W.C. C.A.`, RIF `J295811438`, 43,000+ SKUs de Profit Plus).
+- **Stack:** Next.js 14 (App Router) + PostgreSQL Local Dell R630 (`192.168.1.58:5432`) / Supabase + Profit Plus SQL Server (`192.168.1.10:1433`, DB `RWC20_A`) + Mercado Libre Official API + Google Gemini 3.6 Flash IA (Pool 4 Keys).
+- **Producción:** Dell PowerEdge R630 (Coolify CT 101 en `http://192.168.1.58:3001`).
+- **Fuentes de Ingeniería Inversa Integradas (REA):**
+  1. **Mercatech Sync (`rwcagente 2.0-SNAPSHOT`)**: `c:\DEVELOPER\INGENIERIA INVERSA\mercatech\REPORTE_INGENIERIA_INVERSA_MERCATECH.md`
+  2. **Integraly Add-In (`v2.2.0.5` y `v2.2.0.6`)**: `c:\DEVELOPER\INGENIERIA INVERSA\INTEGRALY\REPORTE_INGENIERIA_INVERSA_v2_2_0_6.md`
 
-## Reutilización Obligatoria (No reinventar la rueda)
-- **Consultas ML:** Usar `meliGet()` de `src/lib/meli.js`.
+## 2. Reutilización Obligatoria (No reinventar la rueda)
+- **Consultas ML:** Usar `meliGet()` de `src/lib/meli.js` (con retry y backoff adaptativo).
 - **Auth ML:** Usar `getValidAccessToken()` de `src/lib/meli-auth-helper.js`.
-- **Base de Datos:** Usar `supabaseAdmin` de `src/lib/supabase-admin.js`.
-- **Inteligencia Artificial:** Usar `generateWithGemini()` y `enrichAutopartListing()` de `src/lib/gemini.js` (pool de 4 API keys).
-- **Categorías:** Catálogo en `autoparts_leaf_categories.json` y tabla `category_mappings` en Supabase.
+- **Base de Datos App:** Usar `supabaseAdmin` / `pgPool` de `src/lib/supabase-admin.js`.
+- **Cliente Profit Plus:** Usar `src/modules/profit/profit-client.js` (estrictamente **SOLO LECTURA** con `WITH (NOLOCK)`).
+- **Inteligencia Artificial:** Usar `generateWithGemini()` y `enrichAutopartListing()` de `src/lib/gemini.js`.
+- **Categorías y Fitment Vehicular:** Catálogo en `autoparts_leaf_categories.json`, tabla `category_mappings`, `src/lib/vehicle-catalog.js` y diccionario maestro `compatibilidades.json.gz`.
 
-## Restricciones Críticas
-1. **Secretos:** Nunca exponer o tocar archivos `.env*` ni incluir claves en commits.
-2. **Edición Quirúrgica:** Hacer reemplazos precisos de bloques de código. Evitar sobrescribir componentes enteros.
-3. **Persistencia:** Al terminar cada bloque de trabajo, documentar el avance en `memoria.md`.
+## 3. Skills Modulares Disponibles (`.agents/skills/` y `.clineskills/`)
+- `meli_expert`: API MLV, User Products (`x-version`), Multiget adaptativo, Desglose financiero de ventas.
+- `meli_batch_publisher`: Publicación masiva SSE, fotos SMB (`/mnt/fotos`), auto-recorte de bordes blancos (`CropWhiteSpace`), Kits Virtuales y Fitment.
+- `promo_manager`: Campañas MLV, Promociones Boost co-financiadas (`discount_meli_boost_amount`) y Precios Mayoristas B2B (`PxQ B2B %` — obligatorio antes del 27/10/2026).
+- `meli_seo_optimizer`: Score `/item/{id}/performance`, Quirófano PUT de atributos y compatibilidades.
+- `sniper_logic`: Seller Spy, Radar de Categorías, Top 20, Keywords Inverso.
+- `profit_mercatech_sync`: Consultas SQL exactas de Profit Plus (`RWC20_A`), almacenes `01.01..01.03`, Combos y auditoría de pedidos `ML-999`.
+- `integraly_reverse_knowledge`: Algoritmos extraídos por ingeniería inversa de Integraly `v2.2.0.5` y `v2.2.0.6`.
+
+## 4. Restricciones Críticas Inquebrantables
+1. **PROFIT PLUS 100% READ-ONLY:** Prohibido ejecutar `INSERT`, `UPDATE`, `DELETE` o `EXEC` de escritura contra SQL Server (`192.168.1.10:1433` / `RWC20_A`). Toda consulta debe llevar `WITH (NOLOCK)`.
+2. **NO TOCAR LOS PROGRAMAS DE MERCATECH:** Los ejecutables, configuraciones (`.jar`, `.bat`, `.properties`) y tareas programadas de **Mercatech Sync** están operando actualmente en producción. Queda **TERMINANTEMENTE PROHIBIDO** modificarlos, detenerlos o interferir con su funcionamiento hasta que el usuario decida explícitamente reemplazarlos. Todo el desarrollo se realiza únicamente dentro de `MERCADOLIBRE 18042026 - copia` (nuestro ERP Next.js).
+3. **Secretos:** Nunca exponer o tocar archivos `.env*` ni incluir claves en commits.
+4. **Edición Quirúrgica:** Hacer reemplazos precisos de bloques de código. Evitar sobrescribir componentes enteros.
+5. **Persistencia:** Al terminar cada bloque de trabajo, documentar el avance en `memoria.md`.

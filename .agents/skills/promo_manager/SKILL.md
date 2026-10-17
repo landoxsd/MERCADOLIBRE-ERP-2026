@@ -171,8 +171,27 @@ El endpoint `/sites/MLV/search` está **bloqueado (403 siempre)** en MLV.
   "min_discounted_price": 17.63,
   "max_discounted_price": 83.75,
   "suggested_discounted_price": 79.34,
+  "discount_meli_boost_amount": 4.41,
   "start_date": "2026-05-01T00:00:00-04:00",
   "finish_date": "2026-06-01T00:00:00-04:00",
   "name": "Reto autopartista 2026"
 }
 ```
+
+---
+
+## 🚀 Novedades Octubre 2026 (Ingeniería Inversa Integraly `v2.2.0.6`)
+
+### 1. Promociones Co-Financiadas Boost (`discount_meli_boost_amount`)
+- Mercado Libre expone el monto/porcentaje subsidiado directamente por la plataforma en el campo `discount_meli_boost_amount` (además de `meli_percentage` y `seller_percentage`).
+- **Cálculo de Margen Protegido:** Al evaluar si una promoción es rentable frente al costo de Profit Plus (`RWC20_A`), descontar únicamente el aporte del vendedor (`seller_percentage`), ya que `discount_meli_boost_amount` es absorbido por Mercado Libre.
+
+### 2. Precios Mayoristas por Cantidad B2B (`PxQ B2B %` — Deadline 27/10/2026)
+- **Aviso Crítico:** El **27 de octubre de 2026**, Mercado Libre apaga el esquema antiguo de precios por cantidad.
+- **Nuevo Esquema `PxQ B2B %`:**
+  - Permite configurar hasta **5 tramos (`Tiers 1..5`)** por publicación.
+  - Cada tramo especifica `min_purchase_unit` (cantidad mínima entera) y `discount_percentage` (`%` de descuento sobre el precio base).
+  - **Regla de Validación Monótona (`ValidarTramosPxQ`):**
+    1. `min_qty_1 < min_qty_2 < min_qty_3 < min_qty_4 < min_qty_5` (estrictamente crecientes).
+    2. `desc_pct_1 < desc_pct_2 < desc_pct_3 < desc_pct_4 < desc_pct_5` (estrictamente crecientes, entre `1%` y `80%`).
+

@@ -9,7 +9,12 @@ import { Pool } from "pg";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-const postgresUrl = process.env.DATABASE_URL || process.env.DIRECT_URL || "postgresql://postgres:LaV65QIkQ1mujjpc6KA0RWqZBX4FqcbAcUR9NtTBOrMgfRyRRvAksmaCcZepXk7o@192.168.1.58:5432/postgres";
+const R630_POSTGRES_URL = "postgresql://postgres:LaV65QIkQ1mujjpc6KA0RWqZBX4FqcbAcUR9NtTBOrMgfRyRRvAksmaCcZepXk7o@192.168.1.58:5432/postgres";
+const envDbUrl = process.env.DATABASE_URL || process.env.DIRECT_URL || "";
+const postgresUrl =
+  envDbUrl && !envDbUrl.includes("zqxesjcchykncxpekmbz.supabase.co")
+    ? envDbUrl
+    : R630_POSTGRES_URL;
 
 // Singleton PostgreSQL Pool
 const globalForPg = globalThis;
@@ -119,7 +124,7 @@ export const accountsTable = () => {
       update: (record) => ({
         eq: async (col, val) => {
           try {
-            const keys = Object.keys(record);
+            const keys = Object.keys(record).filter((k) => k !== "updated_at");
             const setClauses = keys.map((k, idx) => `${k} = $${idx + 2}`).join(", ");
             const values = [val, ...keys.map((k) => record[k])];
             await pgPool.query(

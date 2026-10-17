@@ -43,6 +43,10 @@ Cuando se trabaje en el módulo de Inteligencia de Mercado, siga este flujo:
 ---
 
 ## 🧠 5. USO DE SKILLS
-La IA tiene acceso a habilidades modulares en `.clineskills/`. Cargue la habilidad correspondiente según la tarea:
-- `meli_expert.md`: Para lógica profunda de la API de Meli.
-- `supabase_expert.md`: Para consultas complejas y migraciones.
+La IA tiene acceso a habilidades modulares en `.clineskills/` y `.agents/skills/`. Cargue la habilidad correspondiente según la tarea:
+- `meli_expert.md`: Para lógica profunda de la API de Meli, User Products (`x-version`) y auditoría financiera de órdenes.
+- `profit_mercatech_sync.md`: Para consultas SQL READ-ONLY a Profit Plus (`RWC20_A`), almacenes `01.01..01.03`, Combos y pedidos `ML-999`.
+- `integraly_reverse_knowledge.md`: Para compatibilidades vehiculares (`compatibilidades.json.gz`), auto-recorte de fotos (`CropWhiteSpace`), Boost (`discount_meli_boost_amount`) y precios B2B (`PxQ B2B %`).
+- `sniper_logic.md`: Para inteligencia competitiva y Seller Spy.
+- `ui_premium.md`: Para diseño Dark Mode Glassmorphism.
+

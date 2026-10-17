@@ -5,7 +5,7 @@ import { getSettings } from "@/lib/settings";
 import { getValidAccessToken } from "@/lib/meli-auth-helper";
 import { getCategoryAttributes } from "@/lib/meli";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { loadPublishedSkuSet } from "@/lib/publish-helpers";
+import { loadPublishedSkuSet, resolveEffectivePhotosDir, loadAvailablePhotoFiles } from "@/lib/publish-helpers";
 import { buildPublishPreview } from "@/lib/publication-quality-engine";
 import { resolveVehiclePhotosDir } from "@/lib/vehicle-catalog";
 
@@ -36,7 +36,7 @@ export async function POST(req) {
     }
 
     const settings = getSettings();
-    const effectivePhotosPath = (photosPath && photosPath.trim()) || settings.photosPath || "";
+    const effectivePhotosPath = resolveEffectivePhotosDir(photosPath, settings.photosPath);
     const hasValidPhotosDir = effectivePhotosPath && fs.existsSync(effectivePhotosPath);
     const vehiclePhotosPath =
       hasValidPhotosDir && effectivePhotosPath
@@ -45,14 +45,7 @@ export async function POST(req) {
 
     const accessToken = await getValidAccessToken(accountId);
 
-    let localFiles = [];
-    if (hasValidPhotosDir) {
-      try {
-        localFiles = fs.readdirSync(effectivePhotosPath);
-      } catch {
-        // Sin fotos locales
-      }
-    }
+    const localFiles = await loadAvailablePhotoFiles(effectivePhotosPath);
 
     let publishedSkuSet = new Set();
     if (skipDuplicates) {

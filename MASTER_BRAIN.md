@@ -134,6 +134,15 @@
 34. Publicador Masivo API con Streaming SSE y Fotos Locales — .agents/skills/meli_batch_publisher/SKILL.md
 35. Enriquecedor de Autopartes con Gemini 3.6 Flash Multi-Key (60 RPM) — src/lib/gemini.js
 
+### Ingeniería Inversa REA: Mercatech Sync & Integraly v2.2.0.5/v2.2.0.6 (36-42)
+36. Stock Multi-Almacén RWC (`01.01..01.03`) y Conciliación Pedidos `ML-999` — .agents/skills/profit_mercatech_sync/SKILL.md
+37. Sincronización Stock User Products (UP) Multi-Warehouse con `x-version` — .agents/skills/integraly_reverse_knowledge/SKILL.md
+38. Motor Compatibilidades Vehiculares (`compatibilidades.json.gz` + Similitud de Coseno) — .agents/skills/integraly_reverse_knowledge/SKILL.md
+39. Auto-Recorte de Bordes Blancos y Maximización de Miniatura (`CropWhiteSpace`) — .agents/skills/meli_batch_publisher/SKILL.md
+40. Generador de Combos y Kits Virtuales (`syncBoxProduct` + `FormOpenAISugerirKitsVirtuales`) — .agents/skills/profit_mercatech_sync/SKILL.md
+41. Promociones Co-Financiadas Boost (`discount_meli_boost_amount`) y Precios Mayoristas B2B (`PxQ B2B %` — deadline 27/10/2026) — .agents/skills/promo_manager/SKILL.md
+42. Auditoría Financiera Neta de Ventas (`FormListadoVentas` `v2.2.0.6`) — .agents/skills/meli_expert/SKILL.md
+
 ---
 
 ## 4. Sprint 6 En Progreso

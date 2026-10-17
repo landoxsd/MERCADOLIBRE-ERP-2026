@@ -108,3 +108,27 @@ Extraer IDs via regex: `/MLV\d{9,12}/g` sobre el HTML completo.
   - Teléfono: párrafos con texto "Teléfono:".
   - Receptor: párrafos con texto "Quien recibe:".
 - **Sincronización de Pesos**: Extraer de `/vendedor/productos` para cálculo de fletes.
+
+---
+
+## 📦 Sincronización de Stock en User Products (UP) y Multi-Warehouse (Octubre 2026)
+
+Descubierto mediante ingeniería inversa REA de **Integraly (`v2.2.0.5` / `v2.2.0.6`)**:
+1. **Consultar Stock y Versión (`GET /user-products/{user_product_id}/stock`)**:
+   - Extraer la cabecera de respuesta HTTP `x-version` (entero de control de concurrencia optimista).
+   - Revisar `locations[]` (`seller_warehouse` vs `selling_address`).
+2. **Actualizar Stock por Depósito (`PUT /user-products/{user_product_id}/stock/type/seller_warehouse`)**:
+   - Incluir obligatoriamente el header `x-version: {version}`.
+3. **Fallback Automático (`GrabarStockNivelItemAsync`)**:
+   - Si `selling_address` rechaza la edición (`400`/`403`) o la publicación aún no opera bajo multi-warehouse, hacer fallback transparente a `PUT /items/{item_id}` con `{ "available_quantity": stock }`.
+
+## 💰 Desglose Financiero de Órdenes y Rentabilidad Real (`v2.2.0.6`)
+
+Para calcular el ingreso neto real por orden (`GET /orders/search`):
+- `Bruto` = `unit_price * quantity`
+- `Comisión ML` = `order_items[].sale_fee * quantity`
+- `Costo Envío Seller` = `shipping.cost` (cuando corre por cuenta del vendedor)
+- `Impuestos` = `taxes.amount`
+- **`Neto a Recibir`** = `Bruto - Comisión ML - Costo Envío Seller - Impuestos`
+- Cruzar contra el costo de reposición en Profit Plus (`prec_vta5` / `ult_cos_un`) y flag de atribución de campaña publicitaria (`PADS`).
+

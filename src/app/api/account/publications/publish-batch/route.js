@@ -19,6 +19,8 @@ import {
   loadPublishedSkuSet,
   buildDefaultDescription,
   injectVehiclePhoto,
+  resolveEffectivePhotosDir,
+  loadAvailablePhotoFiles,
 } from "@/lib/publish-helpers";
 import {
   getVehiclesForSku,
@@ -63,7 +65,7 @@ export async function POST(req) {
     }
 
     const settings = getSettings();
-    const effectivePhotosPath = (photosPath && photosPath.trim()) || settings.photosPath || "";
+    const effectivePhotosPath = resolveEffectivePhotosDir(photosPath, settings.photosPath);
     const hasValidPhotosDir = effectivePhotosPath && fs.existsSync(effectivePhotosPath);
 
     const accessToken = await getValidAccessToken(accountId);
@@ -106,14 +108,7 @@ export async function POST(req) {
         alreadyPublished: publishedSkuSet.size,
       });
 
-      let localFiles = [];
-      if (hasValidPhotosDir) {
-        try {
-          localFiles = fs.readdirSync(effectivePhotosPath);
-        } catch (e) {
-          console.error("Error leyendo directorio de fotos:", e.message);
-        }
-      }
+      const localFiles = await loadAvailablePhotoFiles(effectivePhotosPath);
 
       for (let index = 0; index < items.length; index++) {
         const item = items[index];

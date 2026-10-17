@@ -24,7 +24,7 @@ export default function MassPublisherModal({
   onClose, 
   selectedItems = [], 
   accountId,
-  defaultPhotosPath = "C:\\Users\\ORLANDO\\Pictures\\FOTOS" // Raíz FOTOS; fotos vehículo en CARROS/ 
+  defaultPhotosPath = "\\\\192.168.1.10\\e\\FOTOS" // Raíz FOTOS en servidor Profit; fotos vehículo en CARROS/ 
 }) {
   const [step, setStep] = useState(1);
   const [photosPath, setPhotosPath] = useState(defaultPhotosPath);
