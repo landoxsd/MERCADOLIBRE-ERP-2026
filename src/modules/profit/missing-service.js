@@ -127,13 +127,13 @@ export function generateSEO(rawTitle) {
   seoTitle = seoTitle
     .replace(/[,()]/g, ' ')
     .replace(/\.([A-Z])/g, ' $1')
-    .replace(/\./g, ' ')
+    .replace(/(?<!\d)\.|(\.(?!\d))/g, ' ')
     .replace(/\b(DE|LA|EL|LOS|LAS|CON|PARA|DEL)\b/gi, '')
     .replace(/NUEVO|OFERTA|PROMO|BARATO|ENVIO GRATIS|EXCELENTE|GARANTIZADO|ORIGINAL|REEMPLAZO/gi, '')
     .replace(/\s+/g, ' ')
     .trim();
   
-  let finalTitle = seoTitle.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+  let finalTitle = seoTitle.toLowerCase().replace(/(?:^|\s|-|\/)\S/g, c => c.toUpperCase());
 
   if (finalTitle.length > 60) {
     let truncated = finalTitle.substring(0, 60);
@@ -148,10 +148,13 @@ export function generateSEO(rawTitle) {
 }
 
 export function generateDescription(item) {
-  const oem = item.campo7 || item.referencia || (item.equivalencias?.[0] || item.sku || 'N/A');
+  const oem = item.campo7 || (item.equivalencias?.[0] || item.sku || 'N/A');
+  const marca = item.marca && !String(item.sku || '').toUpperCase().endsWith('E') ? item.marca : 'Genérico';
   return `¡BIENVENIDOS A CORPORACION RWC!
 
 PRODUCTO: ${item.descripcion}
+MARCA: ${marca}
+CÓDIGO (SKU): ${item.sku}
 NÚMERO DE PIEZA (OEM): ${oem}
 
 -- INFORMACIÓN IMPORTANTE --
@@ -199,12 +202,15 @@ export async function getSublinesSummary({ minFaltantes = 0, search = '' } = {})
   const q = `
     SELECT 
       RTRIM(a.co_art) as sku,
+      RTRIM(ISNULL(l.lin_des, 'SIN LINEA')) as linea,
+      RTRIM(ISNULL(a.co_lin, '')) as co_lin,
       RTRIM(ISNULL(s.subl_des, 'SIN SUBLINEA')) as sublinea,
       RTRIM(ISNULL(a.co_subl, '')) as co_subl,
       RTRIM(ISNULL(a.ref, '')) as ref,
       RTRIM(ISNULL(a.campo7, '')) as campo7,
       ISNULL(st.stock_total, 0) as stock_total
     FROM art a WITH (NOLOCK)
+    LEFT JOIN lin_art l WITH (NOLOCK) ON a.co_lin = l.co_lin
     LEFT JOIN sub_lin s WITH (NOLOCK) ON a.co_subl = s.co_subl
     LEFT JOIN (
       SELECT co_art, SUM(stock_act - stock_com) as stock_total
@@ -246,6 +252,8 @@ export async function getSublinesSummary({ minFaltantes = 0, search = '' } = {})
 
     if (!sublinesMap.has(subName)) {
       sublinesMap.set(subName, {
+        linea: item.linea || 'SIN LINEA',
+        co_lin: item.co_lin || '',
         sublinea: subName,
         co_subl: item.co_subl,
         total_con_stock: 0,
@@ -311,11 +319,20 @@ export async function getMissingItemsBySubline(co_subl, { page = 1, limit = 50, 
       RTRIM(ISNULL(a.campo7, '')) as campo7,
       ROUND(a.prec_vta1, 2) as precio,
       ROUND(ISNULL(a.cos_pro_om, a.ult_cos_om), 2) as costo_usd,
+      RTRIM(ISNULL(l.lin_des, '')) as linea,
+      RTRIM(ISNULL(a.co_lin, '')) as co_lin,
       RTRIM(ISNULL(s.subl_des, '')) as sublinea,
       RTRIM(a.co_subl) as co_subl,
+      RTRIM(ISNULL(c.cat_des, '')) as marca,
+      RTRIM(ISNULL(a.co_cat, '')) as co_cat,
+      RTRIM(ISNULL(col.des_col, '')) as marca_vehiculo,
+      ROUND(ISNULL(NULLIF(a.pie, 0), ISNULL(a.peso, 0)), 3) as peso,
       ISNULL(st.stock_total, 0) as stock_total
     FROM art a WITH (NOLOCK)
+    LEFT JOIN lin_art l WITH (NOLOCK) ON a.co_lin = l.co_lin
     LEFT JOIN sub_lin s WITH (NOLOCK) ON a.co_subl = s.co_subl
+    LEFT JOIN cat_art c WITH (NOLOCK) ON a.co_cat = c.co_cat
+    LEFT JOIN colores col WITH (NOLOCK) ON a.co_color = col.co_col
     LEFT JOIN (
       SELECT co_art, SUM(stock_act - stock_com) as stock_total
       FROM st_almac WITH (NOLOCK)
@@ -331,6 +348,8 @@ export async function getMissingItemsBySubline(co_subl, { page = 1, limit = 50, 
     return {
       co_subl: co_subl.trim(),
       sublinea: '',
+      linea: '',
+      co_lin: '',
       total_faltantes: 0,
       total_filtrados: 0,
       total_con_foto: 0,
@@ -379,6 +398,8 @@ export async function getMissingItemsBySubline(co_subl, { page = 1, limit = 50, 
   // Un artículo se considera publicado si su SKU o CUALQUIERA de sus equivalencias está en publishedSet
   const missingItems = [];
   const sublineName = allItems[0]?.sublinea || '';
+  const lineName = allItems[0]?.linea || '';
+  const lineCode = allItems[0]?.co_lin || '';
 
   for (const item of allItems) {
     const skuUpper = item.sku.trim().toUpperCase();
@@ -454,13 +475,16 @@ export async function getMissingItemsBySubline(co_subl, { page = 1, limit = 50, 
 
     const hasPhoto = foundPhotos.length > 0;
     const primaryPhoto = foundPhotos[0] || null;
+    const isGenericE = skuRaw.toUpperCase().endsWith('E') && skuRaw.length > 2;
+    const realBrand = (item.marca || '').trim();
+    const brandSuggested = isGenericE ? 'Genérico' : (realBrand || 'Genérico');
 
     return {
       sku: skuRaw,
       descripcion: item.descripcion,
       titulo_seo: generateSEO(item.descripcion),
       descripcion_ml: generateDescription(item),
-      oem: item.campo7 || item.referencia || (item.equivalencias?.[0] || item.sku),
+      oem: item.campo7 || (item.equivalencias?.[0] || item.sku),
       modelo: item.modelo,
       referencia: item.referencia,
       campo6: item.campo6,
@@ -469,10 +493,15 @@ export async function getMissingItemsBySubline(co_subl, { page = 1, limit = 50, 
       precio: item.precio,
       costo_usd: item.costo_usd,
       stock_total: item.stock_total,
+      linea: item.linea || lineName,
+      co_lin: item.co_lin || lineCode,
       sublinea: item.sublinea,
       co_subl: item.co_subl,
-      is_generic_e: skuRaw.toUpperCase().endsWith('E'),
-      brand_suggested: skuRaw.toUpperCase().endsWith('E') ? 'Genérico / Multimarca' : 'Genérico',
+      marca: realBrand,
+      marca_vehiculo: item.marca_vehiculo || '',
+      peso: item.peso || 0,
+      is_generic_e: isGenericE,
+      brand_suggested: brandSuggested,
       has_photo: hasPhoto,
       photos_count: foundPhotos.length,
       photos: foundPhotos,
@@ -498,6 +527,7 @@ export async function getMissingItemsBySubline(co_subl, { page = 1, limit = 50, 
       it.modelo.toLowerCase().includes(term) ||
       it.referencia.toLowerCase().includes(term) ||
       it.campo7.toLowerCase().includes(term) ||
+      (it.marca || '').toLowerCase().includes(term) ||
       it.equivalencias.some(eq => eq.toLowerCase().includes(term))
     );
   }
@@ -515,6 +545,8 @@ export async function getMissingItemsBySubline(co_subl, { page = 1, limit = 50, 
   return {
     co_subl: co_subl.trim(),
     sublinea: sublineName,
+    linea: lineName,
+    co_lin: lineCode,
     total_faltantes: enrichedItems.length,
     total_filtrados: totalFiltered,
     total_con_foto: withPhotosCount,

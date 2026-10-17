@@ -440,11 +440,15 @@ export async function getCategoryAttributes(categoryId) {
     if (!res.ok) return [];
     const attributes = await res.json();
     
-    // Filtramos atributos que son obligatorios de forma general o para catalogo
-    return attributes.filter(a => 
-      (a.tags && a.tags.required) || 
-      (a.tags && a.tags.catalog_required)
-    );
+    // Devolvemos tanto los obligatorios como los atributos secundarios editables (no ocultos ni solo lectura)
+    return attributes.filter(a => {
+      if (!a || !a.id) return false;
+      const tags = a.tags || {};
+      if (tags.read_only) return false;
+      if (tags.required || tags.catalog_required) return true;
+      if (tags.hidden) return false;
+      return true;
+    });
   } catch (err) {
     console.error("Error obteniendo atributos de categoría:", err);
     return [];

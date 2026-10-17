@@ -1,28 +1,36 @@
 /**
  * src/lib/scrapling-client.js
- * Conector Node.js → Microservicio Scrapling Python (puerto 8765)
- *
- * Uso:
- *   import { scraplingSerp } from '@/lib/scrapling-client';
- *   const data = await scraplingSerp({ query: 'amortiguador aveo', myItemIds: ['MLV824681578'] });
- *
- * Fallback automático: si el servicio Python no está corriendo,
- * devuelve un error claro (no rompe el ERP).
+ * Conector Node.js →
+ *   1) Puente Integraly Search API (/sites/MLV/search en puerto 8088, ~0.4s sin bloqueos Anubis)
+ *   2) Microservicio Scrapling Python (puerto 8765, fallback Camoufox)
  */
 
 const SCRAPLING_BASE = process.env.SCRAPLING_SERVICE_URL || 'http://127.0.0.1:8765';
-const TIMEOUT_MS = 90_000; // 90s — StealthyFetcher puede tardar ~30s
-
-// ── Healthcheck ──────────────────────────────────────────────
+const BRIDGE_CANDIDATES = [
+  process.env.PHOTO_BRIDGE_URL,
+  'http://127.0.0.1:8088',
+  'http://192.168.1.97:8088',
+].filter(Boolean);
+const TIMEOUT_MS = 90_000;
 
 /**
- * Verifica si el microservicio Scrapling está activo.
+ * Verifica si el puente Integraly (8088) o el microservicio Scrapling (8765) está activo.
  * @returns {Promise<boolean>}
  */
 export async function isScraplingAvailable() {
+  for (const base of BRIDGE_CANDIDATES) {
+    try {
+      const res = await fetch(`${base}/health`, {
+        signal: AbortSignal.timeout(2500),
+      });
+      if (res.ok) return true;
+    } catch {
+      // try next
+    }
+  }
   try {
     const res = await fetch(`${SCRAPLING_BASE}/health`, {
-      signal: AbortSignal.timeout(3000),
+      signal: AbortSignal.timeout(2500),
     });
     return res.ok;
   } catch {
@@ -30,40 +38,39 @@ export async function isScraplingAvailable() {
   }
 }
 
-// ── SERP Position Tracker ────────────────────────────────────
-
 /**
  * Extrae el SERP de MLV Venezuela y calcula la posición de tus items.
- *
- * @param {object} params
- * @param {string}   params.query        - Término de búsqueda (ej. "amortiguador aveo")
- * @param {string[]} params.myItemIds    - IDs propios para calcular posición (ej. ["MLV824681578"])
- * @param {number}   [params.maxResults] - Máximo de resultados (default 48)
- *
- * @returns {Promise<{
- *   ok: boolean,
- *   query: string,
- *   url: string,
- *   total_found: number,
- *   results: Array<{
- *     position: number,
- *     id: string,
- *     title: string,
- *     price_usd: number|null,
- *     price_ves: number|null,
- *     seller: string,
- *     sold_quantity: number,
- *     free_shipping: boolean,
- *     rating: number|null,
- *     thumbnail: string|null,
- *     url: string,
- *   }>,
- *   my_positions: Record<string, number>,
- *   elapsed_seconds: number,
- *   error?: string,
- * }>}
+ * Prioriza el puente Integraly API (/sites/MLV/search + multiget) y usa Scrapling Python como fallback.
  */
-export async function scraplingSerp({ query, myItemIds = [], maxResults = 48 }) {
+export async function scraplingSerp({ query, nickname = '', category = '', myItemIds = [], maxResults = 48, offset = 0 }) {
+  // 1. Intentar primero por el Puente Integraly (0.4s, API oficial MLV sin Anubis)
+  for (const base of BRIDGE_CANDIDATES) {
+    try {
+      const res = await fetch(`${base}/serp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query,
+          nickname,
+          category,
+          max_results: maxResults,
+          offset,
+          my_item_ids: myItemIds,
+        }),
+        signal: AbortSignal.timeout(15000),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.ok && Array.isArray(data.results)) {
+          return data;
+        }
+      }
+    } catch {
+      // Probar siguiente candidato
+    }
+  }
+
+  // 2. Fallback a Scrapling Python (puerto 8765)
   try {
     const res = await fetch(`${SCRAPLING_BASE}/serp`, {
       method: 'POST',
@@ -83,16 +90,15 @@ export async function scraplingSerp({ query, myItemIds = [], maxResults = 48 }) 
 
     const data = await res.json();
     return { ok: true, ...data };
-
   } catch (err) {
     const isTimeout = err.name === 'TimeoutError' || err.name === 'AbortError';
     const isOffline = err.cause?.code === 'ECONNREFUSED';
 
     let error;
     if (isOffline) {
-      error = 'Scrapling service offline. Ejecuta scrapling-service/start.bat para iniciarlo.';
+      error = 'Servicio de búsqueda de terceros no disponible.';
     } else if (isTimeout) {
-      error = `Scrapling timeout (${TIMEOUT_MS / 1000}s). La página puede estar cargando lentamente.`;
+      error = `Timeout (${TIMEOUT_MS / 1000}s) consultando SERP.`;
     } else {
       error = err.message;
     }
@@ -102,19 +108,6 @@ export async function scraplingSerp({ query, myItemIds = [], maxResults = 48 }) 
   }
 }
 
-// ── Item Extractor ───────────────────────────────────────────
-
-/**
- * Extrae el Seller ID de un Item directo de MLV usando Camoufox.
- *
- * @param {string} itemId - ID del ítem (ej. "MLV751567972")
- * @returns {Promise<{
- *   ok: boolean,
- *   seller_id?: number,
- *   url?: string,
- *   error?: string
- * }>}
- */
 export async function scraplingItem(itemId) {
   try {
     const res = await fetch(`${SCRAPLING_BASE}/item`, {
@@ -131,35 +124,11 @@ export async function scraplingItem(itemId) {
 
     const data = await res.json();
     return { ok: true, seller_id: data.seller_id, url: data.url };
-
   } catch (err) {
-    const isTimeout = err.name === 'TimeoutError' || err.name === 'AbortError';
-    const isOffline = err.cause?.code === 'ECONNREFUSED';
-
-    let error;
-    if (isOffline) {
-      error = 'Scrapling service offline. Ejecuta scrapling-service/start.bat para iniciarlo.';
-    } else if (isTimeout) {
-      error = `Scrapling timeout (${TIMEOUT_MS / 1000}s). La página del artículo cargó muy lento.`;
-    } else {
-      error = err.message;
-    }
-
-    console.error('[scrapling-client] Error:', error);
-    return { ok: false, error };
+    return { ok: false, error: err.message };
   }
 }
 
-// ── Seller from Item URL ─────────────────────────────────────
-
-/**
- * Encuentra el Seller (nickname) de un ítem dado su URL completa (con slug de título).
- * Usa el SERP de MLV para encontrar al vendedor sin abrir la página del producto.
- * Funciona porque el SERP bypasea Anubis con Camoufox, mientras que la página del artículo no.
- *
- * @param {string} itemUrl - URL completa: "https://articulo.mercadolibre.com.ve/MLV-824681578-amortiguador-..."
- * @returns {Promise<{ ok: boolean, nickname?: string, item_id?: string, matched_item_id?: string, error?: string }>}
- */
 export async function scraplingSellerFromItem(itemUrl) {
   try {
     const res = await fetch(`${SCRAPLING_BASE}/seller-item`, {
@@ -184,15 +153,7 @@ export async function scraplingSellerFromItem(itemUrl) {
       };
     }
     return { ok: false, error: 'Seller not found in SERP' };
-
   } catch (err) {
-    const isTimeout = err.name === 'TimeoutError' || err.name === 'AbortError';
-    const isOffline = err.cause?.code === 'ECONNREFUSED';
-    let error;
-    if (isOffline) error = 'Scrapling service offline.';
-    else if (isTimeout) error = `Scrapling timeout (${TIMEOUT_MS / 1000}s).`;
-    else error = err.message;
-    console.error('[scrapling-client] seller-item error:', error);
-    return { ok: false, error };
+    return { ok: false, error: err.message };
   }
 }

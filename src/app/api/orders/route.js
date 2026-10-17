@@ -14,26 +14,33 @@ export async function GET(request) {
         const activeAccountId = cookieStore.get("meli_erp_account")?.value;
 
         const { searchParams } = new URL(request.url);
-        const accountId = searchParams.get("accountId") || activeAccountId;
+        let accountId = searchParams.get("accountId") || activeAccountId;
         const limit = parseInt(searchParams.get("limit") || "10", 10);
         const status = searchParams.get("status") || ""; // paid, pending, cancelled
 
-        if (!accountId) {
-            return NextResponse.json({ error: "No hay cuenta activa" }, { status: 401 });
+        let account = null;
+        if (accountId) {
+            const { data } = await accountsTable()
+                .select("id, meli_user_id, nickname, access_token, token_expiry")
+                .eq("id", accountId)
+                .single();
+            account = data || null;
         }
 
-        // Buscar la cuenta en Supabase
-        const { data: account, error } = await accountsTable()
-            .select("id, meli_user_id, nickname, access_token, token_expiry")
-            .eq("id", accountId)
-            .single();
+        if (!account) {
+            const { data: fallbackAccounts } = await accountsTable()
+                .select("id, meli_user_id, nickname, access_token, token_expiry")
+                .limit(1);
+            account = fallbackAccounts?.[0] || null;
+            accountId = account?.id || null;
+        }
 
-        if (error || !account) {
-            return NextResponse.json({ error: "Cuenta no encontrada" }, { status: 404 });
+        if (!account) {
+            return NextResponse.json({ error: "No hay cuentas conectadas" }, { status: 404 });
         }
 
         // Obtener token válido (refresca automáticamente si expiró)
-        const accessToken = await getValidAccessToken(accountId);
+        const accessToken = await getValidAccessToken(account.id);
 
         // Construir query a la API de ML
         let endpoint = `/orders/search?seller=${account.meli_user_id}&sort=date_desc&limit=${limit}`;

@@ -150,13 +150,13 @@ export function formatSEOTitle(rawTitle) {
   seoTitle = seoTitle
     .replace(/[,()]/g, " ")
     .replace(/\.([A-Z])/g, " $1")
-    .replace(/\./g, " ")
+    .replace(/(?<!\d)\.|(\.(?!\d))/g, " ")
     .replace(/\b(DE|LA|EL|LOS|LAS|CON|PARA|DEL)\b/gi, "")
     .replace(/NUEVO|OFERTA|PROMO|BARATO|ENVIO GRATIS|EXCELENTE|GARANTIZADO|ORIGINAL|REEMPLAZO/gi, "")
     .replace(/\s+/g, " ")
     .trim();
 
-  let finalTitle = seoTitle.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+  let finalTitle = seoTitle.toLowerCase().replace(/(?:^|\s|-|\/)\S/g, (c) => c.toUpperCase());
 
   if (finalTitle.length > 60) {
     let truncated = finalTitle.substring(0, 60);
@@ -365,6 +365,30 @@ export function injectVehiclePhoto(pictures, vehiclePicture) {
   return result.slice(0, 6);
 }
 
+const categoryNameCache = new Map();
+
+export async function getCategoryDisplayName(categoryId) {
+  if (!categoryId) return null;
+  if (categoryNameCache.has(categoryId)) return categoryNameCache.get(categoryId);
+  try {
+    const res = await fetch(`${MELI_BASE_URL}/categories/${categoryId}`, {
+      signal: AbortSignal.timeout(4000),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const pathStr = Array.isArray(data.path_from_root)
+        ? data.path_from_root.map((p) => p.name).join(" > ")
+        : data.name;
+      const info = { name: data.name || categoryId, path: pathStr || data.name || categoryId };
+      categoryNameCache.set(categoryId, info);
+      return info;
+    }
+  } catch {
+    // ignore
+  }
+  return { name: categoryId, path: categoryId };
+}
+
 export async function resolveCategoryId(supabaseAdmin, { subline, title, settings }) {
   let categoryId = null;
 
@@ -400,11 +424,35 @@ export async function resolveCategoryId(supabaseAdmin, { subline, title, setting
   return categoryId;
 }
 
-function inferDefaultAttributeValue(attr, { oem }) {
+function inferPositionFromText(text = "") {
+  const upper = String(text).toUpperCase();
+  if (upper.includes("DELANTER") && upper.includes("IZQ")) return "Delantera izquierda";
+  if (upper.includes("DELANTER") && upper.includes("DER")) return "Delantera derecha";
+  if (upper.includes("TRASER") && upper.includes("IZQ")) return "Trasera izquierda";
+  if (upper.includes("TRASER") && upper.includes("DER")) return "Trasera derecha";
+  if (upper.includes("DELANTER")) return "Delantera";
+  if (upper.includes("TRASER")) return "Trasera";
+  if (upper.includes("IZQUIERD") || upper.includes(" IZQ")) return "Izquierda";
+  if (upper.includes("DERECH") || upper.includes(" DER")) return "Derecha";
+  if (upper.includes("SUPERIOR") || upper.includes(" SUP")) return "Superior";
+  if (upper.includes("INFERIOR") || upper.includes(" INF")) return "Inferior";
+  if (upper.includes("CAJA")) return "Caja";
+  if (upper.includes("MOTOR")) return "Motor";
+  return "Estándar";
+}
+
+function inferDefaultAttributeValue(attr, { sku, oem, brand, title = "", subline = "" }) {
   const name = (attr.name || "").toLowerCase();
   const id = attr.id || "";
+  const isRequired = Boolean(attr?.tags?.required || attr?.tags?.catalog_required);
+  const combinedText = `${title} ${subline}`.toUpperCase();
 
-  // Si tiene lista de valores predefinidos en la categoría de ML
+  if (id === "BRAND") return brand || "Genérico";
+  if (id === "PART_NUMBER") return sku || oem || "S/N";
+  if (id === "OEM") return oem || sku || "S/N";
+  if (id === "SELLER_SKU") return sku;
+
+  // Si tiene lista cerrada de valores predefinidos en la categoría de ML
   if (attr.values?.length > 0) {
     if (id === "VEHICLE_TYPE" || name.includes("vehículo") || name.includes("vehiculo")) {
       const match = attr.values.find((v) => {
@@ -425,23 +473,72 @@ function inferDefaultAttributeValue(attr, { oem }) {
       }) || attr.values[0];
       return { value_id: match.id, value_name: match.name };
     }
-    const first = attr.values.find((v) => v.name) || attr.values[0];
-    return { value_id: first.id, value_name: first.name };
+    if (
+      id === "INCLUDES_MOUNTING_ACCESSORIES" ||
+      id === "MOUNTING_HARDWARE_INCLUDED" ||
+      id === "IS_KIT"
+    ) {
+      const wantYes = combinedText.includes("KIT");
+      const match = attr.values.find((v) => {
+        const vn = (v.name || "").toLowerCase();
+        return wantYes ? vn.startsWith("s") : vn === "no";
+      });
+      if (match) return { value_id: match.id, value_name: match.name };
+    }
+    if (id === "MOUNTING_BRACKET_INCLUDED") {
+      const wantYes = combinedText.includes("BASE") || combinedText.includes("SOPORTE");
+      const match = attr.values.find((v) => {
+        const vn = (v.name || "").toLowerCase();
+        return wantYes ? vn.startsWith("s") : vn === "no";
+      });
+      if (match) return { value_id: match.id, value_name: match.name };
+    }
+    if (id === "POSITION" || id === "MOUNTING_POSITION" || name.includes("posición") || name.includes("posicion")) {
+      const posGuess = inferPositionFromText(combinedText).toLowerCase();
+      const match = attr.values.find((v) => (v.name || "").toLowerCase().includes(posGuess));
+      if (match) return { value_id: match.id, value_name: match.name };
+    }
+    if (isRequired) {
+      const first = attr.values.find((v) => v.name) || attr.values[0];
+      return { value_id: first.id, value_name: first.name };
+    }
   }
 
+  // Atributos abiertos o semi-abiertos (principales y secundarios de autopartes)
   if (id === "VEHICLE_TYPE" || name.includes("vehículo") || name.includes("vehiculo")) {
     return { value_id: "11377043", value_name: "Carro/Camioneta" };
   }
   if (id === "ITEM_CONDITION" || name.includes("condición") || name.includes("condicion")) {
     return { value_id: "2230284", value_name: "Nuevo" };
   }
+  if (id === "ORIGIN" || name.includes("origen")) return "Importado";
+  if (id === "COLOR" || name === "color") return "Negro";
+  if (id === "FINISH" || name.includes("acabado")) return "Mate";
+  if (id === "BRACKET_MATERIAL" || id === "MATERIAL" || name.includes("material")) {
+    if (combinedText.includes("BASE") || combinedText.includes("BUJE") || combinedText.includes("SOPORTE")) {
+      return "Metal / Goma";
+    }
+    return "Acero / Estándar";
+  }
+  if (id === "MOUNTING_POSITION" || id === "POSITION" || name.includes("posición") || name.includes("posicion")) {
+    return inferPositionFromText(combinedText);
+  }
+  if (id === "MOUNTING_BRACKET_INCLUDED") {
+    return combinedText.includes("BASE") || combinedText.includes("SOPORTE") ? "Sí" : "No";
+  }
+  if (id === "MOUNTING_HARDWARE_INCLUDED" || id === "INCLUDES_MOUNTING_ACCESSORIES") {
+    return combinedText.includes("KIT") ? "Sí" : "No";
+  }
+  if (id === "BOLT_HOLE_NUMBER" || id === "MOUNTING_HOLES_NUMBER") return "2";
+  if (id === "THICKNESS") return "Estándar";
+  if (id === "MODEL") return title ? title.split(" ").slice(0, 4).join(" ") : (sku || "Estándar");
   if (id === "UNITS_PER_PACKAGE") return "1";
   if (id === "IS_OEM") return oem ? "Sí" : "No";
   if (id === "UNIT_VOLUME" || name.includes("volumen")) return "1 L";
   if (id === "UNIT_WEIGHT" || name.includes("peso")) return "1 kg";
   if (id === "SALE_FORMAT" || name.includes("formato de venta")) return "Unidad";
 
-  return "Genérico";
+  return isRequired ? "Genérico" : null;
 }
 
 export function buildDynamicAttributes({
@@ -449,17 +546,30 @@ export function buildDynamicAttributes({
   sku,
   brand,
   oem,
+  title = "",
+  subline = "",
   extraAttrs = [],
 }) {
-  const dynamicAttributes = [{ id: "SELLER_SKU", value_name: sku }];
+  const effectiveBrand = brand && brand !== "Original" ? brand : (brand || "Genérico");
+  const cleanOem = oem ? String(oem).trim() : String(sku || "").trim();
 
-  if (brand) dynamicAttributes.push({ id: "BRAND", value_name: brand });
-  if (oem) dynamicAttributes.push({ id: "PART_NUMBER", value_name: oem });
+  const dynamicAttributes = [
+    { id: "SELLER_SKU", value_name: sku },
+    { id: "BRAND", value_name: effectiveBrand },
+    { id: "PART_NUMBER", value_name: sku || cleanOem },
+  ];
+
+  if (cleanOem) {
+    dynamicAttributes.push({ id: "OEM", value_name: cleanOem });
+  }
 
   for (const at of extraAttrs) {
-    if (at?.id && !dynamicAttributes.find((a) => a.id === at.id)) {
+    if (at?.id && at?.value_name && !dynamicAttributes.find((a) => a.id === at.id)) {
+      // No sobreescribir nuestra marca, SKU ni número de pieza con los del competidor
+      if (["BRAND", "PART_NUMBER", "SELLER_SKU", "OEM", "GTIN"].includes(at.id)) continue;
+      if (at.id.startsWith("SELLER_PACKAGE_")) continue;
       const item = { id: at.id, value_name: at.value_name };
-      if (at.value_id) item.value_id = at.value_id;
+      if (at.value_id && at.value_id !== "-1") item.value_id = at.value_id;
       dynamicAttributes.push(item);
     }
   }
@@ -467,7 +577,14 @@ export function buildDynamicAttributes({
   for (const attr of requiredAttributes) {
     if (attr?.tags?.read_only) continue;
     if (!dynamicAttributes.find((a) => a.id === attr.id)) {
-      const inferred = inferDefaultAttributeValue(attr, { oem });
+      const inferred = inferDefaultAttributeValue(attr, {
+        sku,
+        oem: cleanOem,
+        brand: effectiveBrand,
+        title,
+        subline,
+      });
+      if (inferred === null || inferred === undefined) continue;
       if (typeof inferred === "object" && inferred !== null) {
         dynamicAttributes.push({
           id: attr.id,
@@ -477,14 +594,10 @@ export function buildDynamicAttributes({
       } else {
         dynamicAttributes.push({
           id: attr.id,
-          value_name: inferred,
+          value_name: String(inferred),
         });
       }
     }
-  }
-
-  if (!dynamicAttributes.find((a) => a.id === "BRAND")) {
-    dynamicAttributes.push({ id: "BRAND", value_name: brand || "Genérico" });
   }
 
   return dynamicAttributes;

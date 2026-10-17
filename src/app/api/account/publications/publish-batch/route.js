@@ -282,6 +282,7 @@ export async function POST(req) {
             const intel = await analyzeCompetitorsForListing({
               title,
               sku,
+              oem,
               subline,
               accountId,
               accessToken,
@@ -292,7 +293,8 @@ export async function POST(req) {
               const preliminaryAttrs = [
                 { id: "SELLER_SKU", value_name: sku },
                 ...(brand ? [{ id: "BRAND", value_name: brand }] : []),
-                ...(oem ? [{ id: "PART_NUMBER", value_name: oem }] : []),
+                { id: "PART_NUMBER", value_name: sku || oem },
+                ...(oem ? [{ id: "OEM", value_name: oem }] : []),
               ];
               const merged = mergeLeaderInsights({
                 ourTitle: title,
@@ -332,6 +334,8 @@ export async function POST(req) {
             sku,
             brand,
             oem,
+            title,
+            subline,
             extraAttrs,
           });
 

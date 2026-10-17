@@ -146,7 +146,12 @@ export default function MissingProductsPage() {
   const filteredSublines = (summary?.sublines || []).filter((s) => {
     if (!searchSubline.trim()) return true;
     const q = searchSubline.toLowerCase();
-    return s.sublinea.toLowerCase().includes(q) || s.co_subl.toLowerCase().includes(q);
+    return (
+      s.sublinea.toLowerCase().includes(q) ||
+      s.co_subl.toLowerCase().includes(q) ||
+      (s.linea || '').toLowerCase().includes(q) ||
+      (s.co_lin || '').toLowerCase().includes(q)
+    );
   });
 
   // Cálculo de lotes
@@ -228,7 +233,7 @@ export default function MissingProductsPage() {
           <div className={styles.sidebarHeader}>
             <input
               type="text"
-              placeholder="🔍 Buscar sub-línea o código..."
+              placeholder="🔍 Buscar línea, sub-línea o código..."
               className={styles.searchBox}
               value={searchSubline}
               onChange={(e) => setSearchSubline(e.target.value)}
@@ -253,6 +258,11 @@ export default function MissingProductsPage() {
                     className={`${styles.sublineItem} ${isActive ? styles.sublineItemActive : ''}`}
                     onClick={() => handleSelectSubline(sub)}
                   >
+                    {sub.linea && (
+                      <div style={{ fontSize: '0.68rem', color: '#94a3b8', fontWeight: 600, marginBottom: '2px', textAlign: 'left' }}>
+                        📁 LÍNEA: {sub.linea} {sub.co_lin ? `(${sub.co_lin})` : ''}
+                      </div>
+                    )}
                     <div className={styles.sublineTitle}>
                       <span>{sub.sublinea}</span>
                       <span className={styles.sublineCode}>[{sub.co_subl}]</span>
@@ -291,6 +301,11 @@ export default function MissingProductsPage() {
               {/* Encabezado del Detalle */}
               <div className={styles.detailHeader}>
                 <div>
+                  {selectedSubline.linea && (
+                    <div style={{ fontSize: '0.8rem', color: '#38bdf8', fontWeight: 700, marginBottom: '0.2rem' }}>
+                      📁 Línea: {selectedSubline.linea} {selectedSubline.co_lin ? `(${selectedSubline.co_lin})` : ''}
+                    </div>
+                  )}
                   <h2 className={styles.detailTitle}>
                     {selectedSubline.sublinea}
                     <span style={{ fontSize: '1rem', color: '#fbbf24', marginLeft: '0.8rem', fontFamily: 'monospace' }}>
@@ -422,7 +437,7 @@ export default function MissingProductsPage() {
                       <tr>
                         <th style={{ width: '60px' }}>Foto</th>
                         <th style={{ width: '150px' }}>SKU Oficial</th>
-                        <th>Descripción Profit / Modelo</th>
+                        <th>Descripción Profit / Marca / Modelo</th>
                         <th>OEM / Equivalencias</th>
                         <th style={{ textAlign: 'right' }}>Stock</th>
                         <th style={{ textAlign: 'right' }}>Precio USD</th>
@@ -449,6 +464,24 @@ export default function MissingProductsPage() {
 
                           <td className={styles.skuCell} title="Código oficial que DEBE tener en Mercado Libre">
                             {item.sku}
+                            {item.brand_suggested && item.brand_suggested !== 'Genérico' && (
+                              <span
+                                style={{
+                                  display: 'inline-block',
+                                  marginLeft: '0.4rem',
+                                  padding: '0.1rem 0.45rem',
+                                  borderRadius: '4px',
+                                  fontSize: '0.68rem',
+                                  fontWeight: 700,
+                                  background: 'rgba(16, 185, 129, 0.2)',
+                                  color: '#34d399',
+                                  border: '1px solid rgba(16, 185, 129, 0.35)',
+                                }}
+                                title="Marca registrada en Profit Plus (cat_art)"
+                              >
+                                {item.brand_suggested}
+                              </span>
+                            )}
                             {item.is_generic_e && (
                               <span className={styles.tagGenericE} title="Genérico / Multimarca (Terminación E: marca variable según disponibilidad)">
                                 MULTIMARCA
@@ -460,6 +493,9 @@ export default function MissingProductsPage() {
                             <div style={{ fontWeight: 600, color: '#fff' }}>{item.titulo_seo || item.descripcion}</div>
                             <div className={styles.descExtra}>
                               <span>📦 Profit: {item.descripcion}</span>
+                              {item.brand_suggested && <span> | 🏷️ Marca: <strong>{item.brand_suggested}</strong></span>}
+                              {item.marca_vehiculo && <span> | 🚘 Vehículo: {item.marca_vehiculo}</span>}
+                              {item.linea && <span> | 📁 Línea: {item.linea} ({item.co_lin})</span>}
                               {item.modelo && <span> | 🚗 Mod: {item.modelo}</span>}
                               {item.referencia && <span> | 📌 Ref: {item.referencia}</span>}
                             </div>

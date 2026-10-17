@@ -477,7 +477,16 @@ export default function MassPublisherModal({
                 <div className="grid grid-cols-2 gap-3 text-xs">
                   <div className="bg-slate-950/60 rounded-lg p-3 border border-slate-800">
                     <div className="text-slate-500 mb-1 flex items-center gap-1"><Tag size={12} /> Categoría ML</div>
-                    <div className="text-slate-200 font-mono">{preview.categoryId || "—"}</div>
+                    <div className="text-slate-200 font-semibold">
+                      {preview.categoryName
+                        ? `${preview.categoryName} (${preview.categoryId})`
+                        : preview.categoryId || "—"}
+                    </div>
+                    {preview.categoryPath && (
+                      <div className="text-[10px] text-slate-400 mt-0.5 truncate" title={preview.categoryPath}>
+                        {preview.categoryPath}
+                      </div>
+                    )}
                   </div>
                   <div className="bg-slate-950/60 rounded-lg p-3 border border-slate-800">
                     <div className="text-slate-500 mb-1 flex items-center gap-1"><ImageIcon size={12} /> Fotos ({preview.photoCount})</div>
@@ -497,9 +506,13 @@ export default function MassPublisherModal({
 
                 {preview.competitorIntel?.leader && (
                   <div className="bg-orange-950/20 border border-orange-800/30 rounded-lg p-3 text-xs">
-                    <div className="text-orange-400 font-semibold mb-1">🎯 Inteligencia Competitiva</div>
-                    <div className="text-slate-300">
-                      Líder: <span className="font-mono">{preview.competitorIntel.leader.id}</span> — ${preview.competitorIntel.leader.price} ({preview.competitorIntel.leader.sold_quantity} vend.)
+                    <div className="text-orange-400 font-semibold mb-1">🎯 Inteligencia Competitiva (Integraly Bridge)</div>
+                    <div className="text-slate-200 font-medium truncate">
+                      {preview.competitorIntel.leader.title}
+                    </div>
+                    <div className="text-slate-300 mt-0.5">
+                      Líder: <span className="font-mono">{preview.competitorIntel.leader.id}</span>
+                      {preview.competitorIntel.leader.seller_nickname ? ` (${preview.competitorIntel.leader.seller_nickname})` : ""} — ${preview.competitorIntel.leader.price} ({preview.competitorIntel.leader.sold_quantity} vend.)
                     </div>
                     {preview.competitorIntel.titleKeywords?.length > 0 && (
                       <div className="text-slate-400 mt-1">Keywords añadidas: {preview.competitorIntel.titleKeywords.join(", ")}</div>
@@ -512,15 +525,15 @@ export default function MassPublisherModal({
 
                 {preview.attributes?.length > 0 && (
                   <div>
-                    <div className="text-xs text-slate-500 mb-2">Atributos ({preview.attributes.length})</div>
+                    <div className="text-xs text-slate-500 mb-2">Características principales y secundarias ({preview.attributes.length})</div>
                     <div className="flex flex-wrap gap-1.5">
-                      {preview.attributes.slice(0, 8).map((a) => (
+                      {preview.attributes.slice(0, 16).map((a) => (
                         <span key={a.id} className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full font-mono">
                           {a.id}: {a.value_name}
                         </span>
                       ))}
-                      {preview.attributes.length > 8 && (
-                        <span className="text-[10px] text-slate-500">+{preview.attributes.length - 8} más</span>
+                      {preview.attributes.length > 16 && (
+                        <span className="text-[10px] text-slate-500">+{preview.attributes.length - 16} más</span>
                       )}
                     </div>
                   </div>
