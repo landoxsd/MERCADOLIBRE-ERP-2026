@@ -10,7 +10,7 @@ import { uploadImageToStorage } from "@/lib/supabase-admin";
 
 const MELI_BASE_URL = "https://api.mercadolibre.com";
 export const OFFICIAL_STORE_PLACEHOLDER =
-  "https://placehold.co/1200x1200/0f172a/ffffff.jpg?text=WORLD+CARS+OFICIAL";
+  "https://placehold.co/1500x1500/0f172a/ffffff.jpg?text=WORLD+CARS+OFICIAL";
 let cachedPlaceholderPicId = null;
 
 /**
@@ -379,11 +379,11 @@ export async function resolvePicturesForSku({
     if (accessToken) {
       try {
         if (!cachedPlaceholderPicId) {
-          const svg = `<svg width="1200" height="1200" xmlns="http://www.w3.org/2000/svg">
+          const svg = `<svg width="1500" height="1500" xmlns="http://www.w3.org/2000/svg">
             <rect width="100%" height="100%" fill="#ffffff"/>
-            <rect x="60" y="60" width="1080" height="1080" rx="40" fill="#0f172a"/>
-            <text x="600" y="560" font-family="Arial, sans-serif" font-size="72" font-weight="bold" fill="#ffffff" text-anchor="middle">WORLD CARS</text>
-            <text x="600" y="660" font-family="Arial, sans-serif" font-size="42" fill="#38bdf8" text-anchor="middle">TIENDA OFICIAL REPUESTOS</text>
+            <rect x="75" y="75" width="1350" height="1350" rx="50" fill="#0f172a"/>
+            <text x="750" y="700" font-family="Arial, sans-serif" font-size="90" font-weight="bold" fill="#ffffff" text-anchor="middle">WORLD CARS</text>
+            <text x="750" y="820" font-family="Arial, sans-serif" font-size="52" fill="#38bdf8" text-anchor="middle">TIENDA OFICIAL REPUESTOS</text>
           </svg>`;
           const phBuf = await sharp(Buffer.from(svg)).jpeg({ quality: 92 }).toBuffer();
           const up = await uploadPicture(phBuf, "placeholder-worldcars.jpg", accessToken);
