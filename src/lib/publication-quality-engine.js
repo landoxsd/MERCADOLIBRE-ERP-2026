@@ -43,6 +43,8 @@ const SKIP_ATTR_IDS = new Set([
   "PART_NUMBER",
   "OEM",
   "GTIN",
+  "POSITION",
+  "THICKNESS",
 ]);
 
 const OWN_NICKNAMES = new Set([

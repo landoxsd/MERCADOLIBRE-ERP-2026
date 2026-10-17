@@ -549,19 +549,54 @@ export function extractSku(item) {
  * itemData: el JSON con la estructura requerida por ML.
  */
 export async function publishItem(itemData, accessToken) {
-  const res = await fetch(`${MELI_BASE_URL}/items`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-      "Accept": "application/json",
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    },
-    body: JSON.stringify(itemData),
-  });
+  const doPost = async (payload) => {
+    return fetch(`${MELI_BASE_URL}/items`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      },
+      body: JSON.stringify(payload),
+    });
+  };
+
+  let res = await doPost(itemData);
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
+
+    // Auto-sanitización y reintento inmediato si Mercado Libre rechaza algún atributo secundario
+    if (Array.isArray(err?.cause) && Array.isArray(itemData?.attributes)) {
+      const badAttrIds = new Set();
+      for (const c of err.cause) {
+        const msg = String(c?.message || "");
+        const m1 = msg.match(/Attribute \[([A-Z0-9_]+)\]/i);
+        if (m1?.[1]) badAttrIds.add(m1[1].toUpperCase());
+        const m2 = msg.match(/Attribute ([A-Z0-9_]+) with value/i);
+        if (m2?.[1]) badAttrIds.add(m2[1].toUpperCase());
+      }
+      // Nunca eliminar los 3 pilares obligatorios
+      badAttrIds.delete("SELLER_SKU");
+      badAttrIds.delete("BRAND");
+      badAttrIds.delete("PART_NUMBER");
+
+      if (badAttrIds.size > 0) {
+        const cleanedPayload = {
+          ...itemData,
+          attributes: itemData.attributes.filter((a) => !badAttrIds.has(String(a.id || "").toUpperCase())),
+        };
+        const retryRes = await doPost(cleanedPayload);
+        if (retryRes.ok) {
+          return retryRes.json();
+        }
+        const retryErr = await retryRes.json().catch(() => err);
+        throw new Error(`Error al publicar en ML: ${JSON.stringify(retryErr)}`);
+      }
+    }
+
     throw new Error(`Error al publicar en ML: ${JSON.stringify(err)}`);
   }
 

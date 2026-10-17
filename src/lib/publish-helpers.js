@@ -436,9 +436,9 @@ function inferPositionFromText(text = "") {
   if (upper.includes("DERECH") || upper.includes(" DER")) return "Derecha";
   if (upper.includes("SUPERIOR") || upper.includes(" SUP")) return "Superior";
   if (upper.includes("INFERIOR") || upper.includes(" INF")) return "Inferior";
-  if (upper.includes("CAJA")) return "Caja";
-  if (upper.includes("MOTOR")) return "Motor";
-  return "Estándar";
+  if (upper.includes("CAJA")) return "Trasera";
+  if (upper.includes("MOTOR")) return "Delantera";
+  return "Inferior";
 }
 
 function inferDefaultAttributeValue(attr, { sku, oem, brand, title = "", subline = "" }) {
@@ -452,7 +452,7 @@ function inferDefaultAttributeValue(attr, { sku, oem, brand, title = "", subline
   if (id === "OEM") return oem || sku || "S/N";
   if (id === "SELLER_SKU") return sku;
 
-  // Si tiene lista cerrada de valores predefinidos en la categoría de ML
+  // Si tiene lista cerrada o sugerida de valores predefinidos en la categoría de ML, SIEMPRE usar un value_id válido de esa lista
   if (attr.values?.length > 0) {
     if (id === "VEHICLE_TYPE" || name.includes("vehículo") || name.includes("vehiculo")) {
       const match = attr.values.find((v) => {
@@ -463,6 +463,10 @@ function inferDefaultAttributeValue(attr, { sku, oem, brand, title = "", subline
     }
     if (id === "ITEM_CONDITION" || name.includes("condición") || name.includes("condicion")) {
       const match = attr.values.find((v) => (v.name || "").toLowerCase().includes("nuevo")) || attr.values[0];
+      return { value_id: match.id, value_name: match.name };
+    }
+    if (id === "COLOR" || name === "color") {
+      const match = attr.values.find((v) => (v.name || "").toLowerCase() === "negro") || attr.values[0];
       return { value_id: match.id, value_name: match.name };
     }
     if (id === "IS_OEM") {
@@ -493,18 +497,55 @@ function inferDefaultAttributeValue(attr, { sku, oem, brand, title = "", subline
       });
       if (match) return { value_id: match.id, value_name: match.name };
     }
-    if (id === "POSITION" || id === "MOUNTING_POSITION" || name.includes("posición") || name.includes("posicion")) {
-      const posGuess = inferPositionFromText(combinedText).toLowerCase();
-      const match = attr.values.find((v) => (v.name || "").toLowerCase().includes(posGuess));
+    if (id === "BRACKET_MATERIAL" || id === "MATERIAL" || name.includes("material")) {
+      const match =
+        attr.values.find((v) => (v.name || "").toLowerCase().includes("acero")) ||
+        attr.values.find((v) => (v.name || "").toLowerCase().includes("metal")) ||
+        attr.values[0];
       if (match) return { value_id: match.id, value_name: match.name };
+    }
+    if (id === "FINISH" || name.includes("acabado")) {
+      const match =
+        attr.values.find((v) => (v.name || "").toLowerCase() === "mate") ||
+        attr.values[0];
+      if (match) return { value_id: match.id, value_name: match.name };
+    }
+    if (id === "MOUNTING_POSITION" || (id === "POSITION" && isRequired) || name.includes("posición de montaje")) {
+      const posGuess = inferPositionFromText(combinedText).toLowerCase();
+      const match =
+        attr.values.find((v) => (v.name || "").toLowerCase() === posGuess) ||
+        attr.values.find((v) => (v.name || "").toLowerCase().includes(posGuess)) ||
+        (id === "MOUNTING_POSITION"
+          ? attr.values.find((v) => (v.name || "").toLowerCase() === "inferior") || attr.values[0]
+          : null);
+      if (match) return { value_id: match.id, value_name: match.name };
+      return null;
     }
     if (isRequired) {
       const first = attr.values.find((v) => v.name) || attr.values[0];
       return { value_id: first.id, value_name: first.name };
     }
+    // Si tiene valores predefinidos en ML y no coincidió con ninguno (y no es obligatorio), no inventar texto libre
+    return null;
+  }
+
+  // Si el atributo en ML es de tipo list (cerrado) y no encontramos un value_id válido arriba, no enviar texto libre
+  if (attr.value_type === "list" && !isRequired) {
+    return null;
+  }
+
+  // Si el atributo exige número + unidad (ej. THICKNESS = "10 mm"), nunca enviar texto como "Estándar"
+  if (attr.value_type === "number_unit") {
+    if (!isRequired) return null;
+    const defaultUnit = attr.default_unit || attr.allowed_units?.[0]?.id || "mm";
+    return `1 ${defaultUnit}`;
+  }
+  if (attr.value_type === "number") {
+    return isRequired ? "1" : null;
   }
 
   // Atributos abiertos o semi-abiertos (principales y secundarios de autopartes)
+  if (id === "POSITION") return null; // En autopartes ML suele ser read_only o list cerrado
   if (id === "VEHICLE_TYPE" || name.includes("vehículo") || name.includes("vehiculo")) {
     return { value_id: "11377043", value_name: "Carro/Camioneta" };
   }
@@ -520,7 +561,7 @@ function inferDefaultAttributeValue(attr, { sku, oem, brand, title = "", subline
     }
     return "Acero / Estándar";
   }
-  if (id === "MOUNTING_POSITION" || id === "POSITION" || name.includes("posición") || name.includes("posicion")) {
+  if (id === "MOUNTING_POSITION") {
     return inferPositionFromText(combinedText);
   }
   if (id === "MOUNTING_BRACKET_INCLUDED") {
@@ -530,7 +571,6 @@ function inferDefaultAttributeValue(attr, { sku, oem, brand, title = "", subline
     return combinedText.includes("KIT") ? "Sí" : "No";
   }
   if (id === "BOLT_HOLE_NUMBER" || id === "MOUNTING_HOLES_NUMBER") return "2";
-  if (id === "THICKNESS") return "Estándar";
   if (id === "MODEL") return title ? title.split(" ").slice(0, 4).join(" ") : (sku || "Estándar");
   if (id === "UNITS_PER_PACKAGE") return "1";
   if (id === "IS_OEM") return oem ? "Sí" : "No";
@@ -553,6 +593,17 @@ export function buildDynamicAttributes({
   const effectiveBrand = brand && brand !== "Original" ? brand : (brand || "Genérico");
   const cleanOem = oem ? String(oem).trim() : String(sku || "").trim();
 
+  const allowedMap = new Map((requiredAttributes || []).map((a) => [a.id, a]));
+  const CORE_ALWAYS_ALLOWED = new Set([
+    "SELLER_SKU",
+    "BRAND",
+    "PART_NUMBER",
+    "OEM",
+    "EMPTY_GTIN_REASON",
+    "VEHICLE_TYPE",
+    "ITEM_CONDITION",
+  ]);
+
   const dynamicAttributes = [
     { id: "SELLER_SKU", value_name: sku },
     { id: "BRAND", value_name: effectiveBrand },
@@ -565,9 +616,41 @@ export function buildDynamicAttributes({
 
   for (const at of extraAttrs) {
     if (at?.id && at?.value_name && !dynamicAttributes.find((a) => a.id === at.id)) {
-      // No sobreescribir nuestra marca, SKU ni número de pieza con los del competidor
-      if (["BRAND", "PART_NUMBER", "SELLER_SKU", "OEM", "GTIN"].includes(at.id)) continue;
+      // No sobreescribir nuestra marca, SKU ni número de pieza, ni copiar atributos problemáticos
+      if (["BRAND", "PART_NUMBER", "SELLER_SKU", "OEM", "GTIN", "POSITION", "THICKNESS"].includes(at.id)) continue;
       if (at.id.startsWith("SELLER_PACKAGE_")) continue;
+
+      // Si tenemos el esquema de la categoría, validar que el atributo exista y sea modificable en esta categoría
+      if (allowedMap.size > 0 && !allowedMap.has(at.id) && !CORE_ALWAYS_ALLOWED.has(at.id)) {
+        continue;
+      }
+
+      const catAttr = allowedMap.get(at.id);
+      if (catAttr) {
+        if (catAttr.tags?.read_only) continue;
+        // Validar number_unit (debe empezar por número + unidad)
+        if (catAttr.value_type === "number_unit" && !/^\d+(\.\d+)?\s+\S+/.test(String(at.value_name).trim())) {
+          continue;
+        }
+        // Si es de tipo list o tiene valores predefinidos y no trae value_id válido, buscarlo en catAttr.values
+        if ((!at.value_id || at.value_id === "-1") && catAttr.values?.length > 0) {
+          const matchedVal = catAttr.values.find(
+            (v) => (v.name || "").toLowerCase() === String(at.value_name).trim().toLowerCase()
+          );
+          if (matchedVal) {
+            dynamicAttributes.push({
+              id: at.id,
+              value_id: matchedVal.id,
+              value_name: matchedVal.name,
+            });
+            continue;
+          } else if (catAttr.value_type === "list") {
+            // Lista cerrada sin coincidencia de value_id -> omitir para evitar error 3510 en ML
+            continue;
+          }
+        }
+      }
+
       const item = { id: at.id, value_name: at.value_name };
       if (at.value_id && at.value_id !== "-1") item.value_id = at.value_id;
       dynamicAttributes.push(item);
