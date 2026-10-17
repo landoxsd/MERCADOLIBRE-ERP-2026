@@ -53,9 +53,10 @@ export async function POST(req) {
       usePlaceholderIfNoPhoto = false,
       preferLocalPhotos = false,
       useAI = false,
-      listingTypeId = "gold_special",
       preflightOnly = false,
     } = body;
+    // Regla del negocio: siempre publicar en gold_pro
+    const listingTypeId = "gold_pro";
 
     sku = sku?.trim();
 

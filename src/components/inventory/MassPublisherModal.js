@@ -28,7 +28,7 @@ export default function MassPublisherModal({
 }) {
   const [step, setStep] = useState(1);
   const [photosPath, setPhotosPath] = useState(defaultPhotosPath);
-  const [listingType, setListingType] = useState("gold_special");
+  const [listingType, setListingType] = useState("gold_pro");
   const [usePlaceholder, setUsePlaceholder] = useState(true);
   const [useAI, setUseAI] = useState(true);
   const [useCompetitorIntel, setUseCompetitorIntel] = useState(true);
@@ -400,8 +400,8 @@ export default function MassPublisherModal({
                   onChange={(e) => setListingType(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm text-slate-200 focus:outline-none focus:border-blue-500"
                 >
+                  <option value="gold_pro">Premium (gold_pro) — Siempre por defecto</option>
                   <option value="gold_special">Clásica (gold_special)</option>
-                  <option value="gold_pro">Premium (gold_pro)</option>
                 </select>
               </div>
 

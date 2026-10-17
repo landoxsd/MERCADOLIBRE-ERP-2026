@@ -581,6 +581,24 @@ function inferDefaultAttributeValue(attr, { sku, oem, brand, title = "", subline
   return isRequired ? "Genérico" : null;
 }
 
+export function sanitizeOemString(rawOem, fallbackSku = "") {
+  const raw = rawOem ? String(rawOem).trim() : String(fallbackSku || "").trim();
+  if (!raw) return "";
+  const parts = raw
+    .split(/[,;/]+/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  const seenAlphaNum = new Set();
+  const unique = [];
+  for (const p of parts) {
+    const key = p.replace(/[^A-Z0-9]/gi, "").toUpperCase();
+    if (!key || seenAlphaNum.has(key)) continue;
+    seenAlphaNum.add(key);
+    unique.push(p);
+  }
+  return unique.slice(0, 4).join(", ") || raw;
+}
+
 export function buildDynamicAttributes({
   requiredAttributes = [],
   sku,
@@ -591,7 +609,7 @@ export function buildDynamicAttributes({
   extraAttrs = [],
 }) {
   const effectiveBrand = brand && brand !== "Original" ? brand : (brand || "Genérico");
-  const cleanOem = oem ? String(oem).trim() : String(sku || "").trim();
+  const cleanOem = sanitizeOemString(oem, sku);
 
   const allowedMap = new Map((requiredAttributes || []).map((a) => [a.id, a]));
   const CORE_ALWAYS_ALLOWED = new Set([

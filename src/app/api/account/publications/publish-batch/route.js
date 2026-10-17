@@ -48,7 +48,6 @@ export async function POST(req) {
       accountId,
       items,
       photosPath,
-      listingTypeId = "gold_special",
       usePlaceholderIfNoPhoto = true,
       useAI = true,
       skipDuplicates = true,
@@ -56,6 +55,8 @@ export async function POST(req) {
       injectVehiclePhotos = true,
       preferLocalPhotos = false,
     } = body;
+    // Regla del negocio: siempre publicar en gold_pro
+    const listingTypeId = "gold_pro";
 
     if (!accountId || !items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json(

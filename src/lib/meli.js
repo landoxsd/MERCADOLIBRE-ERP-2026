@@ -568,25 +568,62 @@ export async function publishItem(itemData, accessToken) {
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
 
-    // Auto-sanitización y reintento inmediato si Mercado Libre rechaza algún atributo secundario
-    if (Array.isArray(err?.cause) && Array.isArray(itemData?.attributes)) {
+    // Auto-sanitización y reintento inmediato si Mercado Libre rechaza algún atributo o picture_id expirado
+    if (Array.isArray(err?.cause)) {
       const badAttrIds = new Set();
+      const dupAttrIds = new Set();
+      const badPicIds = new Set();
+
       for (const c of err.cause) {
         const msg = String(c?.message || "");
         const m1 = msg.match(/Attribute \[([A-Z0-9_]+)\]/i);
         if (m1?.[1]) badAttrIds.add(m1[1].toUpperCase());
         const m2 = msg.match(/Attribute ([A-Z0-9_]+) with value/i);
         if (m2?.[1]) badAttrIds.add(m2[1].toUpperCase());
+        const mDup = msg.match(/Attribute ([A-Z0-9_]+) has values with names:.*duplicated/i);
+        if (mDup?.[1]) dupAttrIds.add(mDup[1].toUpperCase());
+        const mPic = msg.match(/Picture id ([A-Za-z0-9_-]+) does not exist/i);
+        if (mPic?.[1]) badPicIds.add(mPic[1]);
       }
+
       // Nunca eliminar los 3 pilares obligatorios
       badAttrIds.delete("SELLER_SKU");
       badAttrIds.delete("BRAND");
       badAttrIds.delete("PART_NUMBER");
 
-      if (badAttrIds.size > 0) {
+      if (badAttrIds.size > 0 || dupAttrIds.size > 0 || badPicIds.size > 0) {
+        let nextAttributes = Array.isArray(itemData.attributes) ? [...itemData.attributes] : [];
+        if (badAttrIds.size > 0) {
+          nextAttributes = nextAttributes.filter((a) => !badAttrIds.has(String(a.id || "").toUpperCase()));
+        }
+        if (dupAttrIds.size > 0) {
+          nextAttributes = nextAttributes.map((a) => {
+            const idUpper = String(a.id || "").toUpperCase();
+            if (dupAttrIds.has(idUpper) && a.value_name) {
+              const firstVal = String(a.value_name).split(/[,;/]+/)[0].trim();
+              return { ...a, value_name: firstVal || a.value_name };
+            }
+            return a;
+          });
+        }
+
+        let nextPictures = Array.isArray(itemData.pictures) ? [...itemData.pictures] : [];
+        if (badPicIds.size > 0) {
+          nextPictures = nextPictures.filter((p) => !p?.id || !badPicIds.has(String(p.id)));
+          if (nextPictures.length === 0) {
+            nextPictures = [
+              {
+                source:
+                  "https://ui-avatars.com/api/?name=WORLD+CARS&background=0D8ABC&color=fff&size=500&font-size=0.33",
+              },
+            ];
+          }
+        }
+
         const cleanedPayload = {
           ...itemData,
-          attributes: itemData.attributes.filter((a) => !badAttrIds.has(String(a.id || "").toUpperCase())),
+          attributes: nextAttributes,
+          pictures: nextPictures,
         };
         const retryRes = await doPost(cleanedPayload);
         if (retryRes.ok) {
