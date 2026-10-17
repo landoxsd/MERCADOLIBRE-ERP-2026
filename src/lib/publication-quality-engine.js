@@ -340,6 +340,9 @@ export async function buildPublishPreview({
   } = await resolvePicturesForSku({
     supabaseAdmin,
     sku,
+    equivalencias: item?.equivalencias || [],
+    oem,
+    explicitPhotos: item?.photos || [],
     photosPath,
     localFiles,
     accessToken,

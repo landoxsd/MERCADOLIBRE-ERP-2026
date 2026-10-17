@@ -10,7 +10,8 @@ import { uploadImageToStorage } from "@/lib/supabase-admin";
 
 const MELI_BASE_URL = "https://api.mercadolibre.com";
 export const OFFICIAL_STORE_PLACEHOLDER =
-  "https://http2.mlstatic.com/D_NQ_NP_918237-MLV52098675124_102022-O.webp";
+  "https://placehold.co/1200x1200/0f172a/ffffff.jpg?text=WORLD+CARS+OFICIAL";
+let cachedPlaceholderPicId = null;
 
 /**
  * Resuelve el directorio efectivo de fotos probando primero la ruta solicitada
@@ -168,19 +169,43 @@ export function formatSEOTitle(rawTitle) {
   return finalTitle;
 }
 
-export function matchLocalPhotoFiles(sku, localFiles, maxPhotos = 6) {
-  if (!sku || !localFiles?.length) return [];
-  const skuLower = String(sku).trim().toLowerCase();
+export function matchLocalPhotoFiles(
+  sku,
+  localFiles,
+  maxPhotos = 6,
+  { equivalencias = [], oem = "", explicitPhotos = [] } = {}
+) {
+  if (!localFiles?.length && !explicitPhotos?.length) return [];
+
+  if (Array.isArray(explicitPhotos) && explicitPhotos.length > 0) {
+    return explicitPhotos.slice(0, maxPhotos);
+  }
+
+  const candidateCodes = new Set();
+  if (sku) candidateCodes.add(String(sku).trim().toLowerCase());
+  if (Array.isArray(equivalencias)) {
+    for (const eq of equivalencias) {
+      if (eq) candidateCodes.add(String(eq).trim().toLowerCase());
+    }
+  }
+  if (oem) {
+    for (const part of String(oem).split(/[,;/]+/)) {
+      const clean = part.trim().toLowerCase();
+      if (clean) candidateCodes.add(clean);
+    }
+  }
+
+  if (candidateCodes.size === 0) return [];
 
   return localFiles
     .filter((f) => {
       const base = f.split(".")[0].toLowerCase();
-      if (base === skuLower) return true;
+      if (candidateCodes.has(base)) return true;
       const lastDashIndex = base.lastIndexOf("-");
       if (lastDashIndex !== -1) {
         const prefix = base.substring(0, lastDashIndex);
         const suffix = base.substring(lastDashIndex + 1);
-        return prefix === skuLower && /^\d+$/.test(suffix);
+        return candidateCodes.has(prefix) && /^\d+$/.test(suffix);
       }
       return false;
     })
@@ -249,12 +274,19 @@ async function readPhotoBuffer(photosPath, fileName) {
 
 export async function uploadLocalPictures({
   sku,
+  equivalencias = [],
+  oem = "",
+  explicitPhotos = [],
   photosPath,
   localFiles,
   accessToken,
   maxPhotos = 6,
 }) {
-  const matchingFiles = matchLocalPhotoFiles(sku, localFiles, maxPhotos);
+  const matchingFiles = matchLocalPhotoFiles(sku, localFiles, maxPhotos, {
+    equivalencias,
+    oem,
+    explicitPhotos,
+  });
   const payloads = [];
 
   for (const fileName of matchingFiles) {
@@ -288,6 +320,9 @@ export async function uploadLocalPictures({
 export async function resolvePicturesForSku({
   supabaseAdmin,
   sku,
+  equivalencias = [],
+  oem = "",
+  explicitPhotos = [],
   photosPath,
   localFiles,
   accessToken,
@@ -308,9 +343,12 @@ export async function resolvePicturesForSku({
   };
 
   const tryLocalDisk = async () => {
-    if (localFiles?.length) {
+    if (localFiles?.length || explicitPhotos?.length) {
       const { payloads, matchingFiles } = await uploadLocalPictures({
         sku,
+        equivalencias,
+        oem,
+        explicitPhotos,
         photosPath,
         localFiles,
         accessToken,
@@ -338,6 +376,30 @@ export async function resolvePicturesForSku({
   }
 
   if (usePlaceholderIfNoPhoto) {
+    if (accessToken) {
+      try {
+        if (!cachedPlaceholderPicId) {
+          const svg = `<svg width="1200" height="1200" xmlns="http://www.w3.org/2000/svg">
+            <rect width="100%" height="100%" fill="#ffffff"/>
+            <rect x="60" y="60" width="1080" height="1080" rx="40" fill="#0f172a"/>
+            <text x="600" y="560" font-family="Arial, sans-serif" font-size="72" font-weight="bold" fill="#ffffff" text-anchor="middle">WORLD CARS</text>
+            <text x="600" y="660" font-family="Arial, sans-serif" font-size="42" fill="#38bdf8" text-anchor="middle">TIENDA OFICIAL REPUESTOS</text>
+          </svg>`;
+          const phBuf = await sharp(Buffer.from(svg)).jpeg({ quality: 92 }).toBuffer();
+          const up = await uploadPicture(phBuf, "placeholder-worldcars.jpg", accessToken);
+          if (up?.id) cachedPlaceholderPicId = up.id;
+        }
+        if (cachedPlaceholderPicId) {
+          return {
+            picturePayloads: [{ id: cachedPlaceholderPicId }],
+            photoSource: "placeholder",
+            hasRealPhoto: false,
+          };
+        }
+      } catch {
+        // fallback to URL
+      }
+    }
     return {
       picturePayloads: [{ source: OFFICIAL_STORE_PLACEHOLDER }],
       photoSource: "placeholder",

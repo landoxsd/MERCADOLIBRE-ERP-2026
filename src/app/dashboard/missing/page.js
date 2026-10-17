@@ -137,6 +137,7 @@ export default function MissingProductsPage() {
       isGenericE: it.is_generic_e || false,
       oem: it.campo7 || it.referencia || (it.equivalencias?.[0] || ''),
       equivalencias: it.equivalencias || [],
+      photos: it.photos || [],
     }));
     setBatchItemsToPublish(prepared);
     setBatchModalOpen(true);
