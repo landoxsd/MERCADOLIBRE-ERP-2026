@@ -180,9 +180,9 @@ export async function POST(req) {
           } = await resolvePicturesForSku({
             supabaseAdmin,
             sku,
-            equivalencias: rawItem?.equivalencias || [],
+            equivalencias: item?.equivalencias || [],
             oem,
-            explicitPhotos: rawItem?.photos || [],
+            explicitPhotos: item?.photos || [],
             photosPath: effectivePhotosPath,
             localFiles,
             accessToken,
