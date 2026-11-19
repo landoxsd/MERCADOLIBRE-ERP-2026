@@ -1,22 +1,12 @@
 // ================================================================
 // src/app/api/profit/photos/route.js
-// Endpoint seguro para servir imágenes locales de repuestos (F:\ o Pictures\FOTOS)
+// Sirve imágenes de repuestos: /mnt/fotos (Linux) o Photo Bridge / UNC (Windows)
 // ================================================================
 import { NextResponse } from 'next/server';
-import fs from 'fs';
 import path from 'path';
+import { readPhotoFile } from '@/lib/photos-fs';
 
 export const dynamic = 'force-dynamic';
-
-const CANDIDATE_DIRS = [
-  process.env.PHOTOS_PATH || '',
-  '/mnt/fotos',
-  '\\\\192.168.1.10\\e\\FOTOS',
-  '\\\\Servidor\\e\\FOTOS',
-  'F:\\',
-  'C:\\Users\\ORLANDO\\Pictures\\FOTOS',
-  '/fotos',
-].filter(Boolean);
 
 export async function GET(request) {
   try {
@@ -27,53 +17,24 @@ export async function GET(request) {
       return new NextResponse('Filename missing', { status: 400 });
     }
 
-    // Prevenir directory traversal
     const safeFilename = path.basename(rawFilename);
+    const found = await readPhotoFile(safeFilename);
 
-    for (const baseDir of CANDIDATE_DIRS) {
-      try {
-        const fullPath = path.join(baseDir, safeFilename);
-        if (fs.existsSync(fullPath)) {
-          const fileBuffer = await fs.promises.readFile(fullPath);
-          const ext = path.extname(safeFilename).toLowerCase();
-          const contentType = ext === '.png' ? 'image/png' : 'image/jpeg';
-
-          return new NextResponse(fileBuffer, {
-            status: 200,
-            headers: {
-              'Content-Type': contentType,
-              'Cache-Control': 'public, max-age=86400, stale-while-revalidate=43200',
-            },
-          });
-        }
-      } catch (err) {
-        // Continuar con el siguiente directorio
-      }
+    if (!found?.buffer) {
+      return new NextResponse('Photo not found', { status: 404 });
     }
 
-    // Fallback de red LAN para el contenedor Docker en Dell R630 -> Photo Bridge en Windows (192.168.1.97:8088)
-    const bridgeUrl = process.env.PHOTO_BRIDGE_URL || 'http://192.168.1.97:8088';
-    try {
-      const bridgeRes = await fetch(`${bridgeUrl}/file?name=${encodeURIComponent(safeFilename)}`, {
-        signal: AbortSignal.timeout(5000),
-      });
-      if (bridgeRes.ok) {
-        const arrayBuf = await bridgeRes.arrayBuffer();
-        const ext = path.extname(safeFilename).toLowerCase();
-        const contentType = ext === '.png' ? 'image/png' : 'image/jpeg';
-        return new NextResponse(Buffer.from(arrayBuf), {
-          status: 200,
-          headers: {
-            'Content-Type': contentType,
-            'Cache-Control': 'public, max-age=86400, stale-while-revalidate=43200',
-          },
-        });
-      }
-    } catch (e) {
-      // Bridge no disponible
-    }
+    const ext = path.extname(safeFilename).toLowerCase();
+    const contentType = ext === '.png' ? 'image/png' : 'image/jpeg';
 
-    return new NextResponse('Photo not found', { status: 404 });
+    return new NextResponse(found.buffer, {
+      status: 200,
+      headers: {
+        'Content-Type': contentType,
+        'Cache-Control': 'public, max-age=86400, stale-while-revalidate=43200',
+        'X-Photo-Source': found.source || 'unknown',
+      },
+    });
   } catch (error) {
     return new NextResponse('Internal Server Error: ' + error.message, { status: 500 });
   }

@@ -8,75 +8,86 @@ import fs from 'fs';
 import path from 'path';
 import { queryProfit } from './profit-client.js';
 import { pgPool } from '../../lib/supabase-admin.js';
-
-// Caché en memoria para nombres de fotos (evita re-escanear disco en cada request)
-let photosMapCache = null; // Map<lowerFilename, originalFilename>
-let photosCacheTime = 0;
-const PHOTOS_CACHE_TTL_MS = 60000; // 1 minuto
+import { getLocalPhotosMap as loadPhotosMap } from '../../lib/photos-fs.js';
 
 export async function getLocalPhotosMap() {
-  const now = Date.now();
-  if (photosMapCache && (now - photosCacheTime) < PHOTOS_CACHE_TTL_MS) {
-    return photosMapCache;
-  }
+  return loadPhotosMap();
+}
 
-  const map = new Map();
-  const candidatePaths = [
-    process.env.PHOTOS_PATH || '',
-    '/mnt/fotos',
-    '\\\\192.168.1.10\\e\\FOTOS',
-    '\\\\Servidor\\e\\FOTOS',
-    'F:\\',
-    'C:\\Users\\ORLANDO\\Pictures\\FOTOS',
-    '/fotos',
-  ].filter(Boolean);
+/** Carga categoryMap desde PG (ml_category_id) + fallback .erp_settings.json */
+function loadCategoryMapSync() {
+  const categoryMap = new Map();
 
-  for (const dir of candidatePaths) {
-    try {
-      if (fs.existsSync(dir)) {
-        const files = fs.readdirSync(dir);
-        for (const file of files) {
-          const lower = file.toLowerCase();
-          if (!map.has(lower)) {
-            map.set(lower, file);
-          }
-        }
-        if (map.size > 0) {
-          photosMapCache = map;
-          photosCacheTime = now;
-          return map;
-        }
-      }
-    } catch (e) {
-      // Probar siguiente ruta
-    }
-  }
-
-  // Fallback de red LAN para el contenedor Docker en Dell R630 (192.168.1.58 -> Photo Bridge en Windows 192.168.1.97:8088)
-  const bridgeUrl = process.env.PHOTO_BRIDGE_URL || 'http://192.168.1.97:8088';
   try {
-    const res = await fetch(`${bridgeUrl}/list`, { signal: AbortSignal.timeout(4000) });
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data.files) && data.files.length > 0) {
-        for (const file of data.files) {
-          const lower = String(file).toLowerCase();
-          if (!map.has(lower)) {
-            map.set(lower, file);
-          }
-        }
-        photosMapCache = map;
-        photosCacheTime = now;
-        return map;
+    const settingsPath = path.join(process.cwd(), '.erp_settings.json');
+    if (fs.existsSync(settingsPath)) {
+      const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+      const map = settings.categoryMap || {};
+      for (const [name, catId] of Object.entries(map)) {
+        if (name && catId) categoryMap.set(String(name).trim().toUpperCase(), String(catId).trim());
       }
     }
-  } catch (e) {
-    // Bridge no disponible
+  } catch {
+    // settings opcional
   }
 
-  photosMapCache = map;
-  photosCacheTime = now;
-  return map;
+  return categoryMap;
+}
+
+async function loadCategoryMap() {
+  const categoryMap = loadCategoryMapSync();
+  if (!pgPool) return categoryMap;
+
+  try {
+    // Schema real: ml_category_id (bug previo: se leía meli_category_id → siempre null)
+    const catRes = await pgPool.query(`
+      SELECT internal_name, ml_category_id
+      FROM category_mappings
+      WHERE internal_name IS NOT NULL AND ml_category_id IS NOT NULL
+    `);
+    for (const row of catRes.rows) {
+      const name = String(row.internal_name || '').trim().toUpperCase();
+      const catId = String(row.ml_category_id || '').trim();
+      if (name && catId) categoryMap.set(name, catId);
+    }
+  } catch {
+    // category_mappings opcional — queda el fallback de .erp_settings.json
+  }
+
+  return categoryMap;
+}
+
+/** Códigos equivalentes (ref/campo6/campo7 + regla E + tabla equivalencia). */
+function collectEquivCodes(item, equivMap) {
+  const skuUpper = String(item.sku || '').trim().toUpperCase();
+  const equivSet = new Set();
+
+  if (equivMap?.has(skuUpper)) {
+    for (const eq of equivMap.get(skuUpper)) equivSet.add(eq);
+  }
+
+  const extraCodes = [item.ref, item.referencia, item.campo6, item.campo7]
+    .filter(Boolean)
+    .flatMap((str) => String(str).split(/[, /;]+/).map((s) => s.trim().toUpperCase()))
+    .filter((s) => s.length >= 3 && s !== skuUpper);
+
+  for (const ec of extraCodes) equivSet.add(ec);
+
+  if (skuUpper.endsWith('E') && skuUpper.length > 2) {
+    equivSet.add(skuUpper.slice(0, -1));
+  } else if (skuUpper) {
+    equivSet.add(`${skuUpper}E`);
+  }
+
+  return equivSet;
+}
+
+function isPublishedAgainstSet(skuUpper, equivSet, publishedSet) {
+  if (publishedSet.has(skuUpper)) return true;
+  for (const eq of equivSet) {
+    if (publishedSet.has(eq)) return true;
+  }
+  return false;
 }
 
 // Diccionario de abreviaturas automotrices de ML_Desktop_Publisher
@@ -193,32 +204,35 @@ export async function getSublinesSummary({ minFaltantes = 0, search = '' } = {})
 
   const items = await queryProfit(q);
 
-  // 3. Mapear categoría ML por sublínea desde category_mappings si existe
-  const categoryMap = new Map();
-  if (pgPool) {
-    try {
-      const catRes = await pgPool.query(`
-        SELECT internal_name, meli_category_id 
-        FROM category_mappings;
-      `);
-      for (const row of catRes.rows) {
-        categoryMap.set(row.internal_name.trim().toUpperCase(), row.meli_category_id);
-      }
-    } catch (e) {
-      // category_mappings opcional
+  // 3. Categorías: PG ml_category_id + fallback .erp_settings.json
+  const categoryMap = await loadCategoryMap();
+
+  // 3b. Equivalencias globales (misma regla que getMissingItemsBySubline)
+  const equivMap = new Map();
+  try {
+    const eqRows = await queryProfit(`
+      SELECT RTRIM(co_art) as co_art, RTRIM(equivalencia) as equivalencia
+      FROM equivalencia WITH (NOLOCK)
+    `);
+    for (const r of eqRows || []) {
+      const art = String(r.co_art || '').trim().toUpperCase();
+      const eq = String(r.equivalencia || '').trim().toUpperCase();
+      if (!art || !eq) continue;
+      if (!equivMap.has(art)) equivMap.set(art, new Set());
+      equivMap.get(art).add(eq);
     }
+  } catch (e) {
+    console.warn('Summary: no se pudo cargar equivalencia:', e.message);
   }
 
-  // 4. Agrupar por sublínea
+  // 4. Agrupar por sublínea (conteo alineado con detalle: SKU + equiv + campo7 + regla E)
   const sublinesMap = new Map();
 
   for (const item of items) {
     const skuNorm = item.sku.trim().toUpperCase();
-    const refNorm = item.ref ? item.ref.trim().toUpperCase() : '';
     const subName = item.sublinea || 'SIN SUBLINEA';
-
-    // Verificación rápida: si SKU o ref ya están en publicados
-    const isPublished = publishedSet.has(skuNorm) || (refNorm && publishedSet.has(refNorm));
+    const equivSet = collectEquivCodes(item, equivMap);
+    const isPublished = isPublishedAgainstSet(skuNorm, equivSet, publishedSet);
 
     if (!sublinesMap.has(subName)) {
       sublinesMap.set(subName, {
@@ -373,41 +387,8 @@ export async function getMissingItemsBySubline(co_subl, { page = 1, limit = 50, 
 
   for (const item of allItems) {
     const skuUpper = item.sku.trim().toUpperCase();
-
-    // Recolectar todas las equivalencias
-    const equivSet = new Set();
-    if (equivMap.has(skuUpper)) {
-      for (const eq of equivMap.get(skuUpper)) equivSet.add(eq);
-    }
-
-    // Agregar códigos de ref, campo6 y campo7
-    const extraCodes = [item.referencia, item.campo6, item.campo7]
-      .filter(Boolean)
-      .flatMap(str => str.split(/[, /;]+/).map(s => s.trim().toUpperCase()))
-      .filter(s => s.length >= 3 && s !== skuUpper);
-
-    for (const ec of extraCodes) equivSet.add(ec);
-
-    // Regla de Negocio: SKUs terminados en 'E' son Genéricos / Multimarcas.
-    // El SKU base sin 'E' y la variante con 'E' son equivalentes recíprocos.
-    const isGenericE = skuUpper.endsWith('E') && skuUpper.length > 2;
-    if (isGenericE) {
-      const baseCode = skuUpper.slice(0, -1);
-      equivSet.add(baseCode);
-    } else {
-      equivSet.add(`${skuUpper}E`);
-    }
-
-    // ¿Está publicado el SKU o alguna equivalencia?
-    let isPublished = publishedSet.has(skuUpper);
-    if (!isPublished) {
-      for (const eq of equivSet) {
-        if (publishedSet.has(eq)) {
-          isPublished = true;
-          break;
-        }
-      }
-    }
+    const equivSet = collectEquivCodes(item, equivMap);
+    const isPublished = isPublishedAgainstSet(skuUpper, equivSet, publishedSet);
 
     if (!isPublished) {
       missingItems.push({
@@ -426,8 +407,10 @@ export async function getMissingItemsBySubline(co_subl, { page = 1, limit = 50, 
     const suffixes = ['-0', '-1', '-2', '-3', '-4', ''];
     const extensions = ['.jpg', '.jpeg', '.png'];
 
-    // Códigos a probar para fotos: SKU principal + todas sus equivalencias
-    const candidateCodes = [skuLower, ...(item.equivalencias || []).map(e => e.toLowerCase())];
+    // REGLA DE NEGOCIO: fotos SOLO del SKU oficial (co_art).
+    // Equivalencias OEM pueden ser la misma pieza pero OTRA marca/etiqueta
+    // (ej. MGM162R=Indomax vs CM-4602=Dauplas). No reutilizar esas fotos.
+    const candidateCodes = [skuLower];
 
     for (const code of candidateCodes) {
       for (const sfx of suffixes) {

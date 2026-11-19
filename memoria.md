@@ -17,7 +17,7 @@
   - **Backend:** Next.js Route Handlers (`src/app/api/...`), Server-Sent Events (SSE).
   - **Base de Datos App:** PostgreSQL local R630 (`192.168.1.58:5432`) — tablas `products`, `orphan_proposals`, cuentas OAuth, etc. (cliente admin + `pgPool` en `src/lib/supabase-admin.js`).
   - **ERP origen:** Profit Plus SQL Server `192.168.1.10:1433` / `RWC20_A` — **solo lectura**.
-  - **Fotos:** red `\\192.168.1.10\e\FOTOS` → en contenedor debe montarse `/mnt/fotos` (pendiente infra).
+  - **Fotos:** `\\Servidor\e\FOTOS` (= `F:` / `\\192.168.1.10\e\FOTOS`, ~39k). En Docker Linux del R630 el UNC no se lee: usar `/mnt/fotos` **o** Photo Bridge `192.168.1.97:8088` (`scripts/photo-bridge.js`).
   - **IA:** Google Gemini 3.6 Flash (`src/lib/gemini.js`) con pool round-robin de 4 API Keys (60 RPM).
   - **Scraping (Opcional):** Microservicio Python FastAPI en `scrapling-service` (Scrapling + Camoufox).
 
@@ -100,7 +100,7 @@ node -e "const { generateWithGemini } = require('./src/lib/gemini.js'); generate
 ---
 
 ## 📋 5. Pendientes y Roadmap Futuro
-- [ ] **INFRA URGENTE:** Montar share CIFS de fotos `\\192.168.1.10\e\FOTOS` en Dell R630 como `/mnt/fotos` (cifs-utils, solo lectura) y bind-mount en Coolify app `mercadolibre-erp-2026` → contenedor `/mnt/fotos`. El código ya lee `/mnt/fotos` (`missing-service.js`, `api/profit/photos`).
+- [x] **INFRA FOTOS:** Share `\\Servidor\e\FOTOS` + Photo Bridge `.97:8088` (o `/mnt/fotos`). El UNC solo no basta dentro del contenedor Linux.
 - [ ] Conectar el catálogo de pesos (`catalogo_pesos_mercadoenvios_300g.xlsx`) directamente al payload de creación/actualización de publicaciones (`shipping.dimensions` / `attributes.PACKAGE_WEIGHT`).
 - [ ] Auditoría de publicaciones activas con peso en 0 en Mercado Libre para actualizarles el peso vía API antes de generar envíos.
 - [ ] Panel web para editar y crear nuevas reglas de mapeo de sublíneas visualmente.
@@ -152,10 +152,18 @@ Se completó la ingeniería inversa forense mediante el servidor MCP de **REA (`
    - Tabla PG: `orphan_proposals`. Aprobar actualiza `SELLER_SKU`, precio, stock y reactiva en ML.
 6. **Módulo Faltantes por sublínea:** `/dashboard/missing` + `src/modules/profit/missing-service.js` (lotes, equivalencias/OEM, fotos, export SEO/RWC 2 hojas).
 
+#### Sesión 2026-11-18 (Cursor) — Faltantes: fotos + categorías
+- **Causa fotos en 0:** Photo Bridge `192.168.1.97:8088` estaba apagado. UNC `\\Servidor\e\FOTOS` no alcanza dentro del Docker Linux; el bridge (o `/mnt/fotos`) es obligatorio.
+- **Fix vivo inmediato:** reiniciado `node scripts/photo-bridge.js` (39,320 fotos). API R630: MANGUERA `con_foto=61` otra vez.
+- **Código:** `src/lib/photos-fs.js` (centraliza FS+bridge, no cachea vacío largo, skip UNC en Linux); `missing-service.js` lee `ml_category_id` + fallback `.erp_settings.json` y alinea conteo resumen con equivalencias; `api/profit/photos` usa `readPhotoFile`.
+- **REGLA FOTOS (negocio):** match de imágenes **solo por SKU oficial** `{co_art}-n.jpg`. NO usar equivalencias/OEM para fotos: misma pieza puede llevar otra marca/etiqueta (ej. `96419280` MORUCH no debe tomar `MGM162R` Indomax ni `TX-0533`; Dauplas `CM-4602` ≠ `CM-13763` en empaque). Equivalencias sí siguen valiendo para “¿ya publicado?”.
+- **Pendiente deploy Coolify** para categoría/conteos + regla fotos-solo-SKU.
+
 #### 🔜 Siguiente acción recomendada
-1. En R630: instalar `cifs-utils`, montar `//192.168.1.10/e/FOTOS` → `/mnt/fotos` (**credenciales fuera del repo**; no commitear password).
-2. Coolify → Storages → Bind Mount Host `/mnt/fotos` → Contenedor `/mnt/fotos`.
-3. Probar publicación/faltantes leyendo fotos reales desde el contenedor.
+1. Redeploy ERP en Coolify para aplicar fix `ml_category_id` + conteo equivalencias.
+2. Dejar Photo Bridge auto-start en la PC `.97` (o confirmar `/mnt/fotos` CIFS estable en R630).
+3. Conectar catálogo de pesos al payload de publicación.
+4. Verificar / implementar **PxQ B2B %**.
 
 #### ⚠️ Archivos calientes (un escritor a la vez)
 `publish-helpers.js`, `meli.js`, `MassPublisherModal.*`, `orphan-service.js`, `missing-service.js`, páginas `orphans` / `missing`.

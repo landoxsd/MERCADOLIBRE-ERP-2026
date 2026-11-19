@@ -7,6 +7,11 @@ import path from "path";
 import sharp from "sharp";
 import { uploadPicture } from "@/lib/meli";
 import { uploadImageToStorage } from "@/lib/supabase-admin";
+import {
+  resolveLocalPhotosDir,
+  getLocalPhotosMap,
+  readPhotoFile,
+} from "@/lib/photos-fs";
 
 const MELI_BASE_URL = "https://api.mercadolibre.com";
 export const OFFICIAL_STORE_PLACEHOLDER =
@@ -14,32 +19,17 @@ export const OFFICIAL_STORE_PLACEHOLDER =
 let cachedPlaceholderPicId = null;
 
 /**
- * Resuelve el directorio efectivo de fotos probando primero la ruta solicitada
- * y luego las rutas candidatas en vivo (\\192.168.1.10\e\FOTOS en Windows, /mnt/fotos en R630).
+ * Resuelve el directorio efectivo de fotos.
+ * En Windows: \\Servidor\e\FOTOS / F:\ funcionan.
+ * En Linux/Docker (R630): solo /mnt/fotos (CIFS) — el UNC no es legible desde el contenedor;
+ * el publicador usa Photo Bridge HTTP como fallback al leer archivos individuales.
  */
 export function resolveEffectivePhotosDir(requestedPath = "", fallbackSettingsPath = "") {
-  const candidates = [
+  const found = resolveLocalPhotosDir([
     requestedPath && String(requestedPath).trim(),
-    process.env.PHOTOS_PATH || "",
-    "/mnt/fotos",
-    "\\\\192.168.1.10\\e\\FOTOS",
-    "\\\\Servidor\\e\\FOTOS",
     fallbackSettingsPath && String(fallbackSettingsPath).trim(),
-    "F:\\",
-    "C:\\Users\\ORLANDO\\Pictures\\FOTOS",
-    "/fotos",
-  ].filter(Boolean);
-
-  for (const dir of candidates) {
-    try {
-      if (fs.existsSync(dir)) {
-        return dir;
-      }
-    } catch {
-      // Continuar con siguiente candidato
-    }
-  }
-  return requestedPath || fallbackSettingsPath || "";
+  ]);
+  return found || requestedPath || fallbackSettingsPath || "";
 }
 
 /**
@@ -394,11 +384,17 @@ export function formatSEOTitle(rawTitle, options = {}) {
   return optimizeAutomotiveSEOTitle(rawTitle, options);
 }
 
+/**
+ * Empareja archivos {SKU}-0.jpg … {SKU}-n.jpg.
+ * Por defecto SOLO el SKU oficial: equivalencias OEM pueden compartir pieza
+ * pero no empaque/logo (Indomax vs Dauplas, etc.).
+ * Pasar includeEquivalencias:true solo si se quiere el comportamiento antiguo.
+ */
 export function matchLocalPhotoFiles(
   sku,
   localFiles,
   maxPhotos = 6,
-  { equivalencias = [], oem = "", explicitPhotos = [] } = {}
+  { equivalencias = [], oem = "", explicitPhotos = [], includeEquivalencias = false } = {}
 ) {
   if (!localFiles?.length && !explicitPhotos?.length) return [];
 
@@ -408,15 +404,18 @@ export function matchLocalPhotoFiles(
 
   const candidateCodes = new Set();
   if (sku) candidateCodes.add(String(sku).trim().toLowerCase());
-  if (Array.isArray(equivalencias)) {
-    for (const eq of equivalencias) {
-      if (eq) candidateCodes.add(String(eq).trim().toLowerCase());
+
+  if (includeEquivalencias) {
+    if (Array.isArray(equivalencias)) {
+      for (const eq of equivalencias) {
+        if (eq) candidateCodes.add(String(eq).trim().toLowerCase());
+      }
     }
-  }
-  if (oem) {
-    for (const part of String(oem).split(/[,;/]+/)) {
-      const clean = part.trim().toLowerCase();
-      if (clean) candidateCodes.add(clean);
+    if (oem) {
+      for (const part of String(oem).split(/[,;/]+/)) {
+        const clean = part.trim().toLowerCase();
+        if (clean) candidateCodes.add(clean);
+      }
     }
   }
 
@@ -466,35 +465,18 @@ export async function loadAvailablePhotoFiles(effectivePhotosPath = "") {
       // fallback to bridge
     }
   }
-  const bridgeUrl = process.env.PHOTO_BRIDGE_URL || "http://192.168.1.97:8088";
   try {
-    const res = await fetch(`${bridgeUrl}/list`, { signal: AbortSignal.timeout(4000) });
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data.files)) return data.files;
-    }
+    const map = await getLocalPhotosMap([effectivePhotosPath]);
+    if (map.size > 0) return Array.from(map.values());
   } catch {
-    // Bridge no disponible
+    // Bridge / disco no disponible
   }
   return [];
 }
 
 async function readPhotoBuffer(photosPath, fileName) {
-  if (photosPath && fs.existsSync(photosPath)) {
-    const filePath = path.join(photosPath, fileName);
-    if (fs.existsSync(filePath)) {
-      return fs.readFileSync(filePath);
-    }
-  }
-  const bridgeUrl = process.env.PHOTO_BRIDGE_URL || "http://192.168.1.97:8088";
-  const res = await fetch(`${bridgeUrl}/file?name=${encodeURIComponent(fileName)}`, {
-    signal: AbortSignal.timeout(6000),
-  });
-  if (res.ok) {
-    const ab = await res.arrayBuffer();
-    return Buffer.from(ab);
-  }
-  return null;
+  const found = await readPhotoFile(fileName, photosPath ? [photosPath] : []);
+  return found?.buffer || null;
 }
 
 export async function uploadLocalPictures({
